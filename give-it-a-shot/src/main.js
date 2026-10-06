@@ -16,3 +16,8 @@ view = mount(root, template, () => {
 window.__app = app; // handy for debugging and tests
 app.init();
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (app.state.authOpen) app.setState({ authOpen: false }); else if (app.state.story != null) app.setState({ story: null }); } });
+
+// PWA: offline-capable shell (production only, so dev and tests are unaffected)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}

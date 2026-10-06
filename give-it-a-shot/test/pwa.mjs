@@ -1,0 +1,17 @@
+import { createRequire } from 'node:module';
+const require = createRequire('/opt/npm-tools/node_modules/');
+const { chromium } = require('playwright');
+const URL = process.env.URL || 'http://localhost:4173/';
+const b = await chromium.launch();
+const ctx = await b.newContext();
+const p = await ctx.newPage();
+await p.goto(URL); await p.waitForLoadState('networkidle');
+const reg = await p.evaluate(async () => { const r = await navigator.serviceWorker.ready; return !!r.active; });
+await p.reload(); await p.waitForLoadState('networkidle');
+const m = await p.evaluate(async () => { const r = await fetch('/manifest.webmanifest'); return r.json(); });
+console.log('sw active:', reg, '| manifest:', m.name, m.display, m.icons.length, 'icons');
+await ctx.setOffline(true);
+await p.reload(); await p.waitForTimeout(1500);
+const txt = await p.evaluate(() => document.body.innerText.slice(0, 80).replace(/\n/g, ' '));
+console.log('offline render:', txt);
+await b.close();
