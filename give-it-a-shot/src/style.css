@@ -1,0 +1,70 @@
+html,body{margin:0;height:100%;background:#0b1424}
+body{overflow:hidden}
+#viewport{position:fixed;inset:0;overflow:hidden}
+#app{position:absolute;inset:0}
+button{font-family:'Space Grotesk',sans-serif}
+.btn{transition:transform .15s ease,filter .15s ease,box-shadow .15s ease}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.1);box-shadow:0 6px 16px rgba(0,0,0,.28)}
+.btn:active{transform:scale(.97);filter:brightness(.95)}
+button:focus-visible,input:focus-visible{outline:3px solid #ffd166;outline-offset:2px}
+.mapsvg{width:100%;height:auto}
+.mapcol{width:100%!important;max-width:800px;flex:1 1 480px!important}
+.mapwrap{flex-wrap:wrap}
+.mapside{min-width:280px}
+@keyframes inA{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes inB{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes popA{from{opacity:0;transform:scale(.8)}60%{transform:scale(1.06)}to{opacity:1;transform:none}}
+@keyframes popB{from{opacity:0;transform:scale(.8)}60%{transform:scale(1.06)}to{opacity:1;transform:none}}
+@keyframes slideInA{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+@keyframes slideInB{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:none}}
+@keyframes outSign{to{opacity:0;transform:translateX(90px) rotate(4deg)}}
+@keyframes outVeto{to{opacity:0;transform:translateX(-90px) rotate(-4deg)}}
+@keyframes stampIn{from{opacity:0;transform:rotate(-8deg) scale(1.9)}to{opacity:1;transform:rotate(-8deg) scale(1)}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,.7)}50%{box-shadow:0 0 0 6px rgba(255,209,102,0)}}
+@keyframes shakeX{0%,100%{transform:none}15%{transform:translateX(-8px)}30%{transform:translateX(8px)}45%{transform:translateX(-6px)}60%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
+@keyframes fallA{from{transform:translateY(-30px) rotate(0);opacity:1}to{transform:translateY(1000px) rotate(900deg);opacity:1}}
+@keyframes fallB{from{transform:translateY(-30px) rotate(0);opacity:1}to{transform:translateY(1000px) rotate(900deg);opacity:1}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes glow{0%,100%{text-shadow:0 0 0 rgba(255,209,102,0)}50%{text-shadow:0 0 22px rgba(255,209,102,.55)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* medium screens */
+@media (max-width:1100px){
+  .hdr-right .daydots{display:none!important}
+  .mapcol{max-width:none}
+}
+/* phones */
+@media (max-width:720px){
+  .root{padding:10px 10px 12px 10px!important;gap:8px!important}
+  .hdr{height:auto!important;flex-wrap:wrap!important;gap:8px 10px!important;row-gap:8px!important}
+  .hdr > div:first-child{order:1;flex:1;min-width:0}
+  .hdr-right{order:2;gap:8px!important}
+  .tabs{order:3;width:100%;gap:6px!important}
+  .tabs .btn{flex:1;padding:0 6px!important;height:38px!important;font-size:13px!important}
+  .hdr svg{width:26px!important;height:26px!important}
+  .hdr div[style*="font-size: 24px"]{font-size:19px!important;white-space:nowrap}
+  .hdr-right button{height:34px!important;padding:0 10px!important;font-size:12.5px!important;max-width:120px!important}
+  .hdr-right > div:last-child{min-width:0!important;font-size:13px!important}
+  .stats{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important}
+  .stats > div{padding:6px 8px!important}
+  .needlebar{flex-wrap:wrap!important;gap:4px 8px!important;padding:8px 10px!important}
+  .needlebar > div:nth-child(2){order:3;flex:1 0 100%!important}
+  .needlebar > div:nth-child(1){order:1}
+  .needlebar > div:nth-child(3){order:2;margin-left:auto}
+  .needlebar > div:nth-child(4){order:4;flex:1 0 100%;text-align:center!important;min-width:0!important}
+  .needleword{min-width:0!important;white-space:normal!important}
+  .main{padding:14px 12px!important;border-radius:12px!important}
+  .g2{grid-template-columns:1fr!important}
+  .mapwrap{gap:14px!important}
+  .mapside{min-width:0!important;flex:1 0 100%!important}
+  .lbgrid{grid-template-columns:28px 1fr 56px 38px 38px!important;gap:6px!important;padding-left:8px!important;padding-right:8px!important}
+  .lbgrid > :nth-child(4){display:none!important}
+  .main div[style*="font-size: 30px"]{font-size:24px!important}
+  .main div[style*="font-size: 34px"]{font-size:27px!important}
+  .main div[style*="font-size: 27px"]{font-size:22px!important}
+  .main div[style*="font-size: 64px"]{font-size:52px!important}
+  .main div[style*="padding: 22px 24px"]{padding:16px 16px!important}
+  article{padding:20px 20px 22px!important}
+  article div[style*="font-size: 30px"]{font-size:23px!important}
+  [role=dialog]{padding:20px 18px!important}
+}

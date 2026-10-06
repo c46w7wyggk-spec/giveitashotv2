@@ -1,0 +1,20 @@
+{
+  "name": "give-it-a-shot",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "test": "node test/replay.mjs && node test/replay-slim.mjs",
+    "make-server-engine": "node scripts/make-server-engine.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "morphdom": "^2.7.4"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

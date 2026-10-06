@@ -1,0 +1,507 @@
+<div class="root" style="position: relative; width: 100%; height: 100%; max-width: 1480px; margin: 0 auto; box-sizing: border-box; padding: 20px 24px 24px 24px; background: #0f1b2d; color: #eef1f6; font-family: 'Space Grotesk', sans-serif; display: flex; flex-direction: column; gap: 12px; overflow: hidden">
+
+  <header class="hdr" style="display: flex; align-items: center; justify-content: space-between; gap: 20px; height: 50px; flex: none">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="#eef1f6"></path></svg>
+      <div>
+        <div style="font-family: 'Alfa Slab One', serif; font-size: 24px; line-height: 1; letter-spacing: 0.5px">GIVE IT A SHOT</div>
+        <div style="font-size: 12px; color: #a9b9d0; margin-top: 3px">{{leader}} of the United States of Questionable Economies</div>
+      </div>
+    </div>
+    <div class="tabs" style="display: flex; gap: 8px">
+      <button class="btn" type="button" onClick="{{goOffice}}" style="{{tabOfficeStyle}}">{{officeLabel}}</button>
+      <button class="btn" type="button" onClick="{{goMap}}" style="{{tabMapStyle}}">Map</button>
+      <button class="btn" type="button" onClick="{{goScores}}" style="{{tabScoresStyle}}">Scores</button>
+    </div>
+    <div class="hdr-right" style="display: flex; align-items: center; gap: 12px">
+      <button class="btn" type="button" onClick="{{authClick}}" style="{{authStyle}}">{{authLabel}}</button>
+      <div class="daydots" style="display: flex; gap: 4px" aria-hidden="true">
+        <sc-for list="{{dots}}" as="dt" hint-placeholder-count="14">
+          <span style="{{dt.style}}"></span>
+        </sc-for>
+      </div>
+      <div style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 18px; min-width: 100px; text-align: right">{{dayLabel}}</div>
+    </div>
+  </header>
+
+  <section class="stats" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; flex: none">
+    <sc-for list="{{stats}}" as="s" hint-placeholder-count="6">
+      <div style="padding: 7px 12px; background: #162a45; border: 1px solid #24405f; border-radius: 10px; {{s.tileAnim}}">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 6px">
+          <span style="font-size: 10.5px; letter-spacing: 0.8px; text-transform: uppercase; color: #a9b9d0">{{s.label}}</span>
+          <sc-if value="{{s.hasMeter}}" hint-placeholder-val="{{false}}">
+            <span style="{{s.meterWordStyle}}">{{s.meterWord}}</span>
+          </sc-if>
+        </div>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px">
+          <span style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 19px">{{s.value}}</span>
+          <span style="{{s.deltaStyle}}">{{s.delta}}</span>
+        </div>
+        <sc-if value="{{s.hasMeter}}" hint-placeholder-val="{{false}}">
+          <div style="position: relative; height: 8px; margin-top: 5px; border-radius: 4px; background: linear-gradient(90deg, #3fae6a 0%, #3fae6a 33%, #e6b93b 33%, #e6b93b 67%, #d64545 67%, #d64545 100%)">
+            <div style="position: absolute; top: -3px; width: 4px; height: 14px; border-radius: 2px; background: #ffffff; box-shadow: 0 0 0 1.5px #0f1b2d; margin-left: -2px; transition: left .5s ease; left: {{s.meterPos}}"></div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </section>
+
+  <section class="needlebar" style="display: flex; align-items: center; gap: 14px; padding: 8px 16px; background: #162a45; border: 1px solid #24405f; border-radius: 10px; flex: none">
+    <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #f4a874; white-space: nowrap">PLANNED</div>
+    <div style="position: relative; height: 26px; flex: 1">
+      <div style="position: absolute; left: 0; right: 0; top: 7px; height: 12px; border-radius: 6px; background: linear-gradient(90deg, #b4531c, #ece6d6 50%, #1f5a9e)"></div>
+      <div style="position: absolute; left: 50%; top: 4px; width: 2px; height: 18px; margin-left: -1px; background: rgba(15, 27, 45, 0.55)"></div>
+      <div style="{{needleStyle}}">
+        <div style="width: 6px; height: 26px; border-radius: 3px; background: #ffffff; box-shadow: 0 0 0 2px #0f1b2d"></div>
+      </div>
+    </div>
+    <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #8fc0f2; white-space: nowrap">FREE MARKET</div>
+    <div class="needleword" style="font-size: 12.5px; white-space: nowrap; min-width: 190px; text-align: right"><b>{{needleWord}}</b> <span style="font-family: 'Space Mono', monospace; color: #a9b9d0">{{needleSub}}</span></div>
+  </section>
+
+  <section class="main" style="flex: 1; min-height: 0; background: #162a45; border: 1px solid #24405f; border-radius: 14px; overflow-y: auto; padding: 22px 24px">
+
+    <sc-if value="{{isOffice}}" hint-placeholder-val="{{true}}">
+    <div style="max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; {{enter}}">
+
+      <sc-if value="{{isTitle}}" hint-placeholder-val="{{true}}">
+        <div style="font-family: 'Alfa Slab One', serif; font-size: 30px; line-height: 1.1">You have 14 days in office.</div>
+        <div style="font-size: 15.5px; line-height: 1.5; color: #d3deee">Memos land on your desk one at a time. Sign or veto. Disasters, wars and angry crowds will interrupt, and when people strike or riot, you decide how to make peace. Effects are exaggerated so two weeks is enough to see them.</div>
+        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">PICK YOUR ROLE. IT CHANGES THE RULES, NOT JUST THE NAME.</div>
+        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+          <sc-for list="{{titles}}" as="tt" hint-placeholder-count="4">
+            <button class="btn" type="button" onClick="{{tt.pick}}" style="{{tt.style}}">
+              <span style="font-family: 'Alfa Slab One', serif; font-size: 19px">{{tt.label}}</span>
+              <span style="font-size: 12px; color: #a9b9d0; margin-top: -3px">{{tt.tag}}</span>
+              <sc-for list="{{tt.perks}}" as="pk" hint-placeholder-count="2">
+                <span style="font-size: 12.5px; line-height: 1.35; color: #c9f2d8"><b style="color: #7be0a3">+</b> {{pk.t}}</span>
+              </sc-for>
+              <sc-for list="{{tt.flaws}}" as="fl" hint-placeholder-count="2">
+                <span style="font-size: 12.5px; line-height: 1.35; color: #ffd0cc"><b style="color: #ff9d96">−</b> {{fl.t}}</span>
+              </sc-for>
+            </button>
+          </sc-for>
+        </div>
+        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">CHOOSE A MODE</div>
+        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+          <button class="btn" type="button" onClick="{{pickFree}}" style="{{modeFreeStyle}}">
+            <span style="font-family: 'Alfa Slab One', serif; font-size: 17px">Free Play</span>
+            <span style="font-size: 12.5px; color: #a9b9d0">A fresh random term every time.</span>
+          </button>
+          <button class="btn" type="button" onClick="{{pickDaily}}" style="{{modeDailyStyle}}">
+            <span style="font-family: 'Alfa Slab One', serif; font-size: 17px">Daily Executive</span>
+            <span style="font-size: 12.5px; color: #a9b9d0">{{dailyLine}}</span>
+          </button>
+        </div>
+        <button class="btn" type="button" onClick="{{begin}}" style="height: 56px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 17px; font-weight: 700; cursor: pointer">{{beginLabel}}</button>
+      </sc-if>
+
+      <sc-if value="{{isDesk}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; align-items: center; justify-content: space-between">
+          <div style="font-size: 13px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">MEMO {{memoNo}} OF {{memoTotal}}</div>
+          <div style="display: flex; gap: 6px">
+            <sc-for list="{{memoDots}}" as="md" hint-placeholder-count="3">
+              <span style="{{md.style}}"></span>
+            </sc-for>
+          </div>
+        </div>
+        <div style="position: relative; background: #112238; border: 1px solid #24405f; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; {{memoCardAnim}}">
+          <sc-if value="{{leaving}}" hint-placeholder-val="{{false}}">
+            <div style="{{stampStyle}}">{{stampText}}</div>
+          </sc-if>
+          <div><span style="{{memoLeanStyle}}">{{memoLeanLabel}}</span></div>
+          <div style="font-family: 'Alfa Slab One', serif; font-size: 27px; line-height: 1.15">{{memoTitle}}</div>
+          <div style="font-size: 16px; line-height: 1.45; color: #d3deee">{{memoText}}</div>
+          <div>
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0; margin-bottom: 8px">IF YOU SIGN (EXPECTED, ARRIVES OVER ~3 DAYS)</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+              <sc-for list="{{memoChips}}" as="c" hint-placeholder-count="4">
+                <span style="{{c.style}}">{{c.t}}</span>
+              </sc-for>
+            </div>
+            <div style="font-size: 12.5px; color: #a9b9d0; margin-top: 8px">Uncertainty: {{memoUnc}}. The real result is a draw around these numbers.</div>
+          </div>
+          <button class="btn" type="button" onClick="{{toggleEv}}" style="align-self: flex-start; height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 13px; font-weight: 500; cursor: pointer">{{evLabel}}</button>
+          <sc-if value="{{showEv}}" hint-placeholder-val="{{false}}">
+            <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: #0f1b2d; border-radius: 10px; font-size: 13.5px; line-height: 1.45; color: #c3d1e6">
+              <div><b style="color: #eef1f6">Real world.</b> {{memoReal}}</div>
+              <div><b style="color: #7be0a3">Supporters say:</b> {{memoPro}}</div>
+              <div><b style="color: #ff9d96">Critics say:</b> {{memoCon}}</div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="display: flex; gap: 14px">
+          <button class="btn" type="button" onClick="{{veto}}" style="border-radius:12px;border:0;cursor:pointer;font-size:17px;font-weight:700;height:60px;flex:1;background:#d64545;color:#ffffff">Veto</button>
+          <button class="btn" type="button" onClick="{{sign}}" style="border-radius:12px;border:0;cursor:pointer;font-size:17px;font-weight:700;height:60px;flex:1;background:#5fd08b;color:#0b2a17">Sign it</button>
+        </div>
+        <div style="font-size: 12px; line-height: 1.4; color: #a9b9d0">Playing as {{roleLine}}</div>
+        <sc-if value="{{hasToday}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+            <span style="font-size: 12px; color: #a9b9d0">Earlier today:</span>
+            <sc-for list="{{todayDone}}" as="td" hint-placeholder-count="2">
+              <span style="{{td.style}}">{{td.t}}</span>
+            </sc-for>
+          </div>
+        </sc-if>
+      </sc-if>
+
+      <sc-if value="{{isQuiet}}" hint-placeholder-val="{{false}}">
+        <div style="font-family: 'Alfa Slab One', serif; font-size: 26px">A quiet morning.</div>
+        <div style="font-size: 16px; color: #d3deee">The desk is empty: you have already dealt with every memo in the building.</div>
+        <button class="btn" type="button" onClick="{{endQuiet}}" style="height: 56px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 17px; font-weight: 700; cursor: pointer">End the day</button>
+      </sc-if>
+
+      <sc-if value="{{isIncident}}" hint-placeholder-val="{{false}}">
+        <div style="{{incBanner}}">{{incKind}}</div>
+        <div style="font-family: 'Alfa Slab One', serif; font-size: 28px; line-height: 1.15; {{incTitleAnim}}">{{incTitle}}</div>
+        <div style="font-size: 16px; line-height: 1.45; color: #d3deee">{{incText}}</div>
+        <div style="font-size: 13px; line-height: 1.4; color: #a9b9d0"><b style="color: #eef1f6">Real world.</b> {{incReal}}</div>
+        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">YOUR MOVE</div>
+        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+          <sc-for list="{{incOpts}}" as="o" hint-placeholder-count="4">
+            <button class="btn" type="button" onClick="{{o.pick}}" style="display: flex; flex-direction: column; gap: 7px; align-items: flex-start; text-align: left; padding: 13px 15px; border-radius: 12px; border: 1px solid #3a5a82; background: #112238; color: #eef1f6; cursor: pointer; {{o.anim}}">
+              <span style="font-weight: 700; font-size: 16px">{{o.label}}</span>
+              <span style="font-size: 13px; line-height: 1.35; color: #c3d1e6">{{o.desc}}</span>
+              <span style="display: flex; flex-wrap: wrap; gap: 6px">
+                <sc-for list="{{o.chips}}" as="c" hint-placeholder-count="3">
+                  <span style="{{c.style}}">{{c.t}}</span>
+                </sc-for>
+              </span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isBrief}}" hint-placeholder-val="{{false}}">
+        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.6px; color: #ffd166">OVERNIGHT HEADLINES (TAP ONE TO READ IT)</div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <sc-for list="{{news}}" as="n" hint-placeholder-count="3">
+            <button class="btn" type="button" onClick="{{n.open}}" style="text-align: left; display: flex; flex-direction: column; gap: 5px; padding: 12px 14px; background: #112238; border: 0; border-left: 4px solid #ffd166; border-radius: 6px; color: #eef1f6; cursor: pointer; {{n.anim}}">
+              <span style="font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #ffd166">{{n.outlet}}</span>
+              <span style="font-family: 'Alfa Slab One', serif; font-size: 18px; line-height: 1.25">{{n.t}}</span>
+              <span style="font-size: 12px; color: #a9b9d0">Tap to read the story</span>
+            </button>
+          </sc-for>
+        </div>
+        <sc-if value="{{hasResults}}" hint-placeholder-val="{{true}}">
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">WHAT YOUR SIGNATURES DID (FULL STRENGTH, ARRIVING OVER ~3 DAYS)</div>
+          <sc-for list="{{results}}" as="r" hint-placeholder-count="2">
+            <div style="padding: 11px 14px; background: #112238; border-radius: 10px; display: flex; flex-direction: column; gap: 7px; {{r.anim}}">
+              <div style="font-weight: 700; font-size: 15px">{{r.title}}</div>
+              <div style="display: flex; flex-wrap: wrap; gap: 6px">
+                <sc-for list="{{r.chips}}" as="c" hint-placeholder-count="4">
+                  <span style="{{c.style}}">{{c.t}}</span>
+                </sc-for>
+              </div>
+              <div style="font-size: 12.5px; color: #a9b9d0">{{r.note}}</div>
+            </div>
+          </sc-for>
+        </sc-if>
+        <button class="btn" type="button" onClick="{{nextMorning}}" style="height: 56px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 17px; font-weight: 700; cursor: pointer">{{nextLabel}}</button>
+      </sc-if>
+
+      <sc-if value="{{isEnd}}" hint-placeholder-val="{{false}}">
+        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.6px; color: #ffd166">{{endKicker}}</div>
+        <div style="font-family: 'Alfa Slab One', serif; font-size: 34px; line-height: 1.1; animation: glow 2.4s ease-in-out infinite">{{endTitle}}</div>
+        <div style="font-size: 16px; line-height: 1.45; color: #d3deee">{{endLine}} {{celebrateLine}}</div>
+        <div style="display: flex; align-items: center; gap: 22px; padding: 16px 20px; background: #112238; border-radius: 14px">
+          <div style="font-family: 'Alfa Slab One', serif; font-size: 64px; line-height: 1; color: #ffd166">{{scoreText}}</div>
+          <div>
+            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.4px; color: #a9b9d0">FINAL SCORE (MAX 1,050)</div>
+            <div style="font-size: 13.5px; color: #d3deee; margin-top: 4px">{{rankText}}</div>
+          </div>
+        </div>
+        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+          <div style="padding: 14px 16px; background: #112238; border-radius: 14px; display: flex; flex-direction: column; gap: 6px">
+            <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1.2px; color: #8fc0f2">CONSERVATIVES GIVE YOU</div>
+            <div style="display: flex; align-items: baseline; gap: 10px"><span style="font-family: 'Alfa Slab One', serif; font-size: 52px; line-height: 1; color: {{gC.color}}; animation: stampIn .4s ease-out .3s both">{{gC.letter}}</span><span style="font-family: 'Space Mono', monospace; font-size: 13px; color: #a9b9d0">{{gC.pct}}/100</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #c3d1e6; font-style: italic">"{{gC.quip}}"</div>
+            <div style="font-size: 11px; color: #a9b9d0">Cares about: direction toward markets, deficit, inflation, growth, calm.</div>
+          </div>
+          <div style="padding: 14px 16px; background: #112238; border-radius: 14px; display: flex; flex-direction: column; gap: 6px">
+            <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1.2px; color: #f4a874">LIBERALS GIVE YOU</div>
+            <div style="display: flex; align-items: baseline; gap: 10px"><span style="font-family: 'Alfa Slab One', serif; font-size: 52px; line-height: 1; color: {{gL.color}}; animation: stampIn .4s ease-out .5s both">{{gL.letter}}</span><span style="font-family: 'Space Mono', monospace; font-size: 13px; color: #a9b9d0">{{gL.pct}}/100</span></div>
+            <div style="font-size: 13px; line-height: 1.4; color: #c3d1e6; font-style: italic">"{{gL.quip}}"</div>
+            <div style="font-size: 11px; color: #a9b9d0">Cares about: direction toward planning, jobs, cost of living, approval, calm.</div>
+          </div>
+        </div>
+        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">HOW YOUR SCORE WAS BUILT (OBJECTIVE, SAME FOR EVERYONE)</div>
+        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+          <sc-for list="{{scoreRows}}" as="r" hint-placeholder-count="6">
+            <div style="padding: 9px 12px; background: #112238; border-radius: 10px; display: flex; flex-direction: column; gap: 5px">
+              <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-weight: 700; font-size: 13.5px">{{r.label}} <span style="font-weight: 400; font-size: 11px; color: #a9b9d0">(weight {{r.weight}})</span></span><span style="font-family: 'Space Mono', monospace; font-size: 12px; color: #a9b9d0">{{r.pts}}</span></div>
+              <div style="height: 8px; border-radius: 4px; background: #24405f"><div style="{{r.barStyle}}"></div></div>
+              <div style="font-size: 11.5px; color: #a9b9d0">{{r.value}}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size: 11.5px; line-height: 1.4; color: #a9b9d0">Score = 200 plus 16 points for every point your weighted meter average (0-100) sits above 35, plus 50 for finishing the term. Doing nothing lands near 600. An early ending cuts the total by 40%. Grades use the same meters with each side's own priorities, so one run can earn an A from one side and a D from the other.</div>
+        <div style="display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; background: #112238; border-radius: 14px">
+          <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">{{postTitle}}</div>
+          <sc-if value="{{showSignIn}}" hint-placeholder-val="{{true}}">
+            <div style="display: flex; align-items: center; gap: 14px">
+              <span style="flex: 1; font-size: 14px; line-height: 1.4; color: #d3deee">{{signInPitch}}</span>
+              <button class="btn" type="button" onClick="{{authClick}}" style="height: 48px; padding: 0 20px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 15px; font-weight: 700; cursor: pointer">{{signInLabel}}</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{showPost}}" hint-placeholder-val="{{false}}">
+            <div style="display: flex; align-items: center; gap: 14px">
+              <span style="flex: 1; font-size: 14px; color: #d3deee">Posting as <b>{{postHandle}}</b></span>
+              <button class="btn" type="button" onClick="{{submit}}" style="{{submitStyle}}">{{submitLabel}}</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{showPosted}}" hint-placeholder-val="{{false}}">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px">
+              <span style="font-size: 14px; color: #7be0a3">{{lbMsg}}</span>
+              <button class="btn" type="button" onClick="{{goScores}}" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 14px; font-weight: 700; cursor: pointer">See the board</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{lbErr}}" hint-placeholder-val="{{false}}">
+            <div style="font-size: 13px; color: #ff9d96">{{lbErr}}</div>
+          </sc-if>
+          <button class="btn" type="button" onClick="{{share}}" style="height: 44px; border-radius: 10px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 14px; font-weight: 700; cursor: pointer">{{shareLabel}}</button>
+        </div>
+        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">YOUR RECORD VS THE RESEARCH</div>
+        <sc-for list="{{recap}}" as="p" hint-placeholder-count="3">
+          <div style="padding: 10px 13px; background: #112238; border-radius: 10px; display: flex; flex-direction: column; gap: 5px">
+            <div style="display: flex; justify-content: space-between; gap: 8px; align-items: baseline"><span style="font-weight: 700; font-size: 14px">{{p.title}}</span><span style="font-size: 11px; color: #a9b9d0; white-space: nowrap">{{p.status}}</span></div>
+            <div style="font-size: 12.5px; line-height: 1.4; color: #a9b9d0">{{p.real}}</div>
+          </div>
+        </sc-for>
+        <div style="font-size: 12.5px; line-height: 1.45; color: #a9b9d0; padding: 10px 14px; border: 1px dashed #3a5a82; border-radius: 10px">The verdict judges consequences inside the game, not ideology. Planned and market runs both end well and badly depending on size, timing and luck. Sandbox mode with per-state dials is shelved for later.</div>
+        <button class="btn" type="button" onClick="{{again}}" style="height: 56px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 17px; font-weight: 700; cursor: pointer">Play again with a new seed</button>
+      </sc-if>
+
+    </div>
+    </sc-if>
+
+    <sc-if value="{{isMap}}" hint-placeholder-val="{{false}}">
+    <div class="mapwrap" style="display: flex; gap: 22px; align-items: flex-start; {{enter}}">
+      <div class="mapcol" style="flex: none; width: 800px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px">
+          <div style="font-family: 'Alfa Slab One', serif; font-size: 19px">The United States of Questionable Economies</div>
+          <div style="font-size: 12.5px; color: #a9b9d0">{{mapNote}}</div>
+        </div>
+        <svg class="mapsvg" viewBox="0 0 975 610" width="800" height="500" role="img" aria-label="Map of the United States colored by voter mood" style="display: block">
+<path d="M648,492L648,492L648,492ZM642,384L689,380L702,427L710,440L706,450L709,457L708,465L711,469L661,474L666,486L664,490L656,488L653,482L652,490L646,489L642,455L644,386Z" style="{{mf.AL}}" onClick="{{mp.AL}}"></path>
+<path d="M104,552L104,552L104,552ZM99,570L103,565L105,569ZM95,582L95,582L95,582ZM93,575L99,571L105,573L95,580ZM93,583L93,583L93,583ZM89,588L89,588L89,588ZM72,594L72,594L72,594ZM71,592L71,592L71,592ZM68,593L68,593L68,593ZM66,590L66,590L66,590ZM68,564L68,564L68,564ZM61,591L61,591L61,591ZM58,592L58,592L58,592ZM66,524L66,524L66,524ZM56,596L56,596L56,596ZM45,597L45,597L45,597ZM43,595L43,595L43,595ZM41,596L41,596L41,596ZM44,547L50,547L48,552ZM31,601L38,596L37,601ZM51,505L66,500L65,504L74,504L73,498L67,496L66,492L59,484L62,481L67,481L75,471L87,468L89,465L95,469L101,469L104,472L109,471L123,474L126,472L133,474L147,547L155,547L164,555L169,546L181,554L193,565L200,567L203,573L201,578L193,574L188,565L183,563L178,557L171,551L173,557L168,559L160,554L151,551L141,550L135,552L126,547L119,547L121,553L114,554L109,560L105,560L106,546L100,557L96,560L100,564L96,569L90,572L77,586L47,595L49,592L57,590L62,585L66,585L81,573L84,563L76,566L71,561L65,564L66,557L64,551L58,553L53,547L51,538L61,526L64,528L73,523L73,514L68,517L55,514L56,509ZM25,603L25,603L25,603ZM28,573L28,573L28,573ZM20,602L20,602L20,602ZM27,568L27,568L27,568ZM16,603L16,603L16,603ZM34,518L39,518L45,522L41,524ZM7,603L7,603L7,603ZM23,540L23,540L23,540ZM0,602L0,602L0,602ZM-6,601L-6,601L-6,601ZM-10,599L-10,599L-10,599ZM-11,601L-11,601L-11,601ZM-15,601L-15,601L-15,601ZM-18,600L-18,600L-18,600ZM-20,597L-20,597L-20,597ZM-30,593L-30,593L-30,593ZM-35,593L-35,593L-35,593ZM-41,589L-41,589L-41,589ZM-56,577L-56,577L-56,577ZM-58,571L-58,571L-58,571ZM197,577L197,577L197,577ZM196,577L196,577L196,577ZM195,575L195,575L195,575ZM188,570L188,570L188,570ZM187,569L187,569L187,569ZM186,577L186,577L186,577ZM185,573L187,570L194,576L196,580ZM183,574L183,574L183,574ZM180,567L185,564L189,567ZM175,556L178,557L181,563L180,566ZM174,565L177,563L181,573ZM173,566L173,566L173,566ZM169,561L172,558L177,563L174,565ZM121,555L121,555L121,555ZM120,551L120,551L120,551Z" style="{{mf.AK}}" onClick="{{mp.AK}}"></path>
+<path d="M145,407L149,407L150,401L147,400L148,392L152,389L154,380L163,374L160,370L157,356L160,331L167,331L170,335L173,331L176,313L239,324L265,328L247,456L208,450L172,429L142,412Z" style="{{mf.AZ}}" onClick="{{mp.AZ}}"></path>
+<path d="M277,237L333,244L361,247L395,249L394,272L390,341L372,339L349,338L315,334L265,328L268,299Z" style="{{mf.CO}}" onClick="{{mp.CO}}"></path>
+<path d="M815,594L815,594L815,594ZM813,596L813,596L813,596ZM807,599L807,599L807,599ZM794,604L800,598L805,600ZM790,605L790,605L790,605ZM786,605L786,605L786,605ZM777,558L777,558L777,558ZM770,606L770,606L770,606ZM720,495L720,495L720,495ZM711,469L714,475L766,471L770,476L769,466L780,466L787,486L795,500L806,514L807,522L820,544L823,554L824,575L820,586L807,590L801,578L792,575L785,563L778,557L766,543L771,533L765,530L767,534L765,537L762,533L764,517L759,505L755,505L746,498L740,491L732,487L727,487L714,501L707,500L706,494L696,488L681,486L664,490L666,486L661,474Z" style="{{mf.FL}}" onClick="{{mp.FL}}"></path>
+<path d="M689,380L713,377L735,374L732,382L741,385L748,396L762,406L766,412L771,414L774,423L786,435L783,442L781,454L778,460L780,466L769,466L770,476L766,471L714,475L711,469L708,465L709,457L706,450L710,440L702,427Z" style="{{mf.GA}}" onClick="{{mp.GA}}"></path>
+<path d="M640,230L647,231L652,228L686,224L686,225L693,284L694,292L683,295L684,298L677,305L674,313L669,309L666,314L661,313L655,319L647,315L639,320L638,317L647,298L643,288L645,284Z" style="{{mf.IN}}" onClick="{{mp.IN}}"></path>
+<path d="M394,272L422,273L465,275L510,275L516,278L514,286L519,293L522,295L523,344L489,344L433,343L390,341Z" style="{{mf.KS}}" onClick="{{mp.KS}}"></path>
+<path d="M940,115L940,115L940,115ZM938,116L938,116L938,116ZM936,112L936,112L936,112ZM932,116L932,116L932,116ZM934,125L934,125L934,125ZM931,119L931,119L931,119ZM930,116L930,116L930,116ZM910,150L905,145L891,102L894,99L900,86L898,83L900,74L899,67L906,48L912,52L923,46L930,50L939,80L945,80L946,87L952,88L957,95L953,99L950,106L947,104L944,110L939,114L937,110L936,118L931,110L930,123L918,131L913,138Z" style="{{mf.ME}}" onClick="{{mp.ME}}"></path>
+<path d="M928,187L928,187L928,187ZM918,188L921,184L925,187ZM871,168L884,165L903,161L909,155L914,158L909,166L917,171L922,178L931,177L920,183L918,179L913,186L911,183L910,182L905,176L899,178L871,184Z" style="{{mf.MA}}" onClick="{{mp.MA}}"></path>
+<path d="M479,71L511,71L511,62L516,64L520,77L531,79L532,81L540,78L563,87L566,91L577,86L578,89L588,88L596,91L582,98L559,119L560,121L556,122L556,136L551,139L548,147L551,150L550,154L549,166L564,175L565,178L572,182L576,193L549,194L491,195L491,154L484,147L489,140L489,131L486,123L485,102L481,89L481,78Z" style="{{mf.MN}}" onClick="{{mp.MN}}"></path>
+<path d="M849,246L850,244L851,241L861,231L854,226L850,221L850,214L855,204L870,209L869,216L869,217L867,221L871,222L873,237L865,257L859,254L849,246Z" style="{{mf.NJ}}" onClick="{{mp.NJ}}"></path>
+<path d="M864,329L864,329L864,329ZM863,350L863,350L863,350ZM756,334L780,331L812,326L859,316L856,317L859,323L847,333L856,330L863,329L866,335L860,344L843,343L854,347L850,356L859,354L856,361L851,361L844,365L834,377L833,384L823,386L798,368L778,371L772,365L749,367L735,374L713,377L713,371L717,369L721,363L726,362L738,350L741,351L747,345L751,346Z" style="{{mf.NC}}" onClick="{{mp.NC}}"></path>
+<path d="M377,66L404,68L445,70L479,71L481,78L481,89L485,102L486,123L489,131L489,140L460,139L412,137L371,134Z" style="{{mf.ND}}" onClick="{{mp.ND}}"></path>
+<path d="M372,339L390,341L433,343L489,344L523,344L523,355L527,381L526,421L520,418L512,413L499,415L492,420L481,414L476,419L467,413L462,413L454,409L452,411L438,404L429,403L424,398L426,354L372,351Z" style="{{mf.OK}}" onClick="{{mp.OK}}"></path>
+<path d="M756,209L768,200L769,206L800,201L841,192L847,197L850,202L855,204L850,214L850,221L854,226L861,231L851,241L845,245L816,251L782,257L765,260L761,239Z" style="{{mf.PA}}" onClick="{{mp.PA}}"></path>
+<path d="M369,156L371,134L412,137L460,139L489,140L484,147L491,154L491,195L488,195L491,204L488,212L491,218L476,210L467,210L466,212L457,206L404,204L365,201Z" style="{{mf.SD}}" onClick="{{mp.SD}}"></path>
+<path d="M372,351L426,354L424,398L429,403L438,404L452,411L454,409L462,413L467,413L476,419L481,414L492,420L499,415L512,413L520,418L526,421L535,423L535,435L535,458L540,463L540,467L545,476L546,484L542,490L543,502L539,507L541,510L535,511L522,517L524,509L518,511L520,519L523,519L510,530L492,539L480,548L480,546L489,541L484,542L477,547L469,564L468,576L471,592L474,595L467,597L464,593L452,592L440,585L434,584L431,574L428,570L428,559L420,552L419,548L412,541L405,522L390,506L378,505L366,505L361,517L357,522L337,511L330,504L328,492L323,480L316,475L306,463L302,460L296,452L295,447L339,451L363,453L367,408L371,351Z" style="{{mf.TX}}" onClick="{{mp.TX}}"></path>
+<path d="M369,156L365,201L361,247L333,244L277,237L244,232L247,210L256,154L258,142L298,148L339,153Z" style="{{mf.WY}}" onClick="{{mp.WY}}"></path>
+<path d="M871,184L899,178L902,193L893,197L885,198L874,208L874,201Z" style="{{mf.CT}}" onClick="{{mp.CT}}"></path>
+<path d="M502,262L521,262L545,261L571,260L576,265L576,273L578,280L590,290L591,297L601,298L598,313L614,326L614,333L621,340L620,349L617,351L616,351L615,352L612,363L600,364L605,357L604,352L550,355L523,355L523,344L522,295L519,293L514,286L516,278L510,275Z" style="{{mf.MO}}" onClick="{{mp.MO}}"></path>
+<path d="M733,295L738,293L739,285L741,280L744,283L746,273L754,269L758,263L761,247L761,239L765,260L782,257L784,269L794,257L800,258L805,253L814,260L813,265L803,259L803,266L797,277L794,275L790,286L784,283L780,297L776,305L777,309L761,318L750,319L747,313L741,311L734,302Z" style="{{mf.WV}}" onClick="{{mp.WV}}"></path>
+<path d="M576,265L577,259L581,258L584,248L582,241L593,236L596,224L587,215L634,212L634,217L640,230L645,284L643,288L647,298L638,317L639,320L639,327L632,330L632,337L624,334L621,340L614,333L614,326L598,313L601,298L591,297L590,290L578,280L576,273Z" style="{{mf.IL}}" onClick="{{mp.IL}}"></path>
+<path d="M265,328L315,334L349,338L372,339L372,351L371,351L367,408L363,453L339,451L295,447L296,452L264,448L263,458L247,456Z" style="{{mf.NM}}" onClick="{{mp.NM}}"></path>
+<path d="M523,355L550,355L604,352L605,357L600,364L612,363L613,367L605,378L607,383L603,387L598,393L599,400L595,402L593,409L590,411L592,415L588,420L591,430L589,433L535,435L535,423L526,421L527,381Z" style="{{mf.AR}}" onClick="{{mp.AR}}"></path>
+<path d="M77,374L77,374L77,374ZM75,384L75,384L75,384ZM65,358L65,358L65,358ZM58,374L58,374L58,374ZM57,355L57,355L57,355ZM50,355L50,355L50,355ZM47,353L47,353L47,353ZM33,160L84,175L100,179L83,246L157,356L160,370L163,374L154,380L152,389L148,392L147,400L150,401L149,407L145,407L99,402L98,398L99,388L97,382L86,370L82,369L82,362L76,362L70,357L65,349L49,344L46,340L50,328L46,325L47,321L42,313L35,296L36,289L40,286L31,274L33,261L38,270L36,257L33,260L29,255L27,243L20,229L24,209L18,197L19,193L27,184L31,173Z" style="{{mf.CA}}" onClick="{{mp.CA}}"></path>
+<path d="M849,246L849,246L849,246ZM845,245L851,241L850,244L849,249L855,258L861,263L864,270L853,273Z" style="{{mf.DE}}" onClick="{{mp.DE}}"></path>
+<path d="M305,584L310,578L310,573L322,578L326,584L332,589L329,593L317,598L314,603L309,600L309,594ZM292,558L294,555L306,561L305,564L299,566ZM292,567L292,567L292,567ZM284,558L284,558L284,558ZM279,554L280,551L291,553L288,555ZM258,543L265,540L271,549L262,549ZM226,533L231,528L235,529L236,534L230,536ZM216,537L216,537L216,537Z" style="{{mf.HI}}" onClick="{{mp.HI}}"></path>
+<path d="M491,195L549,194L576,193L579,199L577,202L580,211L587,215L596,224L593,236L582,241L584,248L581,258L577,259L576,265L571,260L545,261L521,262L502,262L497,234L491,218L488,212L491,204L488,195Z" style="{{mf.IA}}" onClick="{{mp.IA}}"></path>
+<path d="M621,340L624,334L632,337L632,330L639,327L639,320L647,315L655,319L661,313L666,314L669,309L674,313L677,305L684,298L683,295L694,292L693,284L699,283L704,290L714,293L721,292L727,288L733,295L734,302L741,311L747,313L741,320L735,325L729,334L720,339L704,341L672,343L645,346L641,350L617,351L620,349ZM616,351L615,352L616,351Z" style="{{mf.KY}}" onClick="{{mp.KY}}"></path>
+<path d="M850,285L849,285L850,285ZM847,281L847,281L847,281ZM782,257L816,251L845,245L853,273L864,270L863,280L855,284L852,285L848,276L846,279L841,274L846,271L839,266L842,252L837,254L838,263L836,269L844,284L835,282L830,278L827,280L827,274L828,270L826,267L814,260L805,253L800,258L794,257L784,269Z" style="{{mf.MD}}" onClick="{{mp.MD}}"></path>
+<path d="M677,131L677,131L677,131ZM663,133L663,133L663,133ZM662,139L662,139L662,139ZM661,136L661,136L661,136ZM659,142L659,142L659,142ZM657,150L657,150L657,150ZM655,153L655,153L655,153ZM646,140L646,140L646,140ZM652,228L659,216L660,205L659,198L652,184L652,175L655,168L655,160L661,154L664,148L664,156L668,153L667,146L674,142L670,138L675,133L685,135L687,138L697,140L701,147L699,149L702,154L702,162L699,169L695,171L694,177L699,180L705,171L710,168L715,172L722,191L721,200L716,199L715,207L708,222L686,225L686,224ZM601,92L610,86L610,89ZM585,123L594,117L601,116L619,101L624,100L615,112L628,114L633,121L644,121L652,115L662,114L670,111L670,118L676,118L683,115L684,121L694,128L681,129L676,127L674,131L671,128L663,127L661,130L653,131L638,140L632,153L631,148L627,147L628,140L623,135L612,134L607,131L590,128Z" style="{{mf.MI}}" onClick="{{mp.MI}}"></path>
+<path d="M644,493L644,493L644,493ZM639,493L639,493L639,493ZM635,494L635,494L635,494ZM632,494L632,494L632,494ZM589,433L591,430L588,420L592,415L590,411L593,409L595,402L599,400L598,393L603,387L642,384L644,386L642,455L646,489L636,490L625,495L618,485L619,477L583,479L584,467L595,448L591,445L591,436Z" style="{{mf.MS}}" onClick="{{mp.MS}}"></path>
+<path d="M198,39L233,46L265,52L303,57L340,62L377,66L371,134L369,156L339,153L298,148L258,142L256,154L253,148L250,151L237,148L235,151L225,149L224,142L219,139L215,118L208,123L205,120L209,114L208,109L213,96L209,96L201,80L195,74L197,69L193,62Z" style="{{mf.MT}}" onClick="{{mp.MT}}"></path>
+<path d="M886,111L887,105L891,102L905,145L910,150L909,155L903,161L884,165L882,163L881,146L883,133L882,128L888,122Z" style="{{mf.NH}}" onClick="{{mp.NH}}"></path>
+<path d="M899,196L899,196L899,196ZM897,198L897,198L897,198ZM869,217L867,221L869,217ZM816,154L816,154L816,154ZM814,154L814,154L814,154ZM768,200L776,192L780,186L775,176L784,172L796,170L800,172L809,169L819,161L815,150L815,146L820,141L829,128L832,124L858,118L862,134L861,140L864,149L867,150L871,168L871,184L874,201L874,208L891,204L895,200L900,202L886,213L872,219L869,216L870,209L855,204L850,202L847,197L841,192L800,201L769,206Z" style="{{mf.NY}}" onClick="{{mp.NY}}"></path>
+<path d="M721,223L721,223L721,223ZM719,222L719,222L719,222ZM686,225L708,222L718,225L719,224L726,227L733,223L738,223L748,213L756,209L761,239L761,247L758,263L754,269L746,273L744,283L741,280L739,285L738,293L733,295L727,288L721,292L714,293L704,290L699,283L693,284Z" style="{{mf.OH}}" onClick="{{mp.OH}}"></path>
+<path d="M71,70L77,74L80,80L79,87L86,91L98,91L103,95L112,94L139,95L171,102L176,112L157,137L162,143L158,150L149,191L100,179L84,175L33,160L31,157L34,146L33,140L45,121L57,92L65,71Z" style="{{mf.OR}}" onClick="{{mp.OR}}"></path>
+<path d="M612,363L615,352L616,351L617,351L641,350L645,346L672,343L704,341L720,339L756,334L751,346L747,345L741,351L738,350L726,362L721,363L717,369L713,371L713,377L689,380L642,384L603,387L607,383L605,378L613,367Z" style="{{mf.TN}}" onClick="{{mp.TN}}"></path>
+<path d="M198,201L247,210L244,232L277,237L268,299L265,328L239,324L176,313Z" style="{{mf.UT}}" onClick="{{mp.UT}}"></path>
+<path d="M855,284L863,280L858,288L857,301L853,301L853,292ZM850,285L849,285L850,285ZM747,313L750,319L761,318L777,309L776,305L780,297L784,283L790,286L794,275L797,277L803,266L803,259L813,265L814,260L826,267L828,270L827,274L825,279L830,279L832,283L838,283L846,287L849,305L846,310L855,308L859,316L812,326L780,331L756,334L720,339L729,334L735,325L741,320Z" style="{{mf.VA}}" onClick="{{mp.VA}}"></path>
+<path d="M93,51L93,51L93,51ZM99,25L99,25L99,25ZM99,20L99,20L99,20ZM98,23L98,23L98,23ZM95,31L95,31L95,31ZM96,18L96,18L96,18ZM94,20L94,20L94,20ZM95,13L95,13L95,13ZM91,21L98,22L96,27ZM91,19L91,19L91,19ZM184,36L171,92L171,102L139,95L112,94L103,95L98,91L86,91L79,87L80,80L77,74L71,70L66,69L64,65L66,57L71,54L67,51L68,34L66,23L70,20L77,27L90,33L95,33L97,39L92,52L96,52L98,42L102,38L101,27L102,21L100,14L140,25Z" style="{{mf.WA}}" onClick="{{mp.WA}}"></path>
+<path d="M642,146L642,146L642,146ZM636,150L636,150L636,150ZM584,113L584,113L584,113ZM583,116L583,116L583,116ZM581,115L581,115L581,115ZM580,117L580,117L580,117ZM580,114L580,114L580,114ZM579,113L579,113L579,113ZM579,118L579,118L579,118ZM576,114L576,114L576,114ZM560,121L568,120L576,115L580,120L585,123L590,128L607,131L612,134L623,135L628,140L627,147L631,148L632,153L629,157L626,166L628,166L636,157L642,148L635,165L635,174L632,181L633,185L631,195L634,206L634,212L587,215L580,211L577,202L579,199L576,193L572,182L565,178L564,175L549,166L550,154L551,150L548,147L551,139L556,136L556,122Z" style="{{mf.WI}}" onClick="{{mp.WI}}"></path>
+<path d="M365,201L404,204L457,206L466,212L467,210L476,210L491,218L497,234L502,262L510,275L465,275L422,273L394,272L395,249L361,247Z" style="{{mf.NE}}" onClick="{{mp.NE}}"></path>
+<path d="M735,374L749,367L772,365L778,371L798,368L823,386L816,392L814,404L801,419L792,424L793,427L786,435L774,423L771,414L766,412L762,406L748,396L741,385L732,382Z" style="{{mf.SC}}" onClick="{{mp.SC}}"></path>
+<path d="M171,102L171,92L184,36L198,39L193,62L197,69L195,74L201,80L209,96L213,96L208,109L209,114L205,120L208,123L215,118L219,139L224,142L225,149L235,151L237,148L250,151L253,148L256,154L247,210L198,201L149,191L158,150L162,143L157,137L176,112Z" style="{{mf.ID}}" onClick="{{mp.ID}}"></path>
+<path d="M100,179L149,191L198,201L176,313L173,331L170,335L167,331L160,331L157,356L83,246Z" style="{{mf.NV}}" onClick="{{mp.NV}}"></path>
+<path d="M858,118L886,111L888,122L882,128L883,133L881,146L882,163L884,165L871,168L867,150L864,149L861,140L862,134Z" style="{{mf.VT}}" onClick="{{mp.VT}}"></path>
+<path d="M638,497L638,497L638,497ZM629,498L629,498L629,498ZM624,510L624,510L624,510ZM610,521L610,521L610,521ZM606,521L606,521L606,521ZM602,522L602,522L602,522ZM577,511L577,511L577,511ZM535,435L589,433L591,436L591,445L595,448L584,467L583,479L619,477L618,485L625,495L619,499L624,502L626,498L628,501L627,507L623,508L626,513L632,514L634,522L624,516L620,515L613,521L608,515L601,523L590,517L584,508L579,506L571,513L554,508L541,510L539,507L543,502L542,490L546,484L545,476L540,467L540,463L535,458Z" style="{{mf.LA}}" onClick="{{mp.LA}}"></path>
+<path d="M911,183L913,186L911,183ZM908,188L908,188L908,188ZM907,196L907,196L907,196ZM902,193L899,178L905,176L910,182L907,181L908,191Z" style="{{mf.RI}}" onClick="{{mp.RI}}"></path>
+<text x="672" y="436" text-anchor="middle" style="{{ml.AL}}">AL</text>
+<text x="103" y="527" text-anchor="middle" style="{{ml.AK}}">AK</text>
+<text x="208" y="386" text-anchor="middle" style="{{ml.AZ}}">AZ</text>
+<text x="332" y="294" text-anchor="middle" style="{{ml.CO}}">CO</text>
+<text x="785" y="540" text-anchor="middle" style="{{ml.FL}}">FL</text>
+<text x="736" y="432" text-anchor="middle" style="{{ml.GA}}">GA</text>
+<text x="665" y="273" text-anchor="middle" style="{{ml.IN}}">IN</text>
+<text x="456" y="313" text-anchor="middle" style="{{ml.KS}}">KS</text>
+<text x="919" y="98" text-anchor="middle" style="{{ml.ME}}">ME</text>
+<text x="525" y="136" text-anchor="middle" style="{{ml.MN}}">MN</text>
+<text x="801" y="355" text-anchor="middle" style="{{ml.NC}}">NC</text>
+<text x="429" y="108" text-anchor="middle" style="{{ml.ND}}">ND</text>
+<text x="471" y="380" text-anchor="middle" style="{{ml.OK}}">OK</text>
+<text x="806" y="230" text-anchor="middle" style="{{ml.PA}}">PA</text>
+<text x="430" y="176" text-anchor="middle" style="{{ml.SD}}">SD</text>
+<text x="434" y="473" text-anchor="middle" style="{{ml.TX}}">TX</text>
+<text x="308" y="199" text-anchor="middle" style="{{ml.WY}}">WY</text>
+<text x="560" y="316" text-anchor="middle" style="{{ml.MO}}">MO</text>
+<text x="766" y="289" text-anchor="middle" style="{{ml.WV}}">WV</text>
+<text x="615" y="274" text-anchor="middle" style="{{ml.IL}}">IL</text>
+<text x="311" y="397" text-anchor="middle" style="{{ml.NM}}">NM</text>
+<text x="564" y="395" text-anchor="middle" style="{{ml.AR}}">AR</text>
+<text x="82" y="292" text-anchor="middle" style="{{ml.CA}}">CA</text>
+<text x="301" y="578" text-anchor="middle" style="{{ml.HI}}">HI</text>
+<text x="540" y="231" text-anchor="middle" style="{{ml.IA}}">IA</text>
+<text x="688" y="325" text-anchor="middle" style="{{ml.KY}}">KY</text>
+<text x="680" y="185" text-anchor="middle" style="{{ml.MI}}">MI</text>
+<text x="618" y="441" text-anchor="middle" style="{{ml.MS}}">MS</text>
+<text x="287" y="104" text-anchor="middle" style="{{ml.MT}}">MT</text>
+<text x="834" y="176" text-anchor="middle" style="{{ml.NY}}">NY</text>
+<text x="724" y="257" text-anchor="middle" style="{{ml.OH}}">OH</text>
+<text x="103" y="138" text-anchor="middle" style="{{ml.OR}}">OR</text>
+<text x="673" y="365" text-anchor="middle" style="{{ml.TN}}">TN</text>
+<text x="227" y="273" text-anchor="middle" style="{{ml.UT}}">UT</text>
+<text x="803" y="308" text-anchor="middle" style="{{ml.VA}}">VA</text>
+<text x="124" y="63" text-anchor="middle" style="{{ml.WA}}">WA</text>
+<text x="595" y="171" text-anchor="middle" style="{{ml.WI}}">WI</text>
+<text x="434" y="243" text-anchor="middle" style="{{ml.NE}}">NE</text>
+<text x="780" y="397" text-anchor="middle" style="{{ml.SC}}">SC</text>
+<text x="199" y="151" text-anchor="middle" style="{{ml.ID}}">ID</text>
+<text x="142" y="256" text-anchor="middle" style="{{ml.NV}}">NV</text>
+<text x="570" y="482" text-anchor="middle" style="{{ml.LA}}">LA</text>
+        </svg>
+        <div style="display: flex; gap: 16px; align-items: center; font-size: 12.5px; color: #a9b9d0; margin-top: 6px">
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 14px; height: 14px; border-radius: 4px; background: #c0392b"></span>Furious</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 14px; height: 14px; border-radius: 4px; background: #ece6d6"></span>Meh</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 14px; height: 14px; border-radius: 4px; background: #2a9d8f"></span>Delighted</span>
+        </div>
+      </div>
+      <div class="mapside" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px">
+        <div style="background: #112238; border: 1px solid #24405f; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
+          <div style="font-family: 'Alfa Slab One', serif; font-size: 24px; line-height: 1.1">{{selName}}</div>
+          <div style="font-size: 12.5px; color: #a9b9d0; margin-top: -6px">Also known as {{selReal}}</div>
+          <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-weight: 700; font-size: 15px">{{selWord}}</span><span style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 18px">{{selMood}}</span></div>
+          <div style="height: 10px; border-radius: 5px; background: #24405f"><div style="{{selBarStyle}}"></div></div>
+          <sc-if value="{{hasReasons}}" hint-placeholder-val="{{false}}">
+            <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #a9b9d0">WHY</div>
+            <sc-for list="{{reasons}}" as="rs" hint-placeholder-count="2">
+              <div style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px; line-height: 1.3"><span>{{rs.t}}</span><span style="{{rs.style}}">{{rs.v}}</span></div>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{noReasons}}" hint-placeholder-val="{{true}}">
+            <div style="font-size: 13px; color: #a9b9d0">Nothing special here. Just vibes and the national mood.</div>
+          </sc-if>
+        </div>
+        <div style="background: #112238; border: 1px solid #24405f; border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; gap: 6px">
+          <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #ff9d96">ANGRIEST STATES</div>
+          <sc-for list="{{angriest}}" as="a" hint-placeholder-count="3">
+            <button class="btn" type="button" onClick="{{a.pick}}" style="display: flex; justify-content: space-between; padding: 6px 0; border: 0; background: transparent; color: #eef1f6; font-size: 14px; cursor: pointer"><span>{{a.name}}</span><span style="font-family: 'Space Mono', monospace">{{a.value}}</span></button>
+          </sc-for>
+          <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #7be0a3; margin-top: 6px">HAPPIEST STATES</div>
+          <sc-for list="{{happiest}}" as="h" hint-placeholder-count="3">
+            <button class="btn" type="button" onClick="{{h.pick}}" style="display: flex; justify-content: space-between; padding: 6px 0; border: 0; background: transparent; color: #eef1f6; font-size: 14px; cursor: pointer"><span>{{h.name}}</span><span style="font-family: 'Space Mono', monospace">{{h.value}}</span></button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{isScores}}" hint-placeholder-val="{{false}}">
+    <div style="max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; {{enter}}">
+      <div style="font-family: 'Alfa Slab One', serif; font-size: 28px">Leaderboard</div>
+      <div style="font-size: 13px; line-height: 1.4; color: #a9b9d0">{{lbNote}}</div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+        <sc-for list="{{boardTabs}}" as="bt" hint-placeholder-count="2">
+          <button class="btn" type="button" onClick="{{bt.pick}}" style="{{bt.style}}">{{bt.label}}</button>
+        </sc-for>
+        <span style="flex: 1"></span>
+        <sc-for list="{{tagTabs}}" as="tg" hint-placeholder-count="2">
+          <button class="btn" type="button" onClick="{{tg.pick}}" style="{{tg.style}}">{{tg.label}}</button>
+        </sc-for>
+      </div>
+      <sc-if value="{{hasStreak}}" hint-placeholder-val="{{false}}">
+        <div style="padding: 10px 14px; border-radius: 10px; background: #112238; font-size: 14px; color: #ffd166">{{streakText}}</div>
+      </sc-if>
+      <div class="lbgrid" style="display: grid; grid-template-columns: 36px 1fr 70px 150px 54px 54px; gap: 8px; padding: 0 12px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #a9b9d0"><span>#</span><span>NAME</span><span>SCORE</span><span>ROLE</span><span>CONS.</span><span>LIB.</span></div>
+      <sc-for list="{{lbRows}}" as="row" hint-placeholder-count="5">
+        <div class="lbgrid" style="{{row.rowStyle}}">
+          <span style="font-family: 'Space Mono', monospace; font-weight: 700">{{row.rank}}</span>
+          <span style="font-weight: 700; font-size: 15px; overflow-wrap: anywhere">{{row.name}}</span>
+          <span style="font-family: 'Space Mono', monospace; font-weight: 700; color: #ffd166">{{row.score}}</span>
+          <span style="font-size: 13px; color: #c3d1e6">{{row.role}}</span>
+          <span style="font-family: 'Space Mono', monospace; font-weight: 700">{{row.c}}</span>
+          <span style="font-family: 'Space Mono', monospace; font-weight: 700">{{row.l}}</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{noLb}}" hint-placeholder-val="{{false}}">
+        <div style="padding: 22px; text-align: center; background: #112238; border-radius: 12px; color: #a9b9d0; font-size: 14px">{{noLbText}}</div>
+      </sc-if>
+    </div>
+    </sc-if>
+
+  </section>
+
+  <sc-if value="{{hasConfetti}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; overflow: hidden; z-index: 10">
+      <sc-for list="{{confetti}}" as="cf" hint-placeholder-count="30">
+        <span style="{{cf.style}}"></span>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{hasStory}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 20; animation: fadeIn .25s ease-out both">
+      <button type="button" aria-label="Close story" onClick="{{closeStory}}" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 0; background: rgba(5, 10, 20, 0.74); cursor: pointer"></button>
+      <article style="position: relative; width: min(660px, 92%); max-height: 88%; overflow-y: auto; box-sizing: border-box; background: #f3ecd9; color: #1b1a17; border-radius: 6px; padding: 28px 36px 30px 36px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); animation: popA .35s ease-out both">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px double #1b1a17; padding-bottom: 8px">
+          <span style="font-family: 'Alfa Slab One', serif; font-size: 20px">{{storyOutlet}}</span>
+          <span style="font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #5a5446">Satire, but only partly</span>
+        </div>
+        <div style="font-family: 'Alfa Slab One', serif; font-size: 30px; line-height: 1.15; margin-top: 16px">{{storyHead}}</div>
+        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px">
+          <sc-for list="{{storyParas}}" as="sp" hint-placeholder-count="4">
+            <div style="font-size: 15.5px; line-height: 1.55; color: #2a2823">{{sp.t}}</div>
+          </sc-for>
+        </div>
+        <button class="btn" type="button" onClick="{{closeStory}}" style="margin-top: 20px; height: 42px; padding: 0 20px; border-radius: 8px; border: 0; background: #1b1a17; color: #f3ecd9; font-size: 14px; font-weight: 700; cursor: pointer">Back to the desk</button>
+      </article>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{hasAuth}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 30; animation: fadeIn .2s ease-out both">
+      <button type="button" aria-label="Close" onClick="{{closeAuth}}" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 0; background: rgba(5, 10, 20, 0.74); cursor: pointer"></button>
+      <div role="dialog" aria-label="Account" style="position: relative; width: min(470px, 92%); box-sizing: border-box; background: #162a45; border: 1px solid #3a5a82; border-radius: 16px; padding: 26px 28px; display: flex; flex-direction: column; gap: 14px; animation: popA .3s ease-out both">
+        <div style="font-family: 'Alfa Slab One', serif; font-size: 24px">{{authTitle}}</div>
+        <div style="font-size: 14px; line-height: 1.45; color: #c3d1e6">{{authText}}</div>
+        <sc-if value="{{authStepEmail}}" hint-placeholder-val="{{false}}">
+          <sc-if value="{{googleOn}}" hint-placeholder-val="{{false}}">
+            <button class="btn" type="button" onClick="{{authGoogle}}" style="height: 48px; border-radius: 12px; border: 1px solid #3a5a82; background: #eef1f6; color: #0f1b2d; font-size: 15px; font-weight: 700; cursor: pointer">Continue with Google</button>
+          </sc-if>
+          <input type="email" aria-label="Email address" placeholder="you@school.edu" autocomplete="email" value="{{authEmail}}" onInput="{{onEmail}}" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #3a5a82; background: #0f1b2d; color: #eef1f6; font-size: 15px; font-family: 'Space Grotesk', sans-serif">
+          <button class="btn" type="button" onClick="{{authSend}}" style="{{authSendStyle}}">{{authSendLabel}}</button>
+        </sc-if>
+        <sc-if value="{{authStepSent}}" hint-placeholder-val="{{false}}">
+          <button class="btn" type="button" onClick="{{authBack}}" style="height: 44px; border-radius: 10px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 14px; font-weight: 700; cursor: pointer">Use a different email</button>
+        </sc-if>
+        <sc-if value="{{authStepHandle}}" hint-placeholder-val="{{false}}">
+          <input type="text" aria-label="Handle" placeholder="Handle (3-16 letters, numbers, _)" maxlength="16" autocomplete="off" value="{{authHandle}}" onInput="{{onHandle}}" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #3a5a82; background: #0f1b2d; color: #eef1f6; font-size: 15px; font-family: 'Space Grotesk', sans-serif">
+          <input type="text" aria-label="Group tag (optional)" placeholder="Group tag, optional (e.g. UATX)" maxlength="8" autocomplete="off" value="{{authTag}}" onInput="{{onTag}}" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #3a5a82; background: #0f1b2d; color: #eef1f6; font-size: 15px; font-family: 'Space Grotesk', sans-serif">
+          <button class="btn" type="button" onClick="{{authSave}}" style="{{authSaveStyle}}">Save and continue</button>
+        </sc-if>
+        <sc-if value="{{authStepAccount}}" hint-placeholder-val="{{false}}">
+          <button class="btn" type="button" onClick="{{authSignOut}}" style="height: 44px; border-radius: 10px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 14px; font-weight: 700; cursor: pointer">Sign out</button>
+        </sc-if>
+        <sc-if value="{{authErr}}" hint-placeholder-val="{{false}}">
+          <div style="font-size: 13px; color: #ff9d96">{{authErr}}</div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+</div>
