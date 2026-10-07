@@ -14,6 +14,27 @@ view = mount(root, template, () => {
   return app.getValues();
 });
 window.__app = app; // handy for debugging and tests
+
+// Supreme Leader mode lives in its own root and is loaded the first time it is opened.
+let leader = null;
+window.__showLeader = async () => {
+  const lroot = document.getElementById('lapp');
+  if (!leader) {
+    const [{ LeaderApp }, tpl] = await Promise.all([import('./leaderui.js'), import('./leader.html?raw')]);
+    let lview;
+    const lapp = new LeaderApp(() => lview && lview.render());
+    lview = mount(lroot, tpl.default, () => {
+      const g = lapp.state.g;
+      const key = [g.phase, g.day, lapp.state.tab].join(':');
+      if (key !== lapp._screenKey) { lapp._screenKey = key; requestAnimationFrame(() => { const e = document.getElementById('lstage'); if (e) e.scrollTop = 0; }); }
+      return lapp.getValues();
+    });
+    leader = lapp; window.__leader = lapp;
+  }
+  document.getElementById('app').hidden = true; lroot.hidden = false;
+  leader.setState({});
+};
+window.__leaderExit = () => { document.getElementById('lapp').hidden = true; document.getElementById('app').hidden = false; };
 app.init();
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (app.state.authOpen) app.setState({ authOpen: false }); else if (app.state.pstory != null) app.setState({ pstory: null }); } });
 

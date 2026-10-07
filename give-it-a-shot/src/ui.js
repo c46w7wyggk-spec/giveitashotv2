@@ -163,6 +163,7 @@ export class App extends Engine {
     const sk = st.streak && st.streak.current_streak > 0 ? ' Streak: ' + st.streak.current_streak + '.' : '';
     return {
       pickFree: () => { if ((st.mode || 'free') !== 'free') this.setState({ mode: 'free', g: this.makeGame('free', g.title) }); },
+      pickLeader: () => { if (window.__showLeader) window.__showLeader(); },
       pickDaily: () => { if (!daily) this.setState({ mode: 'daily', g: this.makeGame('daily', g.title) }); },
       modeFreeCls: daily ? '' : 'sel', modeDailyCls: daily ? 'sel' : '',
       dailyLine: 'Same seed for everyone on ' + utcDate() + '. One scored run a day.' + (played ? ' You already played today.' : '') + sk,

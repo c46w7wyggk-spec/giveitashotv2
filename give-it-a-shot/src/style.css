@@ -7,7 +7,8 @@
 html,body{margin:0;height:100%;background:var(--bg0);overscroll-behavior:none}
 body{overflow:hidden;font-family:'Space Grotesk',sans-serif;color:var(--tx);-webkit-text-size-adjust:100%}
 #viewport{position:fixed;inset:0;overflow:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);background:var(--bg)}
-#app{position:absolute;inset:0}
+#app,#lapp{position:absolute;inset:0}
+[hidden]{display:none!important}
 button{font-family:inherit;color:inherit;touch-action:manipulation}
 input{font-family:inherit}
 button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
@@ -286,3 +287,22 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
   .dialog{padding:20px 18px}
   .xlist{max-height:none}
 }
+
+/* ---------- supreme leader ---------- */
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.lad{padding:4px 8px;border-radius:8px;font-size:14px}
+.lad.me{background:#1d3658;border:1px solid var(--gold);font-weight:700}
+.rv{display:flex;flex-direction:column;gap:4px;padding:10px 0;border-top:1px solid var(--line)}
+.rv:first-of-type{border-top:0}
+@media (max-width:1000px){.grid3{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:720px){.grid3{grid-template-columns:1fr}}
+.alist{display:flex;flex-direction:column;gap:8px}
+.arow{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;text-align:left;padding:11px 14px;border-radius:12px;border:1px solid var(--line2);background:var(--card);cursor:pointer;font-size:15px;font-weight:700;color:var(--tx)}
+.arow.sel{border:2px solid var(--gold);background:#1d3658}
+.arow.off{opacity:.45;cursor:default}
+.arow .cost{font-family:var(--mono);font-size:12px;color:var(--gold);font-weight:400}
+.page .mapsvg{max-height:300px}
+@media (max-width:720px){.arow{grid-template-columns:1fr auto}.arow .cost{grid-column:1/-1}}
+.power.l4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.power.l4 .lab b{font-size:11px}
+@media (max-width:720px){.power.l4{grid-template-columns:repeat(2,minmax(0,1fr))}.arow .cost{justify-self:start}}
