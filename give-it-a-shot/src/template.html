@@ -77,8 +77,9 @@
       <div class="grid2">
         <button class="opt {{modeFreeCls}}" type="button" onClick="{{pickFree}}"><span class="h3">Free Play</span><span class="d">A fresh random term every time.</span></button>
         <button class="opt {{modeDailyCls}}" type="button" onClick="{{pickDaily}}"><span class="h3">Daily Executive</span><span class="d">{{dailyLine}}</span></button>
-        <button class="opt" type="button" onClick="{{pickLeader}}"><span class="row" style="gap:10px"><span class="h3">Supreme Leader</span><span class="tag fm">New</span></span><span class="d">Found your own country, pick five policies and a constitution, and climb the world rankings before Ronald Bump comes for you.</span></button>
+        <button class="opt" type="button" onClick="{{pickLeader}}"><span class="row" style="gap:10px"><span class="h3">Supreme Leader</span><span class="tag dk">Beta · invite only</span></span><span class="d">Found your own country, pick five policies and a constitution, and climb the world rankings before Ronald Bump comes for you.</span></button>
       </div>
+      <sc-if value="{{hasBetaMsg}}" hint-placeholder-val="{{false}}"><div class="alert y">{{betaMsg}}</div></sc-if>
       <button class="btn btn-lg gold" type="button" onClick="{{begin}}">{{beginLabel}}</button>
     </div>
     </sc-if>

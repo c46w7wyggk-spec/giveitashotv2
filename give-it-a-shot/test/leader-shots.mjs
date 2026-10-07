@@ -11,7 +11,7 @@ p.on('pageerror', (e) => errs.push('pageerror ' + e.message)); p.on('console', (
 await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
 await p.goto('http://localhost:4173/'); await p.waitForTimeout(500);
 const shot = async (n) => { await p.waitForTimeout(500); await p.screenshot({ path: `${OUT}/${which}-${n}.png` }); };
-await p.getByRole('button', { name: /Supreme Leader/ }).first().click(); await shot('1-name');
+await p.evaluate(() => window.__showLeader()); await p.waitForTimeout(400); await shot('1-name');
 await p.getByRole('button', { name: /Next: choose your policies/ }).click(); await shot('2-pol');
 const cards = p.locator('#lapp .grid3 .opt'); for (let i = 0; i < 5; i++) await cards.nth(i).click();
 await shot('2b-pol-picked');

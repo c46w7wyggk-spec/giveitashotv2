@@ -306,3 +306,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 .power.l4{grid-template-columns:repeat(4,minmax(0,1fr))}
 .power.l4 .lab b{font-size:11px}
 @media (max-width:720px){.power.l4{grid-template-columns:repeat(2,minmax(0,1fr))}.arow .cost{justify-self:start}}
+
+/* slab headings: the font has one weight, so stop browsers from faux-bolding it (that smeared the white text) */
+h1,h2,h3,h4,.h1,.h2,.h3,.brand-t,.memo .t,.hl .h,.paper .h,.stamp{font-weight:400;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.h1,.h2,.h3,.brand-t,.memo .t,.paper .h,.dialog h2,.dialog h3{color:#f7f9fc;letter-spacing:.2px}

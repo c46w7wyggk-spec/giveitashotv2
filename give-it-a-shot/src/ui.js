@@ -5,6 +5,7 @@ import { shareCard } from './share.js';
 const HOME_TAG = 'UATX';
 const PENDING_KEY = 'gias_pending_v2';
 const TUT_KEY = 'gias_tut_v2';
+const WANT_KEY = 'gias_want_leader';
 const XCATS = [['tax', 'Taxes'], ['labor', 'Labor'], ['housing', 'Housing & Markets'], ['trade', 'Trade & Energy'], ['power', 'Power Plays']];
 const HANDLE_RE = /^[A-Za-z0-9_]{3,16}$/;
 const TAG_RE = /^[A-Za-z0-9]{2,8}$/;
@@ -70,6 +71,7 @@ export class App extends Engine {
     if (!u) { this.setState({ user: null, profile: null, streak: null }); return; }
     if (this.state.user && this.state.user.id === u.id && this.state.profile) return;
     this.setState({ user: u });
+    if (lsGet(WANT_KEY)) setTimeout(() => this.tryLeader(), 0);
     try {
       const profile = await api.getProfile(u.id);
       this.setState({ profile: profile });
@@ -79,6 +81,17 @@ export class App extends Engine {
         this.loadStreak();
       }
     } catch (e) { this.setState({ authErr: 'Could not load your profile. Try again.' }); }
+  }
+  // Supreme Leader is an invite-only beta: the server decides who is on the list.
+  async tryLeader() {
+    const st = this.state;
+    if (!api.configured) { this.setState({ betaMsg: 'Supreme Leader is an invite-only beta and needs the online service, which is not reachable right now.' }); return; }
+    if (!st.user) { lsSet(WANT_KEY, '1'); this.setState({ authOpen: true, authStep: 'email', authErr: 'Supreme Leader is an invite-only beta. Sign in with your invited email.' }); return; }
+    this.setState({ betaMsg: 'Checking the beta list...' });
+    const ok = await api.isBeta();
+    lsDel(WANT_KEY);
+    if (ok) { this.setState({ betaMsg: '' }); if (window.__showLeader) window.__showLeader(); }
+    else this.setState({ betaMsg: 'Supreme Leader is an invite-only beta, and ' + (st.user.email || 'this account') + ' is not on the list yet. Ask the creator for access.' });
   }
   async loadStreak() {
     try { this.setState({ streak: await api.myStreak() }); } catch (e) { /* streak is optional */ }
@@ -163,7 +176,8 @@ export class App extends Engine {
     const sk = st.streak && st.streak.current_streak > 0 ? ' Streak: ' + st.streak.current_streak + '.' : '';
     return {
       pickFree: () => { if ((st.mode || 'free') !== 'free') this.setState({ mode: 'free', g: this.makeGame('free', g.title) }); },
-      pickLeader: () => { if (window.__showLeader) window.__showLeader(); },
+      pickLeader: () => this.tryLeader(),
+      hasBetaMsg: !!st.betaMsg, betaMsg: st.betaMsg || '',
       pickDaily: () => { if (!daily) this.setState({ mode: 'daily', g: this.makeGame('daily', g.title) }); },
       modeFreeCls: daily ? '' : 'sel', modeDailyCls: daily ? 'sel' : '',
       dailyLine: 'Same seed for everyone on ' + utcDate() + '. One scored run a day.' + (played ? ' You already played today.' : '') + sk,

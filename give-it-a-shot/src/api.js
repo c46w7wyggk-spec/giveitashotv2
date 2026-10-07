@@ -28,6 +28,11 @@ export async function signInGoogle() {
   const { error } = await need().auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
   if (error) throw error;
 }
+export async function isBeta() {
+  if (!sb) return false;
+  const { data, error } = await sb.rpc('is_beta');
+  return !error && data === true;
+}
 export async function signOut() { if (sb) await sb.auth.signOut(); }
 
 export async function getProfile(uid) {
