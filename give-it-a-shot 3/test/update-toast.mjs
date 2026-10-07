@@ -1,0 +1,11 @@
+import { createRequire } from 'node:module';
+const { chromium } = createRequire('/opt/npm-tools/node_modules/')('playwright');
+const b = await chromium.launch(); const p = await (await b.newContext({ serviceWorkers: 'block' })).newPage();
+await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+let newer = false; const cur = (await (await fetch('http://localhost:4173/version.json')).json()).build;
+await p.route('**/version.json*', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ build: newer ? 'NEWER' : cur }) }));
+await p.goto('http://localhost:4173/'); await p.waitForTimeout(800);
+const before = await p.locator('#upd-toast').count();
+newer = true; await p.evaluate(() => window.dispatchEvent(new Event('focus'))); await p.waitForTimeout(600);
+console.log('toast before newer deploy:', before, '| after:', await p.locator('#upd-toast').count());
+await b.close();

@@ -1,0 +1,13 @@
+// Builds a slim copy of the engine for the edge function: identical logic and RNG consumption,
+// but long flavor-text strings (headlines, blurbs) are blanked since the server only needs the score.
+// test/replay-slim.mjs proves the slim engine scores identically to the full one.
+import fs from 'node:fs';
+const xa = fs.readFileSync(new URL('../src/xactions.js', import.meta.url), 'utf8').replace(/^export const/m, 'const');
+const src = fs.readFileSync(new URL('../src/engine.js', import.meta.url), 'utf8').replace(/^import \{ XA \} from '\.\/xactions\.js';\s*$/m, () => xa);
+const out = src
+  .replace(/^\s*\/\/.*$/gm, '')
+  .replace(/'(?:[^'\\\n]|\\.)*'/g, (m) => (m.length - 2 > 15 ? "''" : m))
+  .replace(/^[ \t]+/gm, '').replace(/\n\s*\n+/g, '\n');
+// Every edge function that replays games gets the same slim engine.
+for (const fn of ['submit-score', 'classroom']) fs.writeFileSync(new URL('../supabase/functions/' + fn + '/engine.js', import.meta.url), out);
+console.log('full', src.length, 'slim', out.length);

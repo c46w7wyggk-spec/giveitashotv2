@@ -1,0 +1,11 @@
+import { createRequire } from 'node:module';
+const require = createRequire('/opt/npm-tools/node_modules/');
+const { chromium } = require('playwright');
+const b = await chromium.launch(); const p = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage();
+await p.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+await p.goto('http://localhost:4173/'); await p.waitForTimeout(600);
+await p.getByRole('button', { name: /Supreme Leader/ }).first().click(); await p.waitForTimeout(500);
+const modal = await p.getByText('invite-only beta').count();
+const leaderShown = await p.evaluate(() => document.getElementById('viewport').dataset.mode === 'leader');
+console.log('auth modal with beta note:', modal > 0, '| leader visible without sign-in:', leaderShown);
+await b.close();
