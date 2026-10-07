@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
-const URL = import.meta.env.VITE_SUPABASE_URL;
-const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// The URL and publishable key are public by design; the fallbacks keep the board working if a host drops .env files.
+const URL = import.meta.env.VITE_SUPABASE_URL || 'https://gaurlsgdfwasrapvlmyd.supabase.co';
+const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_TFJz6blaRoBE4YdxJzd8gQ_Y6_EWG4O';
 export const configured = !!(URL && KEY);
 export const googleEnabled = import.meta.env.VITE_GOOGLE_AUTH === '1';
 
@@ -35,13 +36,15 @@ export async function getProfile(uid) {
   return data;
 }
 export async function createProfile(uid, handle, tag) {
-  const { error } = await need().from('profiles').insert({ id: uid, handle, tag: tag || null });
+  const { data, error } = await need().from('profiles').insert({ id: uid, handle, tag: tag || null }).select('tag').single();
   if (error) {
     if (error.code === '23505') throw new Error('That handle is taken.');
+    if (/UATX tag is only/i.test(error.message)) throw new Error('The UATX tag is only for @student.uaustin.org emails. Leave the tag blank or pick another.');
     if (/not allowed/i.test(error.message)) throw new Error(error.message.replace(/^.*?(That (handle|tag) is not allowed).*$/i, '$1') + '.');
     if (error.code === '23514') throw new Error('Handles are 3-16 letters, numbers or underscores. Tags are 2-8 letters or numbers.');
     throw error;
   }
+  return data && data.tag;
 }
 export async function submitScore(payload) {
   const { data, error } = await need().functions.invoke('submit-score', { body: payload });

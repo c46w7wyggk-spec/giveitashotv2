@@ -518,7 +518,7 @@
         <sc-if value="{{authStepSent}}" hint-placeholder-val="{{false}}"><button class="btn btn-md ghost" type="button" onClick="{{authBack}}">Use a different email</button></sc-if>
         <sc-if value="{{authStepHandle}}" hint-placeholder-val="{{false}}">
           <input class="field" type="text" aria-label="Handle" placeholder="Handle (3-16 letters, numbers, _)" maxlength="16" autocomplete="off" value="{{authHandle}}" onInput="{{onHandle}}">
-          <input class="field" type="text" aria-label="Group tag (optional)" placeholder="Group tag, optional (e.g. UATX)" maxlength="8" autocomplete="off" value="{{authTag}}" onInput="{{onTag}}">
+          <input class="field" type="text" aria-label="Group tag (optional)" placeholder="Other group tag, optional (UATX is automatic)" maxlength="8" autocomplete="off" value="{{authTag}}" onInput="{{onTag}}">
           <button class="btn btn-md {{authSaveCls}}" type="button" onClick="{{authSave}}">Save and continue</button>
         </sc-if>
         <sc-if value="{{authStepAccount}}" hint-placeholder-val="{{false}}"><button class="btn btn-md ghost" type="button" onClick="{{authSignOut}}">Sign out</button></sc-if>

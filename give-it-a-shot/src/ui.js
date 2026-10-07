@@ -111,8 +111,8 @@ export class App extends Engine {
     if (st.sending || !st.user) return;
     this.setState({ sending: true, authErr: '' });
     try {
-      await api.createProfile(st.user.id, handle, tag);
-      this.setState({ sending: false, profile: { handle: handle, tag: tag || null }, authOpen: false });
+      const gotTag = await api.createProfile(st.user.id, handle, tag);
+      this.setState({ sending: false, profile: { handle: handle, tag: gotTag || null }, authOpen: false });
       this.loadStreak();
     } catch (e) { this.setState({ sending: false, authErr: String(e && e.message || e) }); }
   }
@@ -183,7 +183,7 @@ export class App extends Engine {
     const texts = {
       email: 'Play without an account any time. An account lets you post to the leaderboard and keep a Daily Executive streak. We email you a sign-in link, no password.',
       sent: 'We sent a sign-in link to ' + email + '. Open it in this browser; you will land back here with your result waiting. It can take a minute, and it may land in spam.',
-      handle: 'This is the name shown on the leaderboard, and it cannot be changed later. Offensive handles are blocked. A group tag such as ' + HOME_TAG + ' is optional and lets you appear on that group\'s board.',
+      handle: 'This is the name shown on the leaderboard, and it cannot be changed later. Offensive handles are blocked. Sign in with a @student.uaustin.org email and you are tagged ' + HOME_TAG + ' automatically. Other groups can add an optional tag.',
       account: 'You are signed in' + (profile && profile.tag ? ' with group tag ' + profile.tag : '') + '.',
     };
     const sendReady = EMAIL_RE.test(email) && !st.sending;
