@@ -3,8 +3,8 @@
 A 14-day economic-policy game. Vite + vanilla JS front end, Supabase (Auth, Postgres, one Edge Function) for accounts and leaderboards.
 
 ## How scoring stays honest
-The browser records every choice as a short log (`s` sign, `v` veto, `0-3` incident option, `q` quiet day, `n` next morning).
-To post a score it sends `{seed, role, mode, daily_date, log}` to the `submit-score` Edge Function, which replays the game with the
+The browser records every choice as a short log (`s` sign, `v` veto, `e` end day, `n` next morning, `0-3` incident or trial option, `x`+char executive action).
+To post a score it sends `{seed, role, mode, daily_date, log}` (role is always `President` in v2) to the `submit-score` Edge Function, which replays the game with the
 same deterministic engine and computes the score itself. Nobody can post a number the game could not produce.
 
 ## Layout
@@ -13,7 +13,14 @@ same deterministic engine and computes the score itself. Nobody can post a numbe
 - `src/api.js` Supabase calls, `src/share.js` result-card image
 - `supabase/migrations` schema, RLS, moderation, leaderboards, streaks
 - `supabase/functions/submit-score` the verifier. Its `engine.js` is a slimmed copy: run `npm run make-server-engine` after any engine change, then redeploy the function.
-- `test/` replay tests (`npm test`) and a Playwright run-through (`test/e2e.mjs`)
+- `test/` replay tests (`npm test`) and Playwright run-throughs (`test/v2smoke.mjs`, `test/v2screens.mjs`, `test/pwa.mjs`; need `npm run build && npx vite preview --port 4173`)
+
+## v2 rules (President)
+- Goal is long-term prosperity: meters blend 40% now and 60% projected ten nights ahead, plus bonuses for finishing and surviving, minus a scandal penalty.
+- One memo decision each day, then optionally one Executive Action (`src/xactions.js`, 40 unilateral moves, each with a "Real world" line). They cost political capital and some carry scandal or Congress costs.
+- Impeachment needs low approval and low Congress support, gives a warning night, then a multi-day trial the player can fight (rally, deals, bribe, leak). Dirty wins can set up revolution.
+- Phase 2 (Supreme Leader mode) is not built yet.
+- `ENGINE_VERSION = 2`; v1 scores are hidden from the leaderboard by migration.
 
 ## Local dev
 ```

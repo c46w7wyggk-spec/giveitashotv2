@@ -1,5 +1,5 @@
 // Give It A Shot service worker. Bump VERSION to force clients to drop old caches.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = 'gias-shell-' + VERSION;
 const ASSETS = 'gias-assets-' + VERSION;
 const FONTS = 'gias-fonts-' + VERSION;

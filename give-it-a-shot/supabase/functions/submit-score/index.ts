@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
   const { seed, role, mode, daily_date, log } = body ?? {};
   if (!Number.isInteger(seed) || seed < 0 || seed > 0x7fffffff) return json({ error: "Bad seed" }, 400);
   if (mode !== "free" && mode !== "daily") return json({ error: "Bad mode" }, 400);
-  if (typeof log !== "string" || !/^[sv0-3qn]{1,400}$/.test(log)) return json({ error: "Bad log" }, 400);
+  if (typeof log !== "string" || !/^[svne0-3xA-Za-z0-9]{1,600}$/.test(log)) return json({ error: "Bad log" }, 400);
 
   const { data: prof } = await admin.from("profiles").select("handle").eq("id", uid).maybeSingle();
   if (!prof) return json({ error: "Pick a handle first." }, 403);

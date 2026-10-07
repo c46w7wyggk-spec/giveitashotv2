@@ -1,288 +1,108 @@
-<div class="root" style="position: relative; width: 100%; height: 100%; max-width: 1480px; margin: 0 auto; box-sizing: border-box; padding: 20px 24px 24px 24px; background: #0f1b2d; color: #eef1f6; font-family: 'Space Grotesk', sans-serif; display: flex; flex-direction: column; gap: 12px; overflow: hidden">
+<div class="app">
 
-  <header class="hdr" style="display: flex; align-items: center; justify-content: space-between; gap: 20px; height: 50px; flex: none">
-    <div style="display: flex; align-items: center; gap: 12px">
-      <svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="#eef1f6"></path></svg>
-      <div>
-        <div style="font-family: 'Alfa Slab One', serif; font-size: 24px; line-height: 1; letter-spacing: 0.5px">GIVE IT A SHOT</div>
-        <div style="font-size: 12px; color: #a9b9d0; margin-top: 3px">{{leader}} of the United States of Questionable Economies</div>
+  <header class="top">
+    <div class="brand">
+      <svg width="32" height="32" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="#eef1f6"></path></svg>
+      <div style="min-width:0">
+        <div class="brand-t">GIVE IT A SHOT</div>
+        <div class="brand-s">President of the United States of Questionable Economies</div>
       </div>
     </div>
-    <div class="tabs" style="display: flex; gap: 8px">
-      <button class="btn" type="button" onClick="{{goOffice}}" style="{{tabOfficeStyle}}">{{officeLabel}}</button>
-      <button class="btn" type="button" onClick="{{goMap}}" style="{{tabMapStyle}}">Map</button>
-      <button class="btn" type="button" onClick="{{goScores}}" style="{{tabScoresStyle}}">Scores</button>
-    </div>
-    <div class="hdr-right" style="display: flex; align-items: center; gap: 12px">
-      <button class="btn" type="button" onClick="{{authClick}}" style="{{authStyle}}">{{authLabel}}</button>
-      <div class="daydots" style="display: flex; gap: 4px" aria-hidden="true">
-        <sc-for list="{{dots}}" as="dt" hint-placeholder-count="14">
-          <span style="{{dt.style}}"></span>
-        </sc-for>
+    <nav class="tabs" aria-label="Sections">
+      <button class="tab {{tabMapCls}}" type="button" onClick="{{goMap}}"><svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"></path><path d="M9 4v14M15 6v14"></path></svg><span>Map</span></button>
+      <button class="tab {{tabDeskCls}}" type="button" onClick="{{goDesk}}"><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 8h6M9 12h6M9 16h4"></path></svg><span>Desk</span><sc-if value="{{deskPing}}" hint-placeholder-val="{{false}}"><i class="ping"></i></sc-if></button>
+      <button class="tab {{tabPressCls}}" type="button" onClick="{{goPress}}"><svg viewBox="0 0 24 24"><path d="M4 5h13v14H6a2 2 0 0 1-2-2z"></path><path d="M17 9h3v8a2 2 0 0 1-2 2M7 9h7M7 13h7"></path></svg><span>Press</span></button>
+      <button class="tab {{tabScoresCls}}" type="button" onClick="{{goScores}}"><svg viewBox="0 0 24 24"><path d="M7 20V10M12 20V4M17 20v-7"></path></svg><span>Scores</span></button>
+    </nav>
+    <div class="top-r">
+      <div class="dots" aria-hidden="true">
+        <sc-for list="{{dots}}" as="dt" hint-placeholder-count="14"><span class="dot {{dt.cls}}"></span></sc-for>
       </div>
-      <div style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 18px; min-width: 100px; text-align: right">{{dayLabel}}</div>
+      <div class="daylab">{{dayLabel}}</div>
+      <button class="acct {{authCls}}" type="button" onClick="{{authClick}}">{{authLabel}}</button>
     </div>
   </header>
 
-  <section class="stats" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; flex: none">
+  <section class="vitals" aria-label="National statistics">
     <sc-for list="{{stats}}" as="s" hint-placeholder-count="6">
-      <div style="padding: 7px 12px; background: #162a45; border: 1px solid #24405f; border-radius: 10px; {{s.tileAnim}}">
-        <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 6px">
-          <span style="font-size: 10.5px; letter-spacing: 0.8px; text-transform: uppercase; color: #a9b9d0">{{s.label}}</span>
-          <sc-if value="{{s.hasMeter}}" hint-placeholder-val="{{false}}">
-            <span style="{{s.meterWordStyle}}">{{s.meterWord}}</span>
-          </sc-if>
-        </div>
-        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 6px">
-          <span style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 19px">{{s.value}}</span>
-          <span style="{{s.deltaStyle}}">{{s.delta}}</span>
-        </div>
-        <sc-if value="{{s.hasMeter}}" hint-placeholder-val="{{false}}">
-          <div style="position: relative; height: 8px; margin-top: 5px; border-radius: 4px; background: linear-gradient(90deg, #3fae6a 0%, #3fae6a 33%, #e6b93b 33%, #e6b93b 67%, #d64545 67%, #d64545 100%)">
-            <div style="position: absolute; top: -3px; width: 4px; height: 14px; border-radius: 2px; background: #ffffff; box-shadow: 0 0 0 1.5px #0f1b2d; margin-left: -2px; transition: left .5s ease; left: {{s.meterPos}}"></div>
-          </div>
-        </sc-if>
+      <div class="tile" style="{{s.tileAnim}}">
+        <div class="lab"><span class="lab-l">{{s.label}}</span><span class="lab-s">{{s.short}}</span></div>
+        <div class="vrow"><span class="val">{{s.value}}</span><span class="dlt {{s.dcls}}">{{s.delta}}</span></div>
+        <sc-if value="{{s.hasMeter}}" hint-placeholder-val="{{false}}"><div class="zone"><i style="left:{{s.meterPos}}"></i></div></sc-if>
       </div>
     </sc-for>
   </section>
 
-  <section class="needlebar" style="display: flex; align-items: center; gap: 14px; padding: 8px 16px; background: #162a45; border: 1px solid #24405f; border-radius: 10px; flex: none">
-    <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #f4a874; white-space: nowrap">PLANNED</div>
-    <div style="position: relative; height: 26px; flex: 1">
-      <div style="position: absolute; left: 0; right: 0; top: 7px; height: 12px; border-radius: 6px; background: linear-gradient(90deg, #b4531c, #ece6d6 50%, #1f5a9e)"></div>
-      <div style="position: absolute; left: 50%; top: 4px; width: 2px; height: 18px; margin-left: -1px; background: rgba(15, 27, 45, 0.55)"></div>
-      <div style="{{needleStyle}}">
-        <div style="width: 6px; height: 26px; border-radius: 3px; background: #ffffff; box-shadow: 0 0 0 2px #0f1b2d"></div>
-      </div>
+  <section class="power" aria-label="Political standing">
+    <div class="pw">
+      <div class="lab"><span>Capital</span><b>{{capText}}</b></div>
+      <div class="pips"><sc-for list="{{capPips}}" as="pp" hint-placeholder-count="8"><span class="pip {{pp.cls}}"></span></sc-for></div>
     </div>
-    <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #8fc0f2; white-space: nowrap">FREE MARKET</div>
-    <div class="needleword" style="font-size: 12.5px; white-space: nowrap; min-width: 190px; text-align: right"><b>{{needleWord}}</b> <span style="font-family: 'Space Mono', monospace; color: #a9b9d0">{{needleSub}}</span></div>
+    <div class="pw">
+      <div class="lab"><span>Congress</span><b>{{congText}}</b></div>
+      <div class="bar"><i style="{{congBar}}"></i></div>
+    </div>
+    <div class="pw">
+      <div class="lab"><span>Scandal</span><b>{{scandText}}</b></div>
+      <div class="bar"><i style="{{scandBar}}"></i></div>
+    </div>
+    <div class="pw nd">
+      <div class="ends"><span style="color:#f4a874">PLANNED</span><span style="color:#8fc0f2">FREE MARKET</span></div>
+      <div class="track"><i style="{{needleLeft}}"></i></div>
+      <div class="lab"><b>{{needleWord}}</b> <span class="mono" style="color:#a9b9d0">{{needleSub}}</span></div>
+    </div>
   </section>
 
-  <section class="main" style="flex: 1; min-height: 0; background: #162a45; border: 1px solid #24405f; border-radius: 14px; overflow-y: auto; padding: 22px 24px">
+  <sc-if value="{{hasImp}}" hint-placeholder-val="{{false}}">
+    <section class="impban" role="status">
+      <div class="it">{{impTitle}}</div>
+      <div class="ix">{{impText}}</div>
+      <div class="conv" title="Senate conviction: removal at 67"><i style="width:{{impPct}}"></i><u></u></div>
+    </section>
+  </sc-if>
 
-    <sc-if value="{{isOffice}}" hint-placeholder-val="{{true}}">
-    <div style="max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; {{enter}}">
 
-      <sc-if value="{{isTitle}}" hint-placeholder-val="{{true}}">
-        <div style="font-family: 'Alfa Slab One', serif; font-size: 30px; line-height: 1.1">You have 14 days in office.</div>
-        <div style="font-size: 15.5px; line-height: 1.5; color: #d3deee">Memos land on your desk one at a time. Sign or veto. Disasters, wars and angry crowds will interrupt, and when people strike or riot, you decide how to make peace. Effects are exaggerated so two weeks is enough to see them.</div>
-        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">PICK YOUR ROLE. IT CHANGES THE RULES, NOT JUST THE NAME.</div>
-        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
-          <sc-for list="{{titles}}" as="tt" hint-placeholder-count="4">
-            <button class="btn" type="button" onClick="{{tt.pick}}" style="{{tt.style}}">
-              <span style="font-family: 'Alfa Slab One', serif; font-size: 19px">{{tt.label}}</span>
-              <span style="font-size: 12px; color: #a9b9d0; margin-top: -3px">{{tt.tag}}</span>
-              <sc-for list="{{tt.perks}}" as="pk" hint-placeholder-count="2">
-                <span style="font-size: 12.5px; line-height: 1.35; color: #c9f2d8"><b style="color: #7be0a3">+</b> {{pk.t}}</span>
-              </sc-for>
-              <sc-for list="{{tt.flaws}}" as="fl" hint-placeholder-count="2">
-                <span style="font-size: 12.5px; line-height: 1.35; color: #ffd0cc"><b style="color: #ff9d96">−</b> {{fl.t}}</span>
-              </sc-for>
-            </button>
-          </sc-for>
-        </div>
-        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">CHOOSE A MODE</div>
-        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
-          <button class="btn" type="button" onClick="{{pickFree}}" style="{{modeFreeStyle}}">
-            <span style="font-family: 'Alfa Slab One', serif; font-size: 17px">Free Play</span>
-            <span style="font-size: 12.5px; color: #a9b9d0">A fresh random term every time.</span>
-          </button>
-          <button class="btn" type="button" onClick="{{pickDaily}}" style="{{modeDailyStyle}}">
-            <span style="font-family: 'Alfa Slab One', serif; font-size: 17px">Daily Executive</span>
-            <span style="font-size: 12.5px; color: #a9b9d0">{{dailyLine}}</span>
-          </button>
-        </div>
-        <button class="btn" type="button" onClick="{{begin}}" style="height: 56px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 17px; font-weight: 700; cursor: pointer">{{beginLabel}}</button>
-      </sc-if>
+  <main class="stage" id="stage">
 
-      <sc-if value="{{isDesk}}" hint-placeholder-val="{{false}}">
-        <div style="display: flex; align-items: center; justify-content: space-between">
-          <div style="font-size: 13px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">MEMO {{memoNo}} OF {{memoTotal}}</div>
-          <div style="display: flex; gap: 6px">
-            <sc-for list="{{memoDots}}" as="md" hint-placeholder-count="3">
-              <span style="{{md.style}}"></span>
-            </sc-for>
-          </div>
-        </div>
-        <div style="position: relative; background: #112238; border: 1px solid #24405f; border-radius: 16px; padding: 22px 24px; display: flex; flex-direction: column; gap: 14px; {{memoCardAnim}}">
-          <sc-if value="{{leaving}}" hint-placeholder-val="{{false}}">
-            <div style="{{stampStyle}}">{{stampText}}</div>
-          </sc-if>
-          <div><span style="{{memoLeanStyle}}">{{memoLeanLabel}}</span></div>
-          <div style="font-family: 'Alfa Slab One', serif; font-size: 27px; line-height: 1.15">{{memoTitle}}</div>
-          <div style="font-size: 16px; line-height: 1.45; color: #d3deee">{{memoText}}</div>
-          <div>
-            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0; margin-bottom: 8px">IF YOU SIGN (EXPECTED, ARRIVES OVER ~3 DAYS)</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 8px">
-              <sc-for list="{{memoChips}}" as="c" hint-placeholder-count="4">
-                <span style="{{c.style}}">{{c.t}}</span>
-              </sc-for>
-            </div>
-            <div style="font-size: 12.5px; color: #a9b9d0; margin-top: 8px">Uncertainty: {{memoUnc}}. The real result is a draw around these numbers.</div>
-          </div>
-          <button class="btn" type="button" onClick="{{toggleEv}}" style="align-self: flex-start; height: 34px; padding: 0 14px; border-radius: 8px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 13px; font-weight: 500; cursor: pointer">{{evLabel}}</button>
-          <sc-if value="{{showEv}}" hint-placeholder-val="{{false}}">
-            <div style="display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: #0f1b2d; border-radius: 10px; font-size: 13.5px; line-height: 1.45; color: #c3d1e6">
-              <div><b style="color: #eef1f6">Real world.</b> {{memoReal}}</div>
-              <div><b style="color: #7be0a3">Supporters say:</b> {{memoPro}}</div>
-              <div><b style="color: #ff9d96">Critics say:</b> {{memoCon}}</div>
-            </div>
-          </sc-if>
-        </div>
-        <div style="display: flex; gap: 14px">
-          <button class="btn" type="button" onClick="{{veto}}" style="border-radius:12px;border:0;cursor:pointer;font-size:17px;font-weight:700;height:60px;flex:1;background:#d64545;color:#ffffff">Veto</button>
-          <button class="btn" type="button" onClick="{{sign}}" style="border-radius:12px;border:0;cursor:pointer;font-size:17px;font-weight:700;height:60px;flex:1;background:#5fd08b;color:#0b2a17">Sign it</button>
-        </div>
-        <div style="font-size: 12px; line-height: 1.4; color: #a9b9d0">Playing as {{roleLine}}</div>
-        <sc-if value="{{hasToday}}" hint-placeholder-val="{{false}}">
-          <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
-            <span style="font-size: 12px; color: #a9b9d0">Earlier today:</span>
-            <sc-for list="{{todayDone}}" as="td" hint-placeholder-count="2">
-              <span style="{{td.style}}">{{td.t}}</span>
-            </sc-for>
-          </div>
-        </sc-if>
-      </sc-if>
-
-      <sc-if value="{{isQuiet}}" hint-placeholder-val="{{false}}">
-        <div style="font-family: 'Alfa Slab One', serif; font-size: 26px">A quiet morning.</div>
-        <div style="font-size: 16px; color: #d3deee">The desk is empty: you have already dealt with every memo in the building.</div>
-        <button class="btn" type="button" onClick="{{endQuiet}}" style="height: 56px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 17px; font-weight: 700; cursor: pointer">End the day</button>
-      </sc-if>
-
-      <sc-if value="{{isIncident}}" hint-placeholder-val="{{false}}">
-        <div style="{{incBanner}}">{{incKind}}</div>
-        <div style="font-family: 'Alfa Slab One', serif; font-size: 28px; line-height: 1.15; {{incTitleAnim}}">{{incTitle}}</div>
-        <div style="font-size: 16px; line-height: 1.45; color: #d3deee">{{incText}}</div>
-        <div style="font-size: 13px; line-height: 1.4; color: #a9b9d0"><b style="color: #eef1f6">Real world.</b> {{incReal}}</div>
-        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">YOUR MOVE</div>
-        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
-          <sc-for list="{{incOpts}}" as="o" hint-placeholder-count="4">
-            <button class="btn" type="button" onClick="{{o.pick}}" style="display: flex; flex-direction: column; gap: 7px; align-items: flex-start; text-align: left; padding: 13px 15px; border-radius: 12px; border: 1px solid #3a5a82; background: #112238; color: #eef1f6; cursor: pointer; {{o.anim}}">
-              <span style="font-weight: 700; font-size: 16px">{{o.label}}</span>
-              <span style="font-size: 13px; line-height: 1.35; color: #c3d1e6">{{o.desc}}</span>
-              <span style="display: flex; flex-wrap: wrap; gap: 6px">
-                <sc-for list="{{o.chips}}" as="c" hint-placeholder-count="3">
-                  <span style="{{c.style}}">{{c.t}}</span>
-                </sc-for>
-              </span>
-            </button>
-          </sc-for>
-        </div>
-      </sc-if>
-
-      <sc-if value="{{isBrief}}" hint-placeholder-val="{{false}}">
-        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.6px; color: #ffd166">OVERNIGHT HEADLINES (TAP ONE TO READ IT)</div>
-        <div style="display: flex; flex-direction: column; gap: 10px">
-          <sc-for list="{{news}}" as="n" hint-placeholder-count="3">
-            <button class="btn" type="button" onClick="{{n.open}}" style="text-align: left; display: flex; flex-direction: column; gap: 5px; padding: 12px 14px; background: #112238; border: 0; border-left: 4px solid #ffd166; border-radius: 6px; color: #eef1f6; cursor: pointer; {{n.anim}}">
-              <span style="font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #ffd166">{{n.outlet}}</span>
-              <span style="font-family: 'Alfa Slab One', serif; font-size: 18px; line-height: 1.25">{{n.t}}</span>
-              <span style="font-size: 12px; color: #a9b9d0">Tap to read the story</span>
-            </button>
-          </sc-for>
-        </div>
-        <sc-if value="{{hasResults}}" hint-placeholder-val="{{true}}">
-          <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">WHAT YOUR SIGNATURES DID (FULL STRENGTH, ARRIVING OVER ~3 DAYS)</div>
-          <sc-for list="{{results}}" as="r" hint-placeholder-count="2">
-            <div style="padding: 11px 14px; background: #112238; border-radius: 10px; display: flex; flex-direction: column; gap: 7px; {{r.anim}}">
-              <div style="font-weight: 700; font-size: 15px">{{r.title}}</div>
-              <div style="display: flex; flex-wrap: wrap; gap: 6px">
-                <sc-for list="{{r.chips}}" as="c" hint-placeholder-count="4">
-                  <span style="{{c.style}}">{{c.t}}</span>
-                </sc-for>
-              </div>
-              <div style="font-size: 12.5px; color: #a9b9d0">{{r.note}}</div>
-            </div>
-          </sc-for>
-        </sc-if>
-        <button class="btn" type="button" onClick="{{nextMorning}}" style="height: 56px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 17px; font-weight: 700; cursor: pointer">{{nextLabel}}</button>
-      </sc-if>
-
-      <sc-if value="{{isEnd}}" hint-placeholder-val="{{false}}">
-        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.6px; color: #ffd166">{{endKicker}}</div>
-        <div style="font-family: 'Alfa Slab One', serif; font-size: 34px; line-height: 1.1; animation: glow 2.4s ease-in-out infinite">{{endTitle}}</div>
-        <div style="font-size: 16px; line-height: 1.45; color: #d3deee">{{endLine}} {{celebrateLine}}</div>
-        <div style="display: flex; align-items: center; gap: 22px; padding: 16px 20px; background: #112238; border-radius: 14px">
-          <div style="font-family: 'Alfa Slab One', serif; font-size: 64px; line-height: 1; color: #ffd166">{{scoreText}}</div>
-          <div>
-            <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.4px; color: #a9b9d0">FINAL SCORE (MAX 1,050)</div>
-            <div style="font-size: 13.5px; color: #d3deee; margin-top: 4px">{{rankText}}</div>
-          </div>
-        </div>
-        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
-          <div style="padding: 14px 16px; background: #112238; border-radius: 14px; display: flex; flex-direction: column; gap: 6px">
-            <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1.2px; color: #8fc0f2">CONSERVATIVES GIVE YOU</div>
-            <div style="display: flex; align-items: baseline; gap: 10px"><span style="font-family: 'Alfa Slab One', serif; font-size: 52px; line-height: 1; color: {{gC.color}}; animation: stampIn .4s ease-out .3s both">{{gC.letter}}</span><span style="font-family: 'Space Mono', monospace; font-size: 13px; color: #a9b9d0">{{gC.pct}}/100</span></div>
-            <div style="font-size: 13px; line-height: 1.4; color: #c3d1e6; font-style: italic">"{{gC.quip}}"</div>
-            <div style="font-size: 11px; color: #a9b9d0">Cares about: direction toward markets, deficit, inflation, growth, calm.</div>
-          </div>
-          <div style="padding: 14px 16px; background: #112238; border-radius: 14px; display: flex; flex-direction: column; gap: 6px">
-            <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1.2px; color: #f4a874">LIBERALS GIVE YOU</div>
-            <div style="display: flex; align-items: baseline; gap: 10px"><span style="font-family: 'Alfa Slab One', serif; font-size: 52px; line-height: 1; color: {{gL.color}}; animation: stampIn .4s ease-out .5s both">{{gL.letter}}</span><span style="font-family: 'Space Mono', monospace; font-size: 13px; color: #a9b9d0">{{gL.pct}}/100</span></div>
-            <div style="font-size: 13px; line-height: 1.4; color: #c3d1e6; font-style: italic">"{{gL.quip}}"</div>
-            <div style="font-size: 11px; color: #a9b9d0">Cares about: direction toward planning, jobs, cost of living, approval, calm.</div>
-          </div>
-        </div>
-        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">HOW YOUR SCORE WAS BUILT (OBJECTIVE, SAME FOR EVERYONE)</div>
-        <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
-          <sc-for list="{{scoreRows}}" as="r" hint-placeholder-count="6">
-            <div style="padding: 9px 12px; background: #112238; border-radius: 10px; display: flex; flex-direction: column; gap: 5px">
-              <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-weight: 700; font-size: 13.5px">{{r.label}} <span style="font-weight: 400; font-size: 11px; color: #a9b9d0">(weight {{r.weight}})</span></span><span style="font-family: 'Space Mono', monospace; font-size: 12px; color: #a9b9d0">{{r.pts}}</span></div>
-              <div style="height: 8px; border-radius: 4px; background: #24405f"><div style="{{r.barStyle}}"></div></div>
-              <div style="font-size: 11.5px; color: #a9b9d0">{{r.value}}</div>
-            </div>
-          </sc-for>
-        </div>
-        <div style="font-size: 11.5px; line-height: 1.4; color: #a9b9d0">Score = 200 plus 16 points for every point your weighted meter average (0-100) sits above 35, plus 50 for finishing the term. Doing nothing lands near 600. An early ending cuts the total by 40%. Grades use the same meters with each side's own priorities, so one run can earn an A from one side and a D from the other.</div>
-        <div style="display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; background: #112238; border-radius: 14px">
-          <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">{{postTitle}}</div>
-          <sc-if value="{{showSignIn}}" hint-placeholder-val="{{true}}">
-            <div style="display: flex; align-items: center; gap: 14px">
-              <span style="flex: 1; font-size: 14px; line-height: 1.4; color: #d3deee">{{signInPitch}}</span>
-              <button class="btn" type="button" onClick="{{authClick}}" style="height: 48px; padding: 0 20px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 15px; font-weight: 700; cursor: pointer">{{signInLabel}}</button>
-            </div>
-          </sc-if>
-          <sc-if value="{{showPost}}" hint-placeholder-val="{{false}}">
-            <div style="display: flex; align-items: center; gap: 14px">
-              <span style="flex: 1; font-size: 14px; color: #d3deee">Posting as <b>{{postHandle}}</b></span>
-              <button class="btn" type="button" onClick="{{submit}}" style="{{submitStyle}}">{{submitLabel}}</button>
-            </div>
-          </sc-if>
-          <sc-if value="{{showPosted}}" hint-placeholder-val="{{false}}">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px">
-              <span style="font-size: 14px; color: #7be0a3">{{lbMsg}}</span>
-              <button class="btn" type="button" onClick="{{goScores}}" style="height: 40px; padding: 0 16px; border-radius: 10px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 14px; font-weight: 700; cursor: pointer">See the board</button>
-            </div>
-          </sc-if>
-          <sc-if value="{{lbErr}}" hint-placeholder-val="{{false}}">
-            <div style="font-size: 13px; color: #ff9d96">{{lbErr}}</div>
-          </sc-if>
-          <button class="btn" type="button" onClick="{{share}}" style="height: 44px; border-radius: 10px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 14px; font-weight: 700; cursor: pointer">{{shareLabel}}</button>
-        </div>
-        <div style="font-size: 12px; font-weight: 700; letter-spacing: 1.2px; color: #a9b9d0">YOUR RECORD VS THE RESEARCH</div>
-        <sc-for list="{{recap}}" as="p" hint-placeholder-count="3">
-          <div style="padding: 10px 13px; background: #112238; border-radius: 10px; display: flex; flex-direction: column; gap: 5px">
-            <div style="display: flex; justify-content: space-between; gap: 8px; align-items: baseline"><span style="font-weight: 700; font-size: 14px">{{p.title}}</span><span style="font-size: 11px; color: #a9b9d0; white-space: nowrap">{{p.status}}</span></div>
-            <div style="font-size: 12.5px; line-height: 1.4; color: #a9b9d0">{{p.real}}</div>
-          </div>
-        </sc-for>
-        <div style="font-size: 12.5px; line-height: 1.45; color: #a9b9d0; padding: 10px 14px; border: 1px dashed #3a5a82; border-radius: 10px">The verdict judges consequences inside the game, not ideology. Planned and market runs both end well and badly depending on size, timing and luck. Sandbox mode with per-state dials is shelved for later.</div>
-        <button class="btn" type="button" onClick="{{again}}" style="height: 56px; border-radius: 12px; border: 0; background: #ffd166; color: #1a1300; font-size: 17px; font-weight: 700; cursor: pointer">Play again with a new seed</button>
-      </sc-if>
-
+    <!-- ===================== TITLE ===================== -->
+    <sc-if value="{{showTitle}}" hint-placeholder-val="{{true}}">
+    <div class="page">
+      <h1 class="h1">You have 14 days in office.</h1>
+      <div class="lead">Every morning the map shows how the country feels. At your desk, three memos wait: sign or veto each one. Then, if you dare, take one bold executive action. Disasters, wars and angry crowds will interrupt, and if Congress and the public both turn on you, you will face an impeachment trial. Your goal is long-term prosperity.</div>
+      <div class="grid2">
+        <div class="card"><div class="eyebrow gold">SPEND CAPITAL</div><div class="small">Executive actions cost political capital and Congress goodwill. Some risk scandal. All of them are unilateral.</div></div>
+        <div class="card"><div class="eyebrow gold">FIGHT BACK</div><div class="small">If you are impeached you can rally, deal, or play dirty. You can win, but dirty wins can spark a revolution.</div></div>
+      </div>
+      <div class="eyebrow">CHOOSE A MODE</div>
+      <div class="grid2">
+        <button class="opt {{modeFreeCls}}" type="button" onClick="{{pickFree}}"><span class="h3">Free Play</span><span class="d">A fresh random term every time.</span></button>
+        <button class="opt {{modeDailyCls}}" type="button" onClick="{{pickDaily}}"><span class="h3">Daily Executive</span><span class="d">{{dailyLine}}</span></button>
+        <div class="opt off" style="cursor:default"><span class="row" style="gap:10px"><span class="h3">Supreme Leader</span><span class="tag nt">Coming soon</span></span><span class="d">Name your own country, pick your policies and constitution, and survive a world that is watching.</span></div>
+      </div>
+      <button class="btn btn-lg gold" type="button" onClick="{{begin}}">{{beginLabel}}</button>
     </div>
     </sc-if>
 
-    <sc-if value="{{isMap}}" hint-placeholder-val="{{false}}">
-    <div class="mapwrap" style="display: flex; gap: 22px; align-items: flex-start; {{enter}}">
-      <div class="mapcol" style="flex: none; width: 800px">
-        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px">
-          <div style="font-family: 'Alfa Slab One', serif; font-size: 19px">The United States of Questionable Economies</div>
-          <div style="font-size: 12.5px; color: #a9b9d0">{{mapNote}}</div>
+    <!-- ===================== MAP ===================== -->
+    <sc-if value="{{showMap}}" hint-placeholder-val="{{false}}">
+    <div class="mapgrid">
+      <div class="mbrief">
+        <div class="row between"><div class="eyebrow gold">{{mbKicker}}</div></div>
+        <div class="h3" style="font-size:20px">{{mbTitle}}</div>
+        <div class="small">{{mbText}}</div>
+        <sc-for list="{{mbAlerts}}" as="al" hint-placeholder-count="1"><div class="alert {{al.cls}}">{{al.t}}</div></sc-for>
+        <sc-for list="{{mbNews}}" as="mn" hint-placeholder-count="2"><button class="mini" type="button" onClick="{{mn.open}}"><span>{{mn.outlet}}</span><span>{{mn.t}}</span></button></sc-for>
+        <sc-if value="{{mbCoach}}" hint-placeholder-val="{{false}}">
+          <div class="coach"><div class="eyebrow gold">{{coachStep}}</div><div class="ct">{{coachText}}</div><div class="row wrap"><button class="btn btn-sm gold" type="button" onClick="{{coachNext}}">{{coachBtn}}</button><button class="btn btn-sm ghost" type="button" onClick="{{coachSkip}}">Skip tutorial</button></div></div>
+        </sc-if>
+        <button class="btn btn-md gold" type="button" onClick="{{goDesk}}">{{mbButton}}</button>
+      </div>
+      <div class="mapcol">
+        <div class="row between wrap" style="margin-bottom:6px;gap:4px 10px">
+          <div class="h3">The United States of Questionable Economies</div>
+          <div class="small">{{mapNote}}</div>
         </div>
-        <svg class="mapsvg" viewBox="0 0 975 610" width="800" height="500" role="img" aria-label="Map of the United States colored by voter mood" style="display: block">
+<svg class="mapsvg" viewBox="0 0 975 610" role="img" aria-label="Map of the United States colored by voter mood">
 <path d="M648,492L648,492L648,492ZM642,384L689,380L702,427L710,440L706,450L709,457L708,465L711,469L661,474L666,486L664,490L656,488L653,482L652,490L646,489L642,455L644,386Z" style="{{mf.AL}}" onClick="{{mp.AL}}"></path>
 <path d="M104,552L104,552L104,552ZM99,570L103,565L105,569ZM95,582L95,582L95,582ZM93,575L99,571L105,573L95,580ZM93,583L93,583L93,583ZM89,588L89,588L89,588ZM72,594L72,594L72,594ZM71,592L71,592L71,592ZM68,593L68,593L68,593ZM66,590L66,590L66,590ZM68,564L68,564L68,564ZM61,591L61,591L61,591ZM58,592L58,592L58,592ZM66,524L66,524L66,524ZM56,596L56,596L56,596ZM45,597L45,597L45,597ZM43,595L43,595L43,595ZM41,596L41,596L41,596ZM44,547L50,547L48,552ZM31,601L38,596L37,601ZM51,505L66,500L65,504L74,504L73,498L67,496L66,492L59,484L62,481L67,481L75,471L87,468L89,465L95,469L101,469L104,472L109,471L123,474L126,472L133,474L147,547L155,547L164,555L169,546L181,554L193,565L200,567L203,573L201,578L193,574L188,565L183,563L178,557L171,551L173,557L168,559L160,554L151,551L141,550L135,552L126,547L119,547L121,553L114,554L109,560L105,560L106,546L100,557L96,560L100,564L96,569L90,572L77,586L47,595L49,592L57,590L62,585L66,585L81,573L84,563L76,566L71,561L65,564L66,557L64,551L58,553L53,547L51,538L61,526L64,528L73,523L73,514L68,517L55,514L56,509ZM25,603L25,603L25,603ZM28,573L28,573L28,573ZM20,602L20,602L20,602ZM27,568L27,568L27,568ZM16,603L16,603L16,603ZM34,518L39,518L45,522L41,524ZM7,603L7,603L7,603ZM23,540L23,540L23,540ZM0,602L0,602L0,602ZM-6,601L-6,601L-6,601ZM-10,599L-10,599L-10,599ZM-11,601L-11,601L-11,601ZM-15,601L-15,601L-15,601ZM-18,600L-18,600L-18,600ZM-20,597L-20,597L-20,597ZM-30,593L-30,593L-30,593ZM-35,593L-35,593L-35,593ZM-41,589L-41,589L-41,589ZM-56,577L-56,577L-56,577ZM-58,571L-58,571L-58,571ZM197,577L197,577L197,577ZM196,577L196,577L196,577ZM195,575L195,575L195,575ZM188,570L188,570L188,570ZM187,569L187,569L187,569ZM186,577L186,577L186,577ZM185,573L187,570L194,576L196,580ZM183,574L183,574L183,574ZM180,567L185,564L189,567ZM175,556L178,557L181,563L180,566ZM174,565L177,563L181,573ZM173,566L173,566L173,566ZM169,561L172,558L177,563L174,565ZM121,555L121,555L121,555ZM120,551L120,551L120,551Z" style="{{mf.AK}}" onClick="{{mp.AK}}"></path>
 <path d="M145,407L149,407L150,401L147,400L148,392L152,389L154,380L163,374L160,370L157,356L160,331L167,331L170,335L173,331L176,313L239,324L265,328L247,456L208,450L172,429L142,412Z" style="{{mf.AZ}}" onClick="{{mp.AZ}}"></path>
@@ -376,131 +196,333 @@
 <text x="142" y="256" text-anchor="middle" style="{{ml.NV}}">NV</text>
 <text x="570" y="482" text-anchor="middle" style="{{ml.LA}}">LA</text>
         </svg>
-        <div style="display: flex; gap: 16px; align-items: center; font-size: 12.5px; color: #a9b9d0; margin-top: 6px">
-          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 14px; height: 14px; border-radius: 4px; background: #c0392b"></span>Furious</span>
-          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 14px; height: 14px; border-radius: 4px; background: #ece6d6"></span>Meh</span>
-          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 14px; height: 14px; border-radius: 4px; background: #2a9d8f"></span>Delighted</span>
+        <div class="legend">
+          <span><i style="background:#c0392b"></i>Furious</span>
+          <span><i style="background:#ece6d6"></i>Meh</span>
+          <span><i style="background:#2a9d8f"></i>Delighted</span>
         </div>
       </div>
-      <div class="mapside" style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px">
-        <div style="background: #112238; border: 1px solid #24405f; border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px">
-          <div style="font-family: 'Alfa Slab One', serif; font-size: 24px; line-height: 1.1">{{selName}}</div>
-          <div style="font-size: 12.5px; color: #a9b9d0; margin-top: -6px">Also known as {{selReal}}</div>
-          <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-weight: 700; font-size: 15px">{{selWord}}</span><span style="font-family: 'Space Mono', monospace; font-weight: 700; font-size: 18px">{{selMood}}</span></div>
-          <div style="height: 10px; border-radius: 5px; background: #24405f"><div style="{{selBarStyle}}"></div></div>
-          <sc-if value="{{hasReasons}}" hint-placeholder-val="{{false}}">
-            <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #a9b9d0">WHY</div>
-            <sc-for list="{{reasons}}" as="rs" hint-placeholder-count="2">
-              <div style="display: flex; justify-content: space-between; gap: 10px; font-size: 13px; line-height: 1.3"><span>{{rs.t}}</span><span style="{{rs.style}}">{{rs.v}}</span></div>
-            </sc-for>
-          </sc-if>
-          <sc-if value="{{noReasons}}" hint-placeholder-val="{{true}}">
-            <div style="font-size: 13px; color: #a9b9d0">Nothing special here. Just vibes and the national mood.</div>
-          </sc-if>
-        </div>
-        <div style="background: #112238; border: 1px solid #24405f; border-radius: 14px; padding: 14px 18px; display: flex; flex-direction: column; gap: 6px">
-          <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #ff9d96">ANGRIEST STATES</div>
-          <sc-for list="{{angriest}}" as="a" hint-placeholder-count="3">
-            <button class="btn" type="button" onClick="{{a.pick}}" style="display: flex; justify-content: space-between; padding: 6px 0; border: 0; background: transparent; color: #eef1f6; font-size: 14px; cursor: pointer"><span>{{a.name}}</span><span style="font-family: 'Space Mono', monospace">{{a.value}}</span></button>
-          </sc-for>
-          <div style="font-size: 11.5px; font-weight: 700; letter-spacing: 1px; color: #7be0a3; margin-top: 6px">HAPPIEST STATES</div>
-          <sc-for list="{{happiest}}" as="h" hint-placeholder-count="3">
-            <button class="btn" type="button" onClick="{{h.pick}}" style="display: flex; justify-content: space-between; padding: 6px 0; border: 0; background: transparent; color: #eef1f6; font-size: 14px; cursor: pointer"><span>{{h.name}}</span><span style="font-family: 'Space Mono', monospace">{{h.value}}</span></button>
-          </sc-for>
-        </div>
+      <div class="card">
+        <div class="h2" style="font-size:22px">{{selName}}</div>
+        <div class="small" style="margin-top:-6px">Also known as {{selReal}}</div>
+        <div class="row between"><span style="font-weight:700;font-size:15px">{{selWord}}</span><span class="mono" style="font-weight:700;font-size:18px">{{selMood}}</span></div>
+        <div class="bar" style="height:10px;margin:0"><i style="{{selBarStyle}}"></i></div>
+        <sc-if value="{{hasReasons}}" hint-placeholder-val="{{false}}">
+          <div class="eyebrow">WHY</div>
+          <sc-for list="{{reasons}}" as="rs" hint-placeholder-count="2"><div class="row between" style="gap:10px;font-size:13px;line-height:1.3"><span>{{rs.t}}</span><span class="mono" style="{{rs.style}}">{{rs.v}}</span></div></sc-for>
+        </sc-if>
+        <sc-if value="{{noReasons}}" hint-placeholder-val="{{true}}"><div class="small">Nothing special here. Just vibes and the national mood.</div></sc-if>
+      </div>
+      <div class="card">
+        <div class="eyebrow red">ANGRIEST STATES</div>
+        <sc-for list="{{angriest}}" as="a" hint-placeholder-count="3"><button class="statelist" type="button" onClick="{{a.pick}}"><span>{{a.name}}</span><span class="mono">{{a.value}}</span></button></sc-for>
+        <div class="eyebrow green" style="margin-top:4px">HAPPIEST STATES</div>
+        <sc-for list="{{happiest}}" as="h" hint-placeholder-count="3"><button class="statelist" type="button" onClick="{{h.pick}}"><span>{{h.name}}</span><span class="mono">{{h.value}}</span></button></sc-for>
       </div>
     </div>
     </sc-if>
 
-    <sc-if value="{{isScores}}" hint-placeholder-val="{{false}}">
-    <div style="max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; {{enter}}">
-      <div style="font-family: 'Alfa Slab One', serif; font-size: 28px">Leaderboard</div>
-      <div style="font-size: 13px; line-height: 1.4; color: #a9b9d0">{{lbNote}}</div>
-      <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
-        <sc-for list="{{boardTabs}}" as="bt" hint-placeholder-count="2">
-          <button class="btn" type="button" onClick="{{bt.pick}}" style="{{bt.style}}">{{bt.label}}</button>
+    <!-- ===================== DESK ===================== -->
+    <sc-if value="{{showDesk}}" hint-placeholder-val="{{false}}">
+
+      <sc-if value="{{isDesk}}" hint-placeholder-val="{{false}}">
+      <div class="page wide">
+        <sc-if value="{{deskCoach}}" hint-placeholder-val="{{false}}">
+          <div class="coach"><div class="eyebrow gold">{{coachStep}}</div><div class="ct">{{coachText}}</div><div class="row wrap"><button class="btn btn-sm gold" type="button" onClick="{{coachNext}}">{{coachBtn}}</button><button class="btn btn-sm ghost" type="button" onClick="{{coachSkip}}">Skip tutorial</button></div></div>
+        </sc-if>
+        <div class="deskgrid">
+          <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
+            <sc-if value="{{hasMemo}}" hint-placeholder-val="{{false}}">
+              <div class="row between">
+                <div class="eyebrow">MEMO {{memoNo}} OF {{memoTotal}}</div>
+                <div class="mdots"><sc-for list="{{memoDots}}" as="md" hint-placeholder-count="3"><span class="mdot {{md.cls}}"></span></sc-for></div>
+              </div>
+              <div class="memo" style="{{memoCardAnim}}">
+                <sc-if value="{{leaving}}" hint-placeholder-val="{{false}}"><div class="stamp {{stampCls}}">{{stampText}}</div></sc-if>
+                <div><span class="tag {{memoLeanCls}}">{{memoLeanLabel}}</span></div>
+                <div class="t">{{memoTitle}}</div>
+                <div class="lead" style="font-size:16px">{{memoText}}</div>
+                <div>
+                  <div class="eyebrow" style="margin-bottom:8px">IF YOU SIGN (EXPECTED, ARRIVES OVER ~3 DAYS)</div>
+                  <div class="chips"><sc-for list="{{memoChips}}" as="c" hint-placeholder-count="4"><span class="chip big {{c.cls}}" style="{{c.style}}">{{c.t}}</span></sc-for></div>
+                  <div class="small" style="margin-top:8px">Uncertainty: {{memoUnc}}. {{congNote}}</div>
+                </div>
+                <button class="btn btn-sm ghost" style="align-self:flex-start" type="button" onClick="{{toggleEv}}">{{evLabel}}</button>
+                <sc-if value="{{showEv}}" hint-placeholder-val="{{false}}">
+                  <div class="evid">
+                    <div><b>Real world.</b> {{memoReal}}</div>
+                    <div><b style="color:#7be0a3">Supporters say:</b> {{memoPro}}</div>
+                    <div><b style="color:#ff9d96">Critics say:</b> {{memoCon}}</div>
+                  </div>
+                </sc-if>
+              </div>
+              <div class="decide">
+                <button class="btn redb" type="button" onClick="{{veto}}">Veto</button>
+                <button class="btn green" type="button" onClick="{{sign}}">Sign it</button>
+              </div>
+            </sc-if>
+            <sc-if value="{{memosDone}}" hint-placeholder-val="{{false}}">
+              <div class="eyebrow green">ALL MEMOS HANDLED</div>
+              <div class="h2">{{doneTitle}}</div>
+              <div class="lead">{{doneText}}</div>
+              <button class="btn btn-lg gold" type="button" onClick="{{endDay}}">End the day</button>
+            </sc-if>
+            <sc-if value="{{hasToday}}" hint-placeholder-val="{{false}}">
+              <div class="row wrap" style="gap:8px"><span class="small">Earlier today:</span>
+                <sc-for list="{{todayDone}}" as="td" hint-placeholder-count="2"><span class="pill {{td.cls}}">{{td.t}}</span></sc-for>
+              </div>
+            </sc-if>
+          </div>
+
+          <div class="xpanel">
+            <div class="xhead">
+              <div>
+                <div class="eyebrow gold">EXECUTIVE ACTIONS</div>
+                <div class="small">{{xSub}}</div>
+              </div>
+              <button class="btn btn-sm ghost xtoggle" type="button" onClick="{{toggleX}}">{{xToggleLabel}}</button>
+            </div>
+            <sc-if value="{{hasQueued}}" hint-placeholder-val="{{false}}"><div class="alert y">{{queuedText}}</div></sc-if>
+            <div class="xbody {{xOpenCls}}">
+              <div class="xcats"><sc-for list="{{xCats}}" as="xc" hint-placeholder-count="5"><button class="xcat {{xc.cls}}" type="button" onClick="{{xc.pick}}">{{xc.label}}</button></sc-for></div>
+              <div class="xlist"><sc-for list="{{xList}}" as="xr" hint-placeholder-count="6">
+                <button class="xrow {{xr.cls}}" type="button" onClick="{{xr.pick}}"><span class="xt">{{xr.title}}</span><span class="row" style="gap:6px"><span class="tag {{xr.tagCls}}">{{xr.tag}}</span><span class="cost">{{xr.cost}}</span></span></button>
+              </sc-for></div>
+              <sc-if value="{{hasXsel}}" hint-placeholder-val="{{false}}">
+                <div class="xdetail">
+                  <div class="row between" style="align-items:flex-start;gap:10px"><div class="h3" style="font-size:17px">{{xTitle}}</div><span class="tag {{xTagCls}}">{{xTag}}</span></div>
+                  <div style="font-size:14px;line-height:1.45;color:#d3deee">{{xText}}</div>
+                  <div class="chips"><sc-for list="{{xChips}}" as="xch" hint-placeholder-count="4"><span class="chip {{xch.cls}}" style="{{xch.style}}">{{xch.t}}</span></sc-for></div>
+                  <div class="meta"><sc-for list="{{xMeta}}" as="xm" hint-placeholder-count="3"><span>{{xm.t}}</span></sc-for></div>
+                  <div class="evid"><div><b>Real world.</b> {{xReal}}</div><div><b style="color:#7be0a3">Supporters say:</b> {{xPro}}</div><div><b style="color:#ff9d96">Critics say:</b> {{xCon}}</div></div>
+                  <div class="row"><button class="btn btn-md ghost" type="button" onClick="{{xCancel}}">Back</button><button class="btn btn-md grow {{xConfirmCls}}" type="button" onClick="{{xConfirm}}">{{xConfirmLabel}}</button></div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{isIncident}}" hint-placeholder-val="{{false}}">
+      <div class="page">
+        <div class="eyebrow" style="{{incBanner}}">{{incKind}}</div>
+        <div class="h1" style="font-size:28px;{{incTitleAnim}}">{{incTitle}}</div>
+        <div class="lead" style="font-size:16px">{{incText}}</div>
+        <div class="small"><b style="color:#eef1f6">Real world.</b> {{incReal}}</div>
+        <div class="eyebrow">YOUR MOVE</div>
+        <div class="grid2">
+          <sc-for list="{{incOpts}}" as="o" hint-placeholder-count="4">
+            <button class="opt {{o.cls}}" type="button" onClick="{{o.pick}}" style="{{o.anim}}">
+              <span class="row" style="gap:8px;width:100%;justify-content:space-between"><b>{{o.label}}</b><sc-if value="{{o.hasCost}}" hint-placeholder-val="{{false}}"><span class="cost">{{o.cost}}</span></sc-if></span>
+              <span class="d">{{o.desc}}</span>
+              <span class="chips"><sc-for list="{{o.chips}}" as="c" hint-placeholder-count="3"><span class="chip {{c.cls}}" style="{{c.style}}">{{c.t}}</span></sc-for></span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{isTrial}}" hint-placeholder-val="{{false}}">
+      <div class="page">
+        <div class="eyebrow red">IMPEACHMENT TRIAL · NIGHT {{trialRound}} OF 3</div>
+        <div class="h1" style="font-size:28px;animation:shakeX .55s ease-out">The Senate is counting votes.</div>
+        <div class="lead" style="font-size:16px">{{trialText}}</div>
+        <div class="card flat" style="background:#2a1220;border:1px solid #8c2f2f">
+          <div class="row between"><span class="eyebrow red">SENATE CONVICTION</span><span class="mono" style="font-weight:700">{{convText}} <span style="color:#a9b9d0">/ 67 to remove</span></span></div>
+          <div class="trialbar"><i style="width:{{convPct}}"></i><u></u></div>
+          <div class="small">{{trialHint}}</div>
+        </div>
+        <div class="eyebrow">YOUR MOVE</div>
+        <div class="grid2">
+          <sc-for list="{{trialOpts}}" as="to" hint-placeholder-count="4">
+            <button class="opt {{to.cls}}" type="button" onClick="{{to.pick}}">
+              <span class="row" style="gap:8px;width:100%;justify-content:space-between"><b>{{to.label}}</b><span class="cost">{{to.cost}}</span></span>
+              <span class="d">{{to.desc}}</span>
+              <span class="tag {{to.tagCls}}">{{to.tag}}</span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{isBrief}}" hint-placeholder-val="{{false}}">
+      <div class="page">
+        <div class="eyebrow gold">OVERNIGHT HEADLINES (TAP ONE TO READ IT)</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <sc-for list="{{news}}" as="n" hint-placeholder-count="3">
+            <button class="hl" type="button" onClick="{{n.open}}" style="{{n.anim}}"><span class="o">{{n.outlet}}</span><span class="h">{{n.t}}</span><span class="m">Tap to read the story</span></button>
+          </sc-for>
+        </div>
+        <sc-if value="{{hasResults}}" hint-placeholder-val="{{true}}">
+          <div class="eyebrow">WHAT YOUR DECISIONS DID (FULL STRENGTH, ARRIVING OVER ~3 DAYS)</div>
+          <sc-for list="{{results}}" as="r" hint-placeholder-count="2">
+            <div class="card" style="padding:11px 14px;gap:7px;{{r.anim}}">
+              <div style="font-weight:700;font-size:15px">{{r.title}}</div>
+              <div class="chips"><sc-for list="{{r.chips}}" as="c" hint-placeholder-count="4"><span class="chip {{c.cls}}" style="{{c.style}}">{{c.t}}</span></sc-for></div>
+              <div class="small">{{r.note}}</div>
+            </div>
+          </sc-for>
+        </sc-if>
+        <button class="btn btn-lg gold" type="button" onClick="{{nextMorning}}">{{nextLabel}}</button>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{isEnd}}" hint-placeholder-val="{{false}}">
+      <div class="page">
+        <div class="eyebrow gold">{{endKicker}}</div>
+        <div class="h1" style="font-size:34px;animation:glow 2.4s ease-in-out infinite">{{endTitle}}</div>
+        <div class="lead" style="font-size:16px">{{endLine}} {{celebrateLine}}</div>
+        <div class="card row" style="flex-direction:row;gap:22px;padding:16px 20px">
+          <div style="font-family:var(--slab);font-size:64px;line-height:1;color:#ffd166">{{scoreText}}</div>
+          <div>
+            <div class="eyebrow">LONG-TERM PROSPERITY SCORE (MAX 1,090)</div>
+            <div style="font-size:13.5px;color:#d3deee;margin-top:4px">{{rankText}}</div>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="card" style="gap:6px">
+            <div class="eyebrow" style="color:#8fc0f2">CONSERVATIVES GIVE YOU</div>
+            <div class="row" style="align-items:baseline"><span style="font-family:var(--slab);font-size:52px;line-height:1;color:{{gC.color}};animation:stampIn .4s ease-out .3s both">{{gC.letter}}</span><span class="mono small">{{gC.pct}}/100</span></div>
+            <div style="font-size:13px;line-height:1.4;color:#c3d1e6;font-style:italic">"{{gC.quip}}"</div>
+            <div class="small" style="font-size:11px">Cares about: direction toward markets, deficit, inflation, growth, calm.</div>
+          </div>
+          <div class="card" style="gap:6px">
+            <div class="eyebrow" style="color:#f4a874">LIBERALS GIVE YOU</div>
+            <div class="row" style="align-items:baseline"><span style="font-family:var(--slab);font-size:52px;line-height:1;color:{{gL.color}};animation:stampIn .4s ease-out .5s both">{{gL.letter}}</span><span class="mono small">{{gL.pct}}/100</span></div>
+            <div style="font-size:13px;line-height:1.4;color:#c3d1e6;font-style:italic">"{{gL.quip}}"</div>
+            <div class="small" style="font-size:11px">Cares about: direction toward planning, jobs, cost of living, approval, calm.</div>
+          </div>
+        </div>
+        <div class="eyebrow">HOW YOUR SCORE WAS BUILT (OBJECTIVE, SAME FOR EVERYONE)</div>
+        <div class="grid2" style="gap:8px">
+          <sc-for list="{{scoreRows}}" as="r" hint-placeholder-count="6">
+            <div class="card" style="padding:9px 12px;gap:5px">
+              <div class="row between" style="align-items:baseline"><span style="font-weight:700;font-size:13.5px">{{r.label}} <span style="font-weight:400;font-size:11px;color:#a9b9d0">(weight {{r.weight}})</span></span><span class="mono small">{{r.pts}}</span></div>
+              <div style="height:8px;border-radius:4px;background:#24405f"><div style="{{r.barStyle}}"></div></div>
+              <div class="small" style="font-size:11.5px">{{r.value}}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div class="small">{{scoreExplain}}</div>
+        <div class="card">
+          <div class="eyebrow">{{postTitle}}</div>
+          <sc-if value="{{showSignIn}}" hint-placeholder-val="{{true}}">
+            <div class="row"><span class="grow" style="font-size:14px;line-height:1.4;color:#d3deee">{{signInPitch}}</span><button class="btn btn-md gold" type="button" onClick="{{authClick}}">{{signInLabel}}</button></div>
+          </sc-if>
+          <sc-if value="{{showPost}}" hint-placeholder-val="{{false}}">
+            <div class="row"><span class="grow" style="font-size:14px;color:#d3deee">Posting as <b>{{postHandle}}</b></span><button class="btn btn-md {{submitCls}}" type="button" onClick="{{submit}}">{{submitLabel}}</button></div>
+          </sc-if>
+          <sc-if value="{{showPosted}}" hint-placeholder-val="{{false}}">
+            <div class="row between" style="gap:10px"><span style="font-size:14px;color:#7be0a3">{{lbMsg}}</span><button class="btn btn-sm ghost" type="button" onClick="{{goScores}}">See the board</button></div>
+          </sc-if>
+          <sc-if value="{{lbErr}}" hint-placeholder-val="{{false}}"><div style="font-size:13px;color:#ff9d96">{{lbErr}}</div></sc-if>
+          <button class="btn btn-md ghost" type="button" onClick="{{share}}">{{shareLabel}}</button>
+        </div>
+        <div class="eyebrow">YOUR RECORD VS THE RESEARCH</div>
+        <sc-for list="{{recap}}" as="p" hint-placeholder-count="3">
+          <div class="card" style="padding:10px 13px;gap:5px">
+            <div class="row between" style="gap:8px;align-items:baseline"><span style="font-weight:700;font-size:14px">{{p.title}}</span><span class="small" style="font-size:11px;white-space:nowrap">{{p.status}}</span></div>
+            <div class="small">{{p.real}}</div>
+          </div>
         </sc-for>
-        <span style="flex: 1"></span>
-        <sc-for list="{{tagTabs}}" as="tg" hint-placeholder-count="2">
-          <button class="btn" type="button" onClick="{{tg.pick}}" style="{{tg.style}}">{{tg.label}}</button>
+        <div class="note">The verdict judges consequences inside the game, not ideology. Planned and market runs both end well and badly depending on size, timing and luck. Sandbox mode with per-state dials is shelved for later.</div>
+        <button class="btn btn-lg gold" type="button" onClick="{{again}}">Play again with a new seed</button>
+      </div>
+      </sc-if>
+
+    </sc-if>
+
+    <!-- ===================== PRESS ===================== -->
+    <sc-if value="{{showPress}}" hint-placeholder-val="{{false}}">
+    <div class="page wide">
+      <sc-if value="{{pressCoach}}" hint-placeholder-val="{{false}}">
+        <div class="coach"><div class="eyebrow gold">{{coachStep}}</div><div class="ct">{{coachText}}</div><div class="row wrap"><button class="btn btn-sm gold" type="button" onClick="{{coachNext}}">{{coachBtn}}</button><button class="btn btn-sm ghost" type="button" onClick="{{coachSkip}}">Skip tutorial</button></div></div>
+      </sc-if>
+      <div class="h1">The Press</div>
+      <sc-if value="{{hasOped}}" hint-placeholder-val="{{false}}">
+        <div class="eyebrow gold">OPINION: {{opedTitle}}</div>
+        <div class="grid2">
+          <div class="oped l"><div class="eyebrow" style="color:#f4a874">{{opedL.outlet}} · THE LEFT</div><q>{{opedL.q}}</q><div class="small">{{opedL.by}}, {{opedL.org}}</div></div>
+          <div class="oped r"><div class="eyebrow" style="color:#8fc0f2">{{opedR.outlet}} · THE RIGHT</div><q>{{opedR.q}}</q><div class="small">{{opedR.by}}, {{opedR.org}}</div></div>
+        </div>
+        <div class="evid"><div><b>Real world.</b> {{opedReal}}</div></div>
+      </sc-if>
+      <div class="eyebrow gold">HEADLINES (TAP ONE TO READ IT)</div>
+      <sc-if value="{{noPress}}" hint-placeholder-val="{{false}}"><div class="card small">Nothing printed yet. Sign something and the papers will have opinions by morning.</div></sc-if>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <sc-for list="{{pressList}}" as="pr" hint-placeholder-count="5">
+          <button class="hl" type="button" onClick="{{pr.open}}"><span class="o">DAY {{pr.day}} · {{pr.outlet}}</span><span class="h">{{pr.t}}</span></button>
         </sc-for>
       </div>
-      <sc-if value="{{hasStreak}}" hint-placeholder-val="{{false}}">
-        <div style="padding: 10px 14px; border-radius: 10px; background: #112238; font-size: 14px; color: #ffd166">{{streakText}}</div>
-      </sc-if>
-      <div class="lbgrid" style="display: grid; grid-template-columns: 36px 1fr 70px 150px 54px 54px; gap: 8px; padding: 0 12px; font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #a9b9d0"><span>#</span><span>NAME</span><span>SCORE</span><span>ROLE</span><span>CONS.</span><span>LIB.</span></div>
+    </div>
+    </sc-if>
+
+    <!-- ===================== SCORES ===================== -->
+    <sc-if value="{{showScores}}" hint-placeholder-val="{{false}}">
+    <div class="page" style="max-width:860px">
+      <div class="h1">Leaderboard</div>
+      <div class="small" style="font-size:13px">{{lbNote}}</div>
+      <div class="row wrap" style="gap:8px">
+        <sc-for list="{{boardTabs}}" as="bt" hint-placeholder-count="2"><button class="btn btn-sm {{bt.cls}}" type="button" onClick="{{bt.pick}}">{{bt.label}}</button></sc-for>
+        <span class="grow"></span>
+        <sc-for list="{{tagTabs}}" as="tg" hint-placeholder-count="2"><button class="btn btn-sm {{tg.cls}}" type="button" onClick="{{tg.pick}}">{{tg.label}}</button></sc-for>
+      </div>
+      <sc-if value="{{hasStreak}}" hint-placeholder-val="{{false}}"><div class="card" style="padding:10px 14px;color:#ffd166;font-size:14px">{{streakText}}</div></sc-if>
+      <div class="lbgrid lbhead"><span>#</span><span>NAME</span><span>SCORE</span><span>CONS.</span><span>LIB.</span></div>
       <sc-for list="{{lbRows}}" as="row" hint-placeholder-count="5">
-        <div class="lbgrid" style="{{row.rowStyle}}">
-          <span style="font-family: 'Space Mono', monospace; font-weight: 700">{{row.rank}}</span>
-          <span style="font-weight: 700; font-size: 15px; overflow-wrap: anywhere">{{row.name}}</span>
-          <span style="font-family: 'Space Mono', monospace; font-weight: 700; color: #ffd166">{{row.score}}</span>
-          <span style="font-size: 13px; color: #c3d1e6">{{row.role}}</span>
-          <span style="font-family: 'Space Mono', monospace; font-weight: 700">{{row.c}}</span>
-          <span style="font-family: 'Space Mono', monospace; font-weight: 700">{{row.l}}</span>
+        <div class="lbgrid lbrow {{row.cls}}">
+          <span class="mono" style="font-weight:700">{{row.rank}}</span>
+          <span style="font-weight:700;font-size:15px;overflow-wrap:anywhere">{{row.name}}</span>
+          <span class="mono" style="font-weight:700;color:#ffd166">{{row.score}}</span>
+          <span class="mono" style="font-weight:700">{{row.c}}</span>
+          <span class="mono" style="font-weight:700">{{row.l}}</span>
         </div>
       </sc-for>
-      <sc-if value="{{noLb}}" hint-placeholder-val="{{false}}">
-        <div style="padding: 22px; text-align: center; background: #112238; border-radius: 12px; color: #a9b9d0; font-size: 14px">{{noLbText}}</div>
-      </sc-if>
+      <sc-if value="{{noLb}}" hint-placeholder-val="{{false}}"><div class="card small" style="text-align:center;padding:22px">{{noLbText}}</div></sc-if>
     </div>
     </sc-if>
 
-  </section>
+  </main>
 
   <sc-if value="{{hasConfetti}}" hint-placeholder-val="{{false}}">
-    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; overflow: hidden; z-index: 10">
-      <sc-for list="{{confetti}}" as="cf" hint-placeholder-count="30">
-        <span style="{{cf.style}}"></span>
-      </sc-for>
-    </div>
+    <div class="confetti"><sc-for list="{{confetti}}" as="cf" hint-placeholder-count="30"><span style="{{cf.style}}"></span></sc-for></div>
   </sc-if>
 
   <sc-if value="{{hasStory}}" hint-placeholder-val="{{false}}">
-    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 20; animation: fadeIn .25s ease-out both">
-      <button type="button" aria-label="Close story" onClick="{{closeStory}}" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 0; background: rgba(5, 10, 20, 0.74); cursor: pointer"></button>
-      <article style="position: relative; width: min(660px, 92%); max-height: 88%; overflow-y: auto; box-sizing: border-box; background: #f3ecd9; color: #1b1a17; border-radius: 6px; padding: 28px 36px 30px 36px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5); animation: popA .35s ease-out both">
-        <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 3px double #1b1a17; padding-bottom: 8px">
-          <span style="font-family: 'Alfa Slab One', serif; font-size: 20px">{{storyOutlet}}</span>
-          <span style="font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: #5a5446">Satire, but only partly</span>
+    <div class="overlay">
+      <button type="button" class="scrim" aria-label="Close story" onClick="{{closeStory}}"></button>
+      <article class="paper">
+        <div class="row between" style="align-items:baseline;border-bottom:3px double #1b1a17;padding-bottom:8px">
+          <span style="font-family:var(--slab);font-size:20px">{{storyOutlet}}</span>
+          <span style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#5a5446">Satire, but only partly</span>
         </div>
-        <div style="font-family: 'Alfa Slab One', serif; font-size: 30px; line-height: 1.15; margin-top: 16px">{{storyHead}}</div>
-        <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px">
-          <sc-for list="{{storyParas}}" as="sp" hint-placeholder-count="4">
-            <div style="font-size: 15.5px; line-height: 1.55; color: #2a2823">{{sp.t}}</div>
-          </sc-for>
-        </div>
-        <button class="btn" type="button" onClick="{{closeStory}}" style="margin-top: 20px; height: 42px; padding: 0 20px; border-radius: 8px; border: 0; background: #1b1a17; color: #f3ecd9; font-size: 14px; font-weight: 700; cursor: pointer">Back to the desk</button>
+        <div class="h">{{storyHead}}</div>
+        <sc-for list="{{storyParas}}" as="sp" hint-placeholder-count="4"><p>{{sp.t}}</p></sc-for>
+        <button class="btn btn-sm" type="button" onClick="{{closeStory}}" style="margin-top:20px;height:42px;padding:0 20px;border-radius:8px;background:#1b1a17;color:#f3ecd9">Close</button>
       </article>
     </div>
   </sc-if>
 
   <sc-if value="{{hasAuth}}" hint-placeholder-val="{{false}}">
-    <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 30; animation: fadeIn .2s ease-out both">
-      <button type="button" aria-label="Close" onClick="{{closeAuth}}" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 0; background: rgba(5, 10, 20, 0.74); cursor: pointer"></button>
-      <div role="dialog" aria-label="Account" style="position: relative; width: min(470px, 92%); box-sizing: border-box; background: #162a45; border: 1px solid #3a5a82; border-radius: 16px; padding: 26px 28px; display: flex; flex-direction: column; gap: 14px; animation: popA .3s ease-out both">
-        <div style="font-family: 'Alfa Slab One', serif; font-size: 24px">{{authTitle}}</div>
-        <div style="font-size: 14px; line-height: 1.45; color: #c3d1e6">{{authText}}</div>
+    <div class="overlay" style="z-index:60">
+      <button type="button" class="scrim" aria-label="Close" onClick="{{closeAuth}}"></button>
+      <div role="dialog" aria-label="Account" class="dialog">
+        <div class="h2">{{authTitle}}</div>
+        <div style="font-size:14px;line-height:1.45;color:#c3d1e6">{{authText}}</div>
         <sc-if value="{{authStepEmail}}" hint-placeholder-val="{{false}}">
-          <sc-if value="{{googleOn}}" hint-placeholder-val="{{false}}">
-            <button class="btn" type="button" onClick="{{authGoogle}}" style="height: 48px; border-radius: 12px; border: 1px solid #3a5a82; background: #eef1f6; color: #0f1b2d; font-size: 15px; font-weight: 700; cursor: pointer">Continue with Google</button>
-          </sc-if>
-          <input type="email" aria-label="Email address" placeholder="you@school.edu" autocomplete="email" value="{{authEmail}}" onInput="{{onEmail}}" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #3a5a82; background: #0f1b2d; color: #eef1f6; font-size: 15px; font-family: 'Space Grotesk', sans-serif">
-          <button class="btn" type="button" onClick="{{authSend}}" style="{{authSendStyle}}">{{authSendLabel}}</button>
+          <sc-if value="{{googleOn}}" hint-placeholder-val="{{false}}"><button class="btn btn-md" style="background:#eef1f6;color:#0f1b2d" type="button" onClick="{{authGoogle}}">Continue with Google</button></sc-if>
+          <input class="field" type="email" aria-label="Email address" placeholder="you@school.edu" autocomplete="email" value="{{authEmail}}" onInput="{{onEmail}}">
+          <button class="btn btn-md {{authSendCls}}" type="button" onClick="{{authSend}}">{{authSendLabel}}</button>
         </sc-if>
-        <sc-if value="{{authStepSent}}" hint-placeholder-val="{{false}}">
-          <button class="btn" type="button" onClick="{{authBack}}" style="height: 44px; border-radius: 10px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 14px; font-weight: 700; cursor: pointer">Use a different email</button>
-        </sc-if>
+        <sc-if value="{{authStepSent}}" hint-placeholder-val="{{false}}"><button class="btn btn-md ghost" type="button" onClick="{{authBack}}">Use a different email</button></sc-if>
         <sc-if value="{{authStepHandle}}" hint-placeholder-val="{{false}}">
-          <input type="text" aria-label="Handle" placeholder="Handle (3-16 letters, numbers, _)" maxlength="16" autocomplete="off" value="{{authHandle}}" onInput="{{onHandle}}" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #3a5a82; background: #0f1b2d; color: #eef1f6; font-size: 15px; font-family: 'Space Grotesk', sans-serif">
-          <input type="text" aria-label="Group tag (optional)" placeholder="Group tag, optional (e.g. UATX)" maxlength="8" autocomplete="off" value="{{authTag}}" onInput="{{onTag}}" style="height: 48px; box-sizing: border-box; padding: 0 14px; border-radius: 12px; border: 1px solid #3a5a82; background: #0f1b2d; color: #eef1f6; font-size: 15px; font-family: 'Space Grotesk', sans-serif">
-          <button class="btn" type="button" onClick="{{authSave}}" style="{{authSaveStyle}}">Save and continue</button>
+          <input class="field" type="text" aria-label="Handle" placeholder="Handle (3-16 letters, numbers, _)" maxlength="16" autocomplete="off" value="{{authHandle}}" onInput="{{onHandle}}">
+          <input class="field" type="text" aria-label="Group tag (optional)" placeholder="Group tag, optional (e.g. UATX)" maxlength="8" autocomplete="off" value="{{authTag}}" onInput="{{onTag}}">
+          <button class="btn btn-md {{authSaveCls}}" type="button" onClick="{{authSave}}">Save and continue</button>
         </sc-if>
-        <sc-if value="{{authStepAccount}}" hint-placeholder-val="{{false}}">
-          <button class="btn" type="button" onClick="{{authSignOut}}" style="height: 44px; border-radius: 10px; border: 1px solid #3a5a82; background: transparent; color: #eef1f6; font-size: 14px; font-weight: 700; cursor: pointer">Sign out</button>
-        </sc-if>
-        <sc-if value="{{authErr}}" hint-placeholder-val="{{false}}">
-          <div style="font-size: 13px; color: #ff9d96">{{authErr}}</div>
-        </sc-if>
+        <sc-if value="{{authStepAccount}}" hint-placeholder-val="{{false}}"><button class="btn btn-md ghost" type="button" onClick="{{authSignOut}}">Sign out</button></sc-if>
+        <sc-if value="{{authErr}}" hint-placeholder-val="{{false}}"><div style="font-size:13px;color:#ff9d96">{{authErr}}</div></sc-if>
       </div>
     </div>
   </sc-if>

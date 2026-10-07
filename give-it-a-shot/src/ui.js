@@ -1,9 +1,11 @@
-import { Engine, dailySeed, utcDate } from './engine.js';
+import { Engine, dailySeed, utcDate, applyAction, XIDX } from './engine.js';
 import * as api from './api.js';
 import { shareCard } from './share.js';
 
 const HOME_TAG = 'UATX';
-const PENDING_KEY = 'gias_pending_v1';
+const PENDING_KEY = 'gias_pending_v2';
+const TUT_KEY = 'gias_tut_v2';
+const XCATS = [['tax', 'Taxes'], ['labor', 'Labor'], ['housing', 'Housing & Markets'], ['trade', 'Trade & Energy'], ['power', 'Power Plays']];
 const HANDLE_RE = /^[A-Za-z0-9_]{3,16}$/;
 const TAG_RE = /^[A-Za-z0-9]{2,8}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -16,7 +18,7 @@ export class App extends Engine {
   constructor(rerender) {
     super();
     this._rerender = rerender;
-    this.state = { mode: 'free', tab: 'office', boardMode: 'daily', boardTag: null, user: null, profile: null, streak: null, authStep: 'email' };
+    this.state = { mode: 'free', tab: 'map', boardMode: 'daily', boardTag: null, user: null, profile: null, streak: null, authStep: 'email', xcat: 'tax', xsel: null, xopen: false, pstory: null, tut: lsGet(TUT_KEY) === 'done' ? -1 : 0 };
     this.state.g = this.makeGame('free', 'President');
   }
   setState(p) { Object.assign(this.state, p); this._rerender(); }
@@ -33,7 +35,12 @@ export class App extends Engine {
     const g = JSON.parse(JSON.stringify(cur));
     fn(g);
     g.n = (g.n || 0) + 1;
-    this.setState({ g: g });
+    const patch = { g: g, xsel: null };
+    if (g.phase !== cur.phase) {
+      if (g.phase === 'desk') patch.tab = 'map';
+      else if (g.phase === 'incident' || g.phase === 'trial' || g.phase === 'brief' || g.phase === 'end') patch.tab = 'desk';
+    }
+    this.setState(patch);
     if (g.phase === 'end' && cur.phase !== 'end') this.onGameEnd(g);
   }
   async onGameEnd(g) {
@@ -153,17 +160,16 @@ export class App extends Engine {
   modeVals(g) {
     const st = this.state; const daily = (st.mode || 'free') === 'daily';
     const played = !!(st.streak && st.streak.played_today);
-    const btn = (on) => 'display:flex;flex-direction:column;gap:5px;align-items:flex-start;text-align:left;padding:13px 15px;border-radius:12px;cursor:pointer;color:#eef1f6;transition:border-color .2s,background .2s,transform .15s;border:' + (on ? '2px solid #ffd166;background:#1d3658' : '2px solid #24405f;background:#112238');
     const sk = st.streak && st.streak.current_streak > 0 ? ' Streak: ' + st.streak.current_streak + '.' : '';
     return {
       pickFree: () => { if ((st.mode || 'free') !== 'free') this.setState({ mode: 'free', g: this.makeGame('free', g.title) }); },
       pickDaily: () => { if (!daily) this.setState({ mode: 'daily', g: this.makeGame('daily', g.title) }); },
-      modeFreeStyle: btn(!daily), modeDailyStyle: btn(daily),
+      modeFreeCls: daily ? '' : 'sel', modeDailyCls: daily ? 'sel' : '',
       dailyLine: 'Same seed for everyone on ' + utcDate() + '. One scored run a day.' + (played ? ' You already played today.' : '') + sk,
       beginLabel: daily ? 'Begin today\'s Daily Executive' : 'Begin Day 1',
     };
   }
-  accountVals(g, sc, gC, gL, m) {
+  accountVals(g, sc) {
     const st = this.state; const user = st.user, profile = st.profile;
     const posted = !!st.submitted;
     const daily = g.mode === 'daily';
@@ -171,7 +177,6 @@ export class App extends Engine {
     const signedUp = !!(user && profile);
     const canPost = !!sc && !playedToday;
     const ready = signedUp && canPost && !posted;
-    const tabBtn = (on) => 'height:38px;padding:0 16px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;' + (on ? 'border:0;background:#eef1f6;color:#0f1b2d' : 'border:1px solid #3a5a82;background:transparent;color:#eef1f6');
     const step = st.authStep;
     const email = (st.authEmail || '').trim();
     const titles = { email: 'Sign in to post scores', sent: 'Check your email', handle: 'Pick your handle', account: profile ? '@' + profile.handle : 'Account' };
@@ -183,16 +188,17 @@ export class App extends Engine {
     };
     const sendReady = EMAIL_RE.test(email) && !st.sending;
     const saveReady = HANDLE_RE.test((st.authHandle || '').trim()) && !st.sending;
+    const pill = (on) => (on ? 'gold' : 'ghost');
     const boardTabs = [{ label: 'Today\'s Daily', on: st.boardMode === 'daily', mode: 'daily' }, { label: 'All-time (Free Play)', on: st.boardMode !== 'daily', mode: 'all' }]
-      .map((b) => ({ label: b.label, style: tabBtn(b.on), pick: () => { this.setState({ boardMode: b.mode }); this.loadBoard(); } }));
+      .map((b) => ({ label: b.label, cls: pill(b.on), pick: () => { this.setState({ boardMode: b.mode }); this.loadBoard(); } }));
     const tagTabs = [{ label: 'Everyone', tag: null }, { label: HOME_TAG + ' only', tag: HOME_TAG }]
-      .map((b) => ({ label: b.label, style: tabBtn(st.boardTag === b.tag), pick: () => { this.setState({ boardTag: b.tag }); this.loadBoard(); } }));
+      .map((b) => ({ label: b.label, cls: pill(st.boardTag === b.tag), pick: () => { this.setState({ boardTag: b.tag }); this.loadBoard(); } }));
     const sk = st.streak;
     this._boardInfo = { boardTabs: boardTabs, tagTabs: tagTabs };
     return {
       authClick: () => this.openAuth(),
       authLabel: signedUp ? '@' + profile.handle : user ? 'Pick a handle' : api.configured ? 'Sign in' : 'Offline',
-      authStyle: 'height:38px;padding:0 16px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;border:1px solid #3a5a82;background:' + (signedUp ? '#1d3658' : 'transparent') + ';color:#eef1f6;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap',
+      authCls: signedUp ? 'in' : '',
       postTitle: daily ? 'POST TO TODAY\'S DAILY BOARD' : 'PUT IT ON THE LEADERBOARD',
       showSignIn: !posted && !signedUp && api.configured && canPost,
       signInPitch: user ? 'Pick a handle to post this run.' : daily ? 'Sign in to post today\'s run and keep your streak.' : 'Sign in to post this run to the leaderboard.',
@@ -200,7 +206,7 @@ export class App extends Engine {
       showPost: ready, postHandle: profile ? '@' + profile.handle + (profile.tag ? ' [' + profile.tag + ']' : '') : '',
       submit: () => this.postScore(g, sc),
       submitLabel: st.posting ? 'Posting...' : 'Post score',
-      submitStyle: 'height:48px;border-radius:12px;border:0;font-size:15px;font-weight:700;padding:0 22px;' + (st.posting ? 'background:#24405f;color:#7f93ad;cursor:default' : 'background:#ffd166;color:#1a1300;cursor:pointer'),
+      submitCls: st.posting ? 'off' : 'gold',
       showPosted: posted, lbMsg: st.lbMsg || '',
       lbErr: st.lbErr || (playedToday ? 'You already posted today\'s Daily Executive. Come back tomorrow for a new seed.' : '') || (!api.configured ? 'Offline preview: the online board is not configured.' : ''),
       share: () => this.doShare(), shareLabel: st.shareMsg || 'Share your result',
@@ -211,10 +217,10 @@ export class App extends Engine {
       authHandle: st.authHandle || '', onHandle: (e) => this.setState({ authHandle: e.target.value.replace(/[^A-Za-z0-9_]/g, '').slice(0, 16) }),
       authTag: st.authTag || '', onTag: (e) => this.setState({ authTag: e.target.value.replace(/[^A-Za-z0-9]/g, '').slice(0, 8) }),
       authSend: () => this.authSend(), authSendLabel: st.sending ? 'Sending...' : 'Email me a sign-in link',
-      authSendStyle: 'height:48px;border-radius:12px;border:0;font-size:15px;font-weight:700;' + (sendReady ? 'background:#ffd166;color:#1a1300;cursor:pointer' : 'background:#24405f;color:#7f93ad;cursor:default'),
+      authSendCls: sendReady ? 'gold' : 'off',
       authGoogle: () => this.authGoogle(), googleOn: api.googleEnabled,
       authBack: () => this.setState({ authStep: 'email', authErr: '' }),
-      authSave: () => this.authSave(), authSaveStyle: 'height:48px;border-radius:12px;border:0;font-size:15px;font-weight:700;' + (saveReady ? 'background:#ffd166;color:#1a1300;cursor:pointer' : 'background:#24405f;color:#7f93ad;cursor:default'),
+      authSave: () => this.authSave(), authSaveCls: saveReady ? 'gold' : 'off',
       authSignOut: () => this.authSignOut(),
       authErr: st.authErr || '',
       hasStreak: !!(user && sk && sk.current_streak > 0),
@@ -227,12 +233,37 @@ export class App extends Engine {
     return {
       lbRows: lbRows, hasLb: !empty, noLb: empty,
       noLbText: !api.configured ? 'The online board is not configured yet.' : st.boardLoading ? 'Loading...' : st.boardErr ? st.boardErr : 'No scores yet. Finish a 14-day term and post yours.',
-      lbNote: st.boardMode === 'daily' ? 'Daily Executive for ' + utcDate() + ' (UTC). Everyone plays the same seed. Scores are replayed and verified by the server.' : 'Each player\'s best Free Play score. Scores are replayed and verified by the server.',
+      lbNote: st.boardMode === 'daily' ? 'Daily Executive for ' + utcDate() + ' (UTC). Everyone plays the same seed. Scores are replayed and verified by the server.' : 'Each player\'s best Free Play score (current rules). Scores are replayed and verified by the server.',
       boardTabs: b.boardTabs, tagTabs: b.tagTabs,
     };
   }
 
   getValues() { const v = this.renderVals(); this._share = v._share; return v; }
+
+  // tutorial helpers
+  endTut() { lsSet(TUT_KEY, 'done'); this.setState({ tut: -1 }); }
+  coachVals(g, phase) {
+    const st = this.state; const t = st.tut;
+    const on = t >= 0 && g.day === 1 && phase === 'desk';
+    const STEPS = [
+      ['1 OF 4 · THE MAP', 'Every state has a mood. Gold outlines mark breaking news, and tapping a state tells you why people feel the way they do. Each day starts here. When you are ready, head to your Desk.', 'Go to my Desk'],
+      ['2 OF 4 · MEMOS', 'Three bills land on your desk each day. Sign or veto each one. The chips show what to expect, arriving over about three days. Signing builds goodwill with Congress, vetoing costs a little.', 'Next'],
+      ['3 OF 4 · EXECUTIVE ACTIONS', 'The panel beside your memos holds bold, unilateral moves: ban unions, abolish a tax, or play dirty. Each costs political capital (the gold bar at the top), strains Congress, and some risk scandal. One per day.', 'Next'],
+      ['4 OF 4 · THE PRESS', 'After you end the day, read the headlines and the left and right op-eds here. Watch Congress and Scandal at the top: if both turn on you, an impeachment trial starts, and you can fight it.', 'Got it, back to work'],
+    ];
+    const S = STEPS[Math.max(0, Math.min(3, t))];
+    return {
+      mbCoach: on && t === 0, deskCoach: on && (t === 1 || t === 2), pressCoach: on && t === 3,
+      coachStep: S[0], coachText: S[1], coachBtn: S[2],
+      coachNext: () => {
+        if (t === 0) this.setState({ tut: 1, tab: 'desk' });
+        else if (t === 1) this.setState({ tut: 2, xopen: true });
+        else if (t === 2) this.setState({ tut: 3, tab: 'press' });
+        else { this.endTut(); this.setState({ tab: 'desk' }); }
+      },
+      coachSkip: () => this.endTut(),
+    };
+  }
 
   renderVals() {
     const D = this.data();
@@ -248,12 +279,8 @@ export class App extends Engine {
     const MIN = { g: 0.05, j: 0.05, i: 0.05, d: 0.05, a: 0.5, u: 0.5 };
     const R = this.role(g);
     const ap = (g.n || 0) % 2 ? 'A' : 'B';
-    const chip = (v, k, big, idx) => {
-      const good = v * GOOD[k] > 0;
- return { t: NAME[k] + ' ' + sg(v, DEC[k]) + UNIT[k], style: 'animation:pop' + ap + ' .35s ease-out both;animation-delay:' + ((idx || 0) * 70 + 120) + "ms;display:inline-block;padding:" + (big ? '5px 12px' : '2px 8px') + ";border-radius:999px;font-family:'Space Mono',monospace;font-size:" + (big ? '13.5px' : '11.5px') + ";" + (good ? 'background:rgba(95,208,139,.16);color:#7be0a3' : 'background:rgba(255,123,114,.16);color:#ff9d96') };
-    };
-    const chips = (f, big) => D.KEYS.map((k, i) => (Math.abs(f[i]) >= MIN[k] ? [f[i], k] : null)).filter((x) => x).map((x, i) => chip(x[0], x[1], big, i));
-    const enter = 'animation:in' + ap + ' .45s ease-out both;';
+    const chip = (v, k, big, idx) => ({ t: NAME[k] + ' ' + sg(v, DEC[k]) + UNIT[k], cls: v * GOOD[k] > 0 ? 'good' : 'bad', style: 'animation-name:pop' + ap + ';animation-delay:' + ((idx || 0) * 70 + 120) + 'ms' });
+    const chips = (f) => D.KEYS.map((k, i) => (Math.abs(f[i]) >= MIN[k] ? [f[i], k] : null)).filter((x) => x).map((x, i) => chip(x[0], x[1], false, i));
     const mix = (a, b, f) => a.map((x, i) => Math.round(x + (b[i] - x) * f));
     const hex = (c) => '#' + c.map((x) => x.toString(16).padStart(2, '0')).join('');
     const lin = (v) => { const x = v / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); };
@@ -263,81 +290,123 @@ export class App extends Engine {
     const moodColor = (v) => (v < 50 ? mix(RED, NE, this.clamp((v - 10) / 40, 0, 1)) : mix(NE, TEAL, this.clamp((v - 50) / 40, 0, 1)));
     const fgFor = (c) => (ratio(c, [255, 255, 255]) >= ratio(c, [20, 20, 19]) ? '#ffffff' : '#141413');
     const moodWord = (v) => (v < 25 ? 'Furious' : v < 40 ? 'Angry' : v < 55 ? 'Meh' : v < 70 ? 'Content' : 'Delighted');
+    const costTxt = (c) => c + ' capital';
 
     const phase = g.phase;
-    const tab = st.tab === 'map' ? 'map' : st.tab === 'scores' ? 'scores' : 'office';
+    const tab = ['map', 'desk', 'press', 'scores'].indexOf(st.tab) >= 0 ? st.tab : 'map';
+    const title = phase === 'title';
     const showEv = !!st.ev;
 
-    // stats
+    // ---------- vitals ----------
     const prevM = (phase === 'desk' ? g.ds0 : g.ds) || m;
-    const ref = phase === 'title' ? { g: 0, j: 4.3, i: 3.0, d: 5.8, a: 48, u: 15 } : prevM;
+    const ref = title ? { g: 0, j: 4.3, i: 3.0, d: 5.8, a: 48, u: 15 } : prevM;
     const statDef = [
-      { k: 'g', label: 'Economy', val: sg(m.g, 1) + '%', dd: 1 },
-      { k: 'j', label: 'Unemployment', val: m.j.toFixed(1) + '%', dd: 1 },
-      { k: 'i', label: 'Inflation', val: m.i.toFixed(1) + '%', dd: 1 },
-      { k: 'd', label: 'Deficit / GDP', val: m.d.toFixed(1) + '%', dd: 1 },
-      { k: 'a', label: 'Approval', val: Math.round(m.a) + '%', dd: 0 },
-      { k: 'u', label: 'Unrest', val: String(Math.round(m.u)), dd: 0 }
+      { k: 'g', label: 'Economy', short: 'ECON', val: sg(m.g, 1) + '%', dd: 1 },
+      { k: 'j', label: 'Unemployment', short: 'JOBS', val: m.j.toFixed(1) + '%', dd: 1 },
+      { k: 'i', label: 'Inflation', short: 'PRICES', val: m.i.toFixed(1) + '%', dd: 1 },
+      { k: 'd', label: 'Deficit / GDP', short: 'DEFICIT', val: m.d.toFixed(1) + '%', dd: 1 },
+      { k: 'a', label: 'Approval', short: 'APPR.', val: Math.round(m.a) + '%', dd: 0 },
+      { k: 'u', label: 'Unrest', short: 'UNREST', val: String(Math.round(m.u)), dd: 0 }
     ];
     const stats = statDef.map((s, si) => {
       const dv = m[s.k] - ref[s.k];
       const small = Math.abs(dv) < (s.dd ? 0.05 : 0.5);
       const good = dv * GOOD[s.k] > 0;
-      return { hasMeter: s.k === 'u', meterPos: Math.min(100, Math.max(0, m.u)).toFixed(0) + '%', meterWord: m.u < 35 ? 'Calm' : m.u < 70 ? 'Tense' : 'Explosive', meterWordStyle: 'font-size:11px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:' + (m.u < 35 ? '#7be0a3' : m.u < 70 ? '#ffd166' : '#ff9d96'), tileAnim: small ? '' : 'animation:pop' + ap + ' .45s ease-out both;animation-delay:' + (si * 50) + 'ms;', label: s.label, value: s.val, delta: small ? '' : (dv > 0 ? '▲' : '▼') + Math.abs(dv).toFixed(s.dd), deltaStyle: "font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:" + (good ? '#7be0a3' : '#ff9d96') };
+      return { hasMeter: s.k === 'u', meterPos: Math.min(100, Math.max(0, m.u)).toFixed(0) + '%', tileAnim: small ? '' : 'animation:pop' + ap + ' .45s ease-out both;animation-delay:' + (si * 50) + 'ms;', label: s.label, short: s.short, value: s.val, delta: small ? '' : (dv > 0 ? '▲' : '▼') + Math.abs(dv).toFixed(s.dd), dcls: good ? 'good' : 'bad' };
     });
     const nd = this.needle(g);
     const needleWord = nd < 20 ? 'Command economy' : nd < 40 ? 'More planned' : nd <= 60 ? 'Mixed economy' : nd <= 80 ? 'More market' : 'Laissez-faire';
-    const needleStyle = 'position:absolute;top:0;left:' + nd.toFixed(1) + '%;margin-left:-3px;transition:left .5s';
-
+    const capPips = []; for (let i = 0; i < 8; i++) capPips.push({ cls: i < Math.floor(g.cap) ? 'on' : '' });
+    const barColor = (v, goodHigh) => { const x = goodHigh ? v : 100 - v; return x >= 60 ? '#5fd08b' : x >= 35 ? '#ffd166' : '#ff7b72'; };
+    const congBar = 'width:' + g.cong.toFixed(0) + '%;background:' + barColor(g.cong, true);
+    const scandBar = 'width:' + g.scand.toFixed(0) + '%;background:' + barColor(g.scand, false);
     const dots = [];
     for (let i = 1; i <= 14; i++) {
       const done = i < g.day || (i === g.day && (phase === 'brief' || phase === 'end'));
-      const now = i === g.day && phase !== 'title' && !done;
-      dots.push({ style: 'width:10px;height:10px;border-radius:50%;box-sizing:border-box;' + (done ? 'background:#eef1f6' : now ? 'background:#ffd166;animation:pulse 1.6s infinite' : 'border:2px solid #3a5a82') + ';transition:background .4s' });
+      const now = i === g.day && !title && !done;
+      dots.push({ cls: done ? 'done' : now ? 'now' : '' });
     }
+    const imp = g.imp && !g.imp.done ? g.imp : null;
 
-    // tabs
-    const tabBase = "height:38px;padding:0 18px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;";
-    const tabOfficeStyle = tabBase + (tab === 'office' ? 'border:0;background:#eef1f6;color:#0f1b2d' : 'border:1px solid #3a5a82;background:transparent;color:#eef1f6');
-    const tabMapStyle = tabBase + (tab === 'map' ? 'border:0;background:#eef1f6;color:#0f1b2d' : 'border:1px solid #3a5a82;background:transparent;color:#eef1f6');
-    const tabScoresStyle = tabBase + (tab === 'scores' ? 'border:0;background:#eef1f6;color:#0f1b2d' : 'border:1px solid #3a5a82;background:transparent;color:#eef1f6');
-    const officeLabel = 'Oval Office' + (phase === 'incident' ? ' ●' : '');
-
-    // titles
-    const titles = D.TITLES.map((t) => ({ label: t.label, tag: t.tag, perks: t.perks.map((x) => ({ t: x })), flaws: t.flaws.map((x) => ({ t: x })), pick: () => this.act((x) => { x.title = t.id; }),
-      style: 'display:flex;flex-direction:column;gap:7px;align-items:flex-start;text-align:left;padding:13px 15px;border-radius:12px;cursor:pointer;color:#eef1f6;transition:border-color .2s,background .2s,transform .15s;border:' + (g.title === t.id ? '2px solid #ffd166;background:#1d3658' : '2px solid #24405f;background:#112238') }));
-    const roleT = D.TITLES.find((x) => x.id === g.title) || D.TITLES[0];
-    const roleLine = roleT.label + ': ' + roleT.perks[0].replace(/\.$/, '') + '. Downside: ' + roleT.flaws[0].charAt(0).toLowerCase() + roleT.flaws[0].slice(1).replace(/\.$/, '') + '.';
-
-    // current memo (one at a time)
+    // ---------- memo ----------
     const mm = phase === 'desk' ? g.memos[g.mi] : null;
     const p = mm ? this.pol(mm.id) : null;
     const planned = p ? p.lean < 0 : false;
-    const quiet = phase === 'desk' && !mm;
+    const memosDone = phase === 'desk' && !mm;
     const memoNo = phase === 'desk' ? Math.min(g.mi + 1, Math.max(1, g.memos.length)) : 1;
-    const memoDots = g.memos.map((x, i) => ({ style: 'width:34px;height:6px;border-radius:3px;background:' + (x.dec === 'sign' ? '#5fd08b' : x.dec === 'veto' ? '#8794a8' : i === g.mi ? '#ffd166' : '#24405f') }));
-    const todayDone = g.memos.filter((x) => x.dec).map((x) => ({ t: (x.dec === 'sign' ? 'Signed: ' : 'Vetoed: ') + this.pol(x.id).t, style: 'font-size:12.5px;padding:5px 10px;border-radius:8px;background:#112238;color:' + (x.dec === 'sign' ? '#7be0a3' : '#a9b9d0') }));
+    const memoDots = g.memos.map((x, i) => ({ cls: x.dec === 'sign' ? 's' : x.dec === 'veto' ? 'v' : i === g.mi ? 'now' : '' }));
+    const todayDone = g.memos.filter((x) => x.dec).map((x) => ({ t: (x.dec === 'sign' ? 'Signed: ' : 'Vetoed: ') + this.pol(x.id).t, cls: x.dec === 'sign' ? 's' : 'v' }));
     const leaving = st.leaving || null;
     const decide = (dec) => () => {
       if (this._busy) return;
-      const apply = () => { this.act((x) => { x.memos[x.mi].dec = dec; x.log += dec === 'sign' ? 's' : 'v'; x.mi += 1; if (x.mi >= x.memos.length) this.endDay(x); }); this.setState({ ev: false, leaving: null }); this._busy = false; };
+      const apply = () => { this.act((x) => { x.memos[x.mi].dec = dec; x.log += dec === 'sign' ? 's' : 'v'; x.mi += 1; }); this.setState({ ev: false, leaving: null }); this._busy = false; };
       this._busy = true;
       if (this.noDelay) { apply(); return; }
       this.setState({ leaving: dec });
       setTimeout(apply, 380);
     };
+    const nSigned = g.memos.filter((x) => x.dec === 'sign').length;
+    const doneTitle = g.memos.length === 0 ? 'A quiet morning.' : nSigned === g.memos.length ? 'Everything signed.' : nSigned === 0 ? 'Everything vetoed.' : 'Memos settled.';
+    const doneText = g.xpend ? 'Tonight: "' + this.pol(g.xpend).t + '". When you are ready, end the day and see what the night brings.'
+      : g.xToday ? 'You have already used today\'s executive action.' : 'Take an executive action if you dare (one per day), or end the day and see what the night brings.';
 
-    // incident
+    // ---------- executive actions ----------
+    const xc = XCATS.some((c) => c[0] === st.xcat) ? st.xcat : 'tax';
+    const xcats = XCATS.map((c) => ({ label: c[1], cls: c[0] === xc ? 'on' : '', pick: () => this.setState({ xcat: c[0], xsel: null }) }));
+    const TAGS = { tax: ['Taxes', 'nt'], labor: ['Labor', 'nt'], housing: ['Markets', 'nt'], trade: ['Trade', 'nt'], power: ['Dark', 'dk'] };
+    const xlean = (x) => (x.cat === 'power' ? ['Power play', 'dk'] : x.lean < 0 ? ['Leans planned', 'pl'] : x.lean > 0 ? ['Leans market', 'fm'] : ['Neutral', 'nt']);
+    const xlist = D.XA.map((x, i) => ({ x, i })).filter((o) => o.x.cat === xc).map((o) => {
+      const done = g.xdone.indexOf(o.x.id) >= 0 || g.xpend === o.x.id;
+      const afford = g.cap >= o.x.cost && !g.xToday;
+      const lean = xlean(o.x);
+      return { title: o.x.t, tag: lean[0], tagCls: lean[1], cost: costTxt(o.x.cost), cls: (done ? 'done ' : !afford ? 'off ' : '') + (st.xsel === o.x.id ? 'sel' : ''), pick: () => this.setState({ xsel: st.xsel === o.x.id ? null : o.x.id }) };
+    });
+    const xs = st.xsel ? D.XA.find((x) => x.id === st.xsel) : null;
+    const xsIdx = xs ? D.XA.indexOf(xs) : -1;
+    let xdet = {};
+    if (xs) {
+      const lean = xlean(xs);
+      const done = g.xdone.indexOf(xs.id) >= 0 || g.xpend === xs.id;
+      const reason = done ? 'Already done' : g.xToday ? 'One action per day' : g.cap < xs.cost ? 'Need ' + xs.cost + ' capital' : '';
+      const meta = [{ t: 'Costs ' + xs.cost + ' political capital' }];
+      meta.push({ t: 'Congress ' + (xs.cong >= 0 ? '+' : '−') + Math.abs(xs.cong) });
+      if (xs.scand > 0) meta.push({ t: 'Scandal +' + xs.scand });
+      if (xs.dark) meta.push({ t: Math.round(xs.catch * 100) + '% chance of a leak (+15 scandal)' });
+      if (xs.shield > 0) meta.push({ t: 'Shields you in an impeachment trial (−' + xs.shield + ')' });
+      if (xs.capGain > 0) meta.push({ t: 'Refunds ' + xs.capGain + ' capital tonight' });
+      xdet = {
+        hasXsel: true, xTitle: xs.t, xTag: lean[0], xTagCls: lean[1], xText: xs.m, xChips: chips(xs.f), xMeta: meta,
+        xReal: xs.real, xPro: xs.pro, xCon: xs.con,
+        xCancel: () => this.setState({ xsel: null }),
+        xConfirmLabel: reason || 'Execute · ' + xs.cost + ' capital', xConfirmCls: reason ? 'off' : 'gold',
+        xConfirm: () => { if (reason) return; this.act((x) => { x.log += 'x' + XIDX[xsIdx]; applyAction(this, x, 'x' + XIDX[xsIdx]); }); },
+      };
+    }
+    const xOpen = !!st.xopen;
+
+    // ---------- incident / trial ----------
     const cur = g.inc[0];
     let incShake = false, incKind = '', incTitle = '', incText = '', incReal = '', incOpts = [], incBanner = '';
     if (phase === 'incident' && cur) {
-      const mkOpts = (opts) => opts.map((o, i) => ({ anim: 'animation:in' + ap + ' .4s ease-out both;animation-delay:' + (i * 90 + 150) + 'ms;', label: o.label, desc: o.desc, chips: chips(o.f, false), pick: () => this.act((x) => { x.log += String(i); this.resolveIncident(x, i); }) }));
+      const mk = (o, i) => ({ anim: 'animation:in' + ap + ' .4s ease-out both;animation-delay:' + (i * 90 + 150) + 'ms;', label: o.label, desc: o.desc, chips: o.f ? chips(o.f) : [], hasCost: !!o.cost, cost: o.cost ? costTxt(o.cost) : '', cls: o.off ? 'off' : '', pick: () => { if (o.off) return; this.act((x) => { x.log += String(i); this.resolveIncident(x, i); }); } });
       if (cur.k === 'event') {
         const E = D.EV[cur.id];
         const nm = D.ST[cur.st][0];
         incKind = E.kind; incTitle = E.title.replace('{st}', nm); incText = E.text.replace('{st}', nm); incReal = E.real;
-        incOpts = mkOpts(E.opts);
-        incBanner = 'font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:' + (cur.id === 'boom' ? '#7be0a3' : '#ffd166');
+        incOpts = E.opts.map(mk);
+        incBanner = 'color:' + (cur.id === 'boom' ? '#7be0a3' : '#ffd166');
+      } else if (cur.k === 'revolt') {
+        incKind = 'Crisis · Revolution'; incTitle = 'Revolution at the gates';
+        incText = 'The unrest has boiled over. Crowds surround the capital, the guard is wavering, and the helicopter on the lawn has its engine running.';
+        incReal = 'Governments facing mass uprisings often survive only when the security forces stay loyal; defections have decided most modern revolutions.';
+        const hold = Math.round(this.clamp(0.55 - g.scand / 300, 0.25, 0.65) * 100);
+        incOpts = [
+          { label: 'Crack down hard', desc: 'About ' + hold + ' in 100 to hold. If the guard changes sides, you are overthrown.', f: [-0.5, 0, 0, 0, -8, -25] },
+          { label: 'Concede to the demands', desc: 'Repeal your latest policy and open talks. The crowd goes home.', f: [0, 0, 0, 0.8, 4, -28] },
+          { label: 'Flee the country', desc: 'Leave by helicopter before dawn. The term ends now, with a 40% score cut.' },
+          { label: 'Buy off the leaders', desc: 'About 70 in 100 to work. Adds 20 scandal. If it fails, the crowd grows.', f: [0, 0, 0.4, 1.5, 0, -22], cost: 3, off: g.cap < 3 }
+        ].map(mk);
+        incBanner = 'color:#ff9d96'; incShake = true;
       } else {
         const F = D.FAC[cur.fac];
         const pl = cur.pol ? g.pols.find((x) => x.id === cur.pol && !x.rep) : null;
@@ -348,70 +417,98 @@ export class App extends Engine {
         incReal = F.real;
         const chance = Math.round(this.odds(m, cur, R) * 100);
         const back = Math.round(R.back * 100);
-        incOpts = mkOpts([
+        incOpts = [
           pp ? { label: 'Repeal the policy', desc: 'Fastest peace. The policy and its effects are undone.', f: [0, 0, 0, 0, 3, -20] }
              : { label: 'Announce emergency relief', desc: 'Throw money at the problem. Works until the bill arrives.', f: [0, 0, 0, 0.8, 2, -15] },
           { label: 'Broker a compromise', desc: 'About ' + chance + ' in 100 to work. If it does, the policy stays at ~60% strength.', f: [0, 0, 0, 0.3, 2, -12] },
           { label: 'Send in the National Guard', desc: 'Immediate calm, but costly. Backfires about ' + back + ' in 100.', f: [0, 0, 0, 0, -7 * R.cap, -18] },
           { label: 'Wait it out', desc: 'Costs output while it lasts. Fizzles out about half the time.', f: [-0.8, 0, 0, 0, -2, 5] }
-        ]);
-        incBanner = 'font-size:12px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;color:#ff9d96';
-        incShake = true;
+        ].map(mk);
+        incBanner = 'color:#ff9d96'; incShake = true;
       }
     }
+    let trial = {};
+    if (phase === 'trial' && g.imp) {
+      const lastMemo = g.pols.slice().reverse().find((q) => !q.rep && !q.x);
+      const o2 = Math.round((0.65 - g.scand / 400) * 100), o3 = Math.round((0.55 - g.scand / 400) * 100);
+      const defs = [
+        { label: 'Rally the base', desc: 'A big rally outside the Capitol. Approval up, senators nervous.', need: 1, cost: costTxt(1), tag: 'Clean', tagCls: 'nt' },
+        { label: 'Cut deals with senators', desc: lastMemo ? 'Water down "' + this.pol(lastMemo.id).t + '" to about half strength to win votes.' : 'Hand out pork to swing states. Cheap and effective.', need: 0, cost: 'Free', tag: 'Clean', tagCls: 'nt' },
+        { label: 'Bribe swing senators', desc: 'About ' + o2 + ' in 100 to work, adds 12 scandal. If it fails, you are exposed.', need: 2, cost: costTxt(2), tag: 'Dark', tagCls: 'dk' },
+        { label: 'Leak dirt on swing senators', desc: 'About ' + o3 + ' in 100 to work, adds 15 scandal and costs Congress goodwill. A failure goes public.', need: 1, cost: costTxt(1), tag: 'Dark', tagCls: 'dk' },
+      ];
+      trial = {
+        trialRound: String(Math.min(3, g.imp.r + 1)),
+        trialText: 'The House has impeached you. Sixty-seven senators can remove you, and right now the count stands at ' + Math.round(g.imp.conv) + '. You have three nights to move it. Clean methods are slower. Dark methods work more often, but they feed the Scandal meter, and if you survive on dirt the streets may not accept the verdict.',
+        convText: String(Math.round(g.imp.conv)), convPct: g.imp.conv.toFixed(0) + '%',
+        trialHint: 'Below 67 on the last night and you keep your job. Your allies in the Senate (from power plays) already lowered the starting count.',
+        trialOpts: defs.map((d, i) => { const off = g.cap < d.need; return { label: d.label, desc: d.desc, cost: d.cost, tag: d.tag, tagCls: d.tagCls, cls: off ? 'off' : '', pick: () => { if (off) return; this.act((x) => { x.log += String(i); this.resolveTrial(x, i); }); } }; }),
+      };
+    }
 
-    // brief
+    // ---------- brief ----------
     const newsAll = g.news.slice().sort((a, b) => (a.k === 'inc' ? 0 : 1) - (b.k === 'inc' ? 0 : 1)).slice(0, 5);
-    const news = newsAll.map((n, i) => ({ t: n.h, outlet: n.o, open: () => this.setState({ story: i }), anim: 'animation:slideIn' + ap + ' .45s ease-out both;animation-delay:' + (i * 140) + 'ms;' }));
-    const storyN = st.story != null && phase === 'brief' ? newsAll[st.story] : null;
+    const news = newsAll.map((n, i) => ({ t: n.h, outlet: n.o, open: () => this.setState({ pstory: n.sid }), anim: 'animation:slideIn' + ap + ' .45s ease-out both;animation-delay:' + (i * 140) + 'ms;' }));
     const results = g.todayPol.map((id) => {
       const q = this.pol(id); const pp = g.pols.find((x) => x.id === id);
       const exp = q.f, got = pp.f;
       const worse = got.reduce((a, v, i) => a + (Math.abs(v) > Math.abs(exp[i]) * 1.2 ? 1 : 0), 0);
       const better = got.reduce((a, v, i) => a + (Math.abs(v) < Math.abs(exp[i]) * 0.8 ? 1 : 0), 0);
-      return { anim: 'animation:in' + ap + ' .45s ease-out both;animation-delay:' + (news.length * 140 + 100) + 'ms;', title: q.t, chips: chips(got, false), note: worse > better ? 'Came in stronger than the memo predicted.' : better > worse ? 'Came in milder than the memo predicted.' : 'Close to what the memo predicted.' };
+      return { anim: 'animation:in' + ap + ' .45s ease-out both;animation-delay:' + (news.length * 140 + 100) + 'ms;', title: (pp.x ? 'Executive action: ' : '') + q.t, chips: chips(got), note: worse > better ? 'Came in stronger than expected.' : better > worse ? 'Came in milder than expected.' : 'Close to what was predicted.' };
     });
     const nextLabel = (g.over || g.day >= 14) ? 'See your legacy' : 'Start day ' + (g.day + 1);
 
-    // end
+    // ---------- end ----------
     let endKicker = '', endTitle = '', endLine = '', recap = [];
     if (phase === 'end') {
       const nn = this.needle(g);
       endKicker = g.over ? 'YOUR TERM ENDED EARLY' : 'YOUR 14 DAYS ARE UP';
-      if (m.u >= R.over) { endTitle = 'Overthrown by Lunchtime'; endLine = 'The crowd is in the Oval Office. Someone is sitting in your chair and, to be fair, looks great in it.'; }
-      else if (m.a <= 8) { endTitle = 'Impeached by Both Parties'; endLine = 'A bipartisan achievement at last. They do not agree on the reasons.'; }
+      if (g.ok === 'impeach') { endTitle = 'Removed by the Senate'; endLine = 'Sixty-seven senators agreed on something. Historians will frame it.'; }
+      else if (g.ok === 'coup') { endTitle = 'Overthrown by Lunchtime'; endLine = 'The crowd is in the Oval Office. Someone is sitting in your chair and, to be fair, looks great in it.'; }
+      else if (g.ok === 'fled') { endTitle = 'Last Helicopter Out'; endLine = 'You left before dawn. The country noticed by lunch.'; }
       else if (m.u >= 70) { endTitle = 'Besieged Executive'; endLine = 'You finished the term, but the capital looks like a movie set. Get a helicopter ready.'; }
+      else if (g.scand >= 60) { endTitle = 'Teflon President'; endLine = 'Nothing stuck, mostly because nobody could find a pen that works. The ledger will be an interesting read.'; }
       else if (m.a < 30) { endTitle = 'Beloved by No One'; endLine = 'Few people love you. Fewer people like you. The data is not very kind.'; }
       else if (nn < 35) { if (m.g > -1 && m.a >= 45) { endTitle = 'Comrade Commissioner of Mostly Working'; endLine = 'A heavily planned economy that, against the odds, held together for two weeks.'; } else { endTitle = 'Five-Year Plan, Fourteen-Day Collapse'; endLine = 'The plan was ambitious. The spreadsheet was not.'; } }
       else if (nn > 65) { if (m.g > 0 && m.a >= 45) { endTitle = 'Invisible-Hand Emperor'; endLine = 'The market did the work. You got the credit and the photo ops.'; } else { endTitle = 'Laissez-Faire, Laissez-Fall'; endLine = 'The market was left to its own devices. Its devices were not great.'; } }
       else if (m.a >= 55 && m.u < 35) { endTitle = 'The Pragmatist'; endLine = 'A bit of everything, a lot of trade-offs. Everyone is mildly annoyed, which is the economist\'s definition of balance.'; }
       else { endTitle = 'Muddling Through'; endLine = 'Nobody is thrilled and the economy survived. That is a presidency.'; }
+      if (g.surv && !g.over) endLine += ' You also survived an impeachment trial.';
       recap = g.pols.map((pp) => {
         const q = this.pol(pp.id);
-        return { title: q.t, status: pp.rep ? 'Signed day ' + pp.d + ', repealed' : pp.s < 1 ? 'Signed day ' + pp.d + ', compromised' : 'Signed day ' + pp.d, real: q.real };
+        const when = pp.x ? 'Executive action, day ' + pp.d : 'Signed day ' + pp.d;
+        return { title: q.t, status: pp.rep ? when + ', repealed' : pp.s < 1 ? when + ', compromised' : when, real: q.real };
       });
       if (!recap.length) recap = [{ title: 'You signed nothing.', status: '', real: 'Gridlock is also a policy. The economy kept doing its thing, with a little help from the weather.' }];
     }
 
-    // score, grades, leaderboard
+    // ---------- score, grades, leaderboard ----------
     const gradeColor = { A: '#7be0a3', B: '#8fd3c7', C: '#ffd166', D: '#f4a874', F: '#ff9d96' };
     const board = st.board || [];
-    const lbRows = board.map((e) => ({ rank: String(e.rank), name: e.handle + (e.tag ? ' [' + e.tag + ']' : ''), score: String(e.score), role: e.role || '', c: e.cons_letter || '-', l: e.lib_letter || '-', rowStyle: 'display:grid;grid-template-columns:36px 1fr 70px 150px 54px 54px;gap:8px;align-items:center;padding:9px 12px;border-radius:10px;background:' + (e.is_me ? '#1d3658;border:1px solid #ffd166' : '#112238;border:1px solid transparent') }));
+    const lbRows = board.map((e) => ({ rank: String(e.rank), name: e.handle + (e.tag ? ' [' + e.tag + ']' : ''), score: String(e.score), c: e.cons_letter || '-', l: e.lib_letter || '-', cls: e.is_me ? 'me' : '' }));
     const sortedRows = (st.rankBoard || []).slice();
-    let sc = null, gC = null, gL = null, scoreRows = [], scoreText = '', rankText = '', celebrate = false, confetti = [], celebrateLine = '';
+    let sc = null, gC = null, gL = null, scoreRows = [], scoreText = '', rankText = '', celebrate = false, confetti = [], celebrateLine = '', scoreExplain = '';
     if (phase === 'end') {
       sc = this.scoreCard(g);
       const gc = this.grade(sc.cons), gl = this.grade(sc.lib);
       const qi = (sc.score + g.title.length) % 2;
       gC = { letter: gc.letter, color: gradeColor[gc.band], quip: D.QUIPS.C[gc.band][qi], pct: Math.round(sc.cons) };
       gL = { letter: gl.letter, color: gradeColor[gl.band], quip: D.QUIPS.L[gl.band][qi], pct: Math.round(sc.lib) };
-      const rowDef = [['Economy', sg(m.g, 1) + '% GDP', sc.sub.econ, '25%'], ['Jobs', m.j.toFixed(1) + '% unemployed', sc.sub.jobs, '20%'], ['Prices', m.i.toFixed(1) + '% inflation', sc.sub.prices, '15%'], ['Budget', m.d.toFixed(1) + '% deficit', sc.sub.budget, '15%'], ['Approval', Math.round(m.a) + '%', sc.sub.appr, '15%'], ['Calm', 'unrest ' + Math.round(m.u), sc.sub.calm, '10%']];
-      scoreRows = rowDef.map((r) => ({ label: r[0], value: r[1], weight: r[3], pts: Math.round(r[2]) + '/100', barStyle: 'height:100%;border-radius:4px;width:' + Math.round(r[2]) + '%;background:' + (r[2] >= 66 ? '#5fd08b' : r[2] >= 40 ? '#ffd166' : '#ff7b72') }));
+      const pj = sc.pj;
+      const rowDef = [
+        ['Economy', sg(m.g, 1) + '% → ' + sg(pj.g, 1) + '% GDP', sc.sub.econ, '25%'],
+        ['Jobs', m.j.toFixed(1) + '% → ' + pj.j.toFixed(1) + '% unemployed', sc.sub.jobs, '20%'],
+        ['Prices', m.i.toFixed(1) + '% → ' + pj.i.toFixed(1) + '% inflation', sc.sub.prices, '15%'],
+        ['Debt path', m.d.toFixed(1) + '% → ' + pj.d.toFixed(1) + '% deficit', sc.sub.budget, '15%'],
+        ['Approval', Math.round(m.a) + '% → ' + Math.round(pj.a) + '%', sc.sub.appr, '15%'],
+        ['Calm', 'unrest ' + Math.round(m.u) + ' → ' + Math.round(pj.u), sc.sub.calm, '10%']];
+      scoreRows = rowDef.map((r) => ({ label: r[0], value: 'Now → where it is headed: ' + r[1], weight: r[3], pts: Math.round(r[2]) + '/100', barStyle: 'height:100%;border-radius:4px;width:' + Math.round(r[2]) + '%;background:' + (r[2] >= 66 ? '#5fd08b' : r[2] >= 40 ? '#ffd166' : '#ff7b72') }));
       scoreText = String(sc.score);
+      scoreExplain = 'Each meter counts 40% for where the country stands now and 60% for where it is headed once everything you did fully lands (the legacy projection). Score = 200 plus 16 points for every point your weighted average (0-100) sits above 35, plus 50 for finishing the term and 40 for surviving an impeachment. Scandal above 20 costs 0.8 points each' + (sc.pen ? ' (−' + sc.pen + ' for you)' : '') + '. Being removed, overthrown or fleeing cuts the total by 40%. Grades use the same meters with each side\'s own priorities.';
       const better = sortedRows.filter((e) => e.score > sc.score).length;
       rankText = !st.rankBoard ? (api.configured ? '' : 'Offline preview: the online board is not configured.') : sortedRows.length ? 'This score would rank #' + (better + 1) + ' of ' + (sortedRows.length + 1) + (g.mode === 'daily' ? ' on today\'s Daily board.' : ' on the all-time board.') : 'First score on the board. Lonely at the top.';
       celebrate = !g.over && m.a >= 40;
-      celebrateLine = celebrate ? 'You made it through all 14 days.' : (g.over ? 'The term ended early. The confetti is mostly shredded paper.' : 'You survived, but nobody is throwing a parade.');
+      celebrateLine = celebrate ? 'You made it through all 14 days.' : (g.over ? 'The confetti is mostly shredded paper.' : 'You survived, but nobody is throwing a parade.');
       const pal = celebrate ? ['#ffd166', '#5fd08b', '#8fc0f2', '#ff7b72', '#f4a874', '#eef1f6'] : ['#8794a8', '#5b6b82', '#a9b9d0', '#c0392b'];
       const fr = (i, k) => { const x = Math.sin((i + 1) * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
       for (let i = 0; i < (celebrate ? 56 : 28); i++) {
@@ -419,9 +516,20 @@ export class App extends Engine {
         confetti.push({ style: 'position:absolute;top:-24px;left:' + (fr(i, 2) * 100).toFixed(1) + '%;width:' + w + 'px;height:' + Math.round(w * (0.5 + fr(i, 3))) + 'px;background:' + pal[i % pal.length] + ';border-radius:' + (fr(i, 4) > 0.6 ? '50%' : '2px') + ';opacity:0;animation:fall' + ap + ' ' + (2.8 + fr(i, 5) * 2.4).toFixed(2) + 's ease-in ' + (fr(i, 6) * 1.6).toFixed(2) + 's both' });
       }
     }
+
+    // ---------- press ----------
+    const pressList = g.press.map((s) => ({ day: String(s.day), outlet: s.o, t: s.h, open: () => this.setState({ pstory: s.sid }) }));
+    const edStory = g.press.find((s) => s.ed);
+    let oped = {};
+    if (edStory) {
+      const pick = (arr, n) => arr[n % arr.length];
+      const L = edStory.ed.find((e) => e.s === 'L'), Rr = edStory.ed.find((e) => e.s === 'R');
+      oped = { hasOped: true, opedTitle: edStory.t, opedL: { outlet: pick(D.OUT.L, edStory.sid), by: L.by, org: L.org, q: L.q }, opedR: { outlet: pick(D.OUT.R, edStory.sid + 1), by: Rr.by, org: Rr.org, q: Rr.q }, opedReal: this.pol(edStory.pid).real };
+    }
+    const storyN = st.pstory != null ? g.press.find((s) => s.sid === st.pstory) : null;
     const storyParas = storyN ? storyN.b.map((t) => ({ t: t })) : [];
 
-    // map
+    // ---------- map ----------
     const abbrs = Object.keys(D.ST);
     const moods = {}; abbrs.forEach((a) => { moods[a] = this.mood(g, a, m); });
     const flashSt = {}; g.flash.forEach((f) => { flashSt[f.st] = true; });
@@ -438,55 +546,83 @@ export class App extends Engine {
     g.hits.forEach((h) => {
       const n = this.nights(g, h.d); if (n <= 0 || !h.v || h.st.indexOf(sel) < 0) return;
       const r = h.v * Math.pow(0.75, n - 1);
-      if (Math.abs(r) >= 1) reasons.push({ r: r, t: h.l, v: sg(r, 0), style: "font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:" + (r > 0 ? '#7be0a3' : '#ff9d96') });
+      if (Math.abs(r) >= 1) reasons.push({ r: r, t: h.l, v: sg(r, 0), style: 'font-weight:700;font-size:12px;color:' + (r > 0 ? '#7be0a3' : '#ff9d96') });
     });
     reasons.sort((a, b) => Math.abs(b.r) - Math.abs(a.r));
     const ranked = abbrs.slice().sort((a, b) => moods[a] - moods[b]);
     const mk = (a) => ({ name: D.ST[a][0], value: Math.round(moods[a]) + '%', pick: () => this.setState({ sel: a }) });
     const selMood = moods[sel];
 
+    // morning briefing card
+    const night = g.press.filter((s) => s.day === g.day - 1).slice(0, 3).map((s) => ({ outlet: s.o, t: s.h, open: () => this.setState({ pstory: s.sid }) }));
+    const alerts = [];
+    if (g.imp && !g.imp.done) alerts.push({ cls: 'r', t: g.imp.st === 'warn' ? 'Impeachment: the House has drafted articles. The Senate trial starts tonight.' : 'Impeachment trial under way: ' + Math.round(g.imp.conv) + ' of 67 senators lean to convict.' });
+    if (g.carry.length) alerts.push({ cls: 'r', t: 'A crisis is still unresolved in ' + D.ST[g.carry[0].st][0] + '.' });
+    if (g.scand >= 40) alerts.push({ cls: 'y', t: 'Scandal is running hot. Reporters are circling.' });
+    if (g.cong < 25 && !(g.imp && !g.imp.done)) alerts.push({ cls: 'y', t: 'Congress is losing patience. Low approval plus low support can trigger impeachment.' });
+    const inDesk = phase === 'desk';
+    const mb = {
+      mbKicker: title ? 'READY' : 'DAY ' + Math.min(14, g.day) + ' · ' + (inDesk ? 'MORNING BRIEFING' : 'DECISION WAITING'),
+      mbTitle: g.day === 1 && inDesk ? 'Welcome to the Oval Office.' : inDesk ? 'Good morning, Mr. President.' : phase === 'end' ? 'Your term is over.' : 'Your attention is needed.',
+      mbText: inDesk ? (night.length ? 'Here is what the papers printed overnight. Then head to your Desk: ' + g.memos.length + ' memos wait, plus one executive action if you want it.' : 'The map shows how every state feels. ' + g.memos.length + ' memos wait at your Desk.') : 'Something is waiting at your Desk.',
+      mbAlerts: alerts, mbNews: night,
+      mbButton: inDesk ? 'Go to your Desk' : phase === 'end' ? 'See your legacy' : 'Go to your Desk',
+    };
+    const pending = !title && phase !== 'end' && tab !== 'desk';
+    const coach = this.coachVals(g, phase);
+
     return {
       _share: { title: endTitle, score: sc ? sc.score : 0, cons: gC ? gC.letter : '', lib: gL ? gL.letter : '', role: g.title, needle: this.needle(g), mode: g.mode, dd: g.dd },
-      leader: g.title, enter: enter, roleLine: roleLine,
-      dayLabel: phase === 'title' ? 'READY' : 'DAY ' + Math.min(14, g.day) + ' / 14',
+      dayLabel: title ? 'READY' : 'DAY ' + Math.min(14, g.day) + ' / 14',
       dots: dots, stats: stats,
-      needleWord: needleWord, needleSub: (nd >= 50 ? '+' : '−') + Math.abs(Math.round(nd - 50)) + ' from middle', needleStyle: needleStyle,
-      tabOfficeStyle: tabOfficeStyle, tabMapStyle: tabMapStyle, tabScoresStyle: tabScoresStyle, goScores: () => { this.setState({ tab: 'scores' }); this.loadBoard(); }, isScores: tab === 'scores', officeLabel: officeLabel,
-      goOffice: () => this.setState({ tab: 'office' }), goMap: () => this.setState({ tab: 'map' }),
-      isOffice: tab === 'office', isMap: tab === 'map',
-      isTitle: phase === 'title', isDesk: phase === 'desk' && !quiet, isQuiet: quiet, isIncident: phase === 'incident', isBrief: phase === 'brief', isEnd: phase === 'end',
-      titles: titles,
-      begin: () => this.act((x) => { x.phase = 'desk'; x.day = 1; x.ds = this.M(x); x.ds0 = x.ds; this.deal(x); }),
+      capText: Math.floor(g.cap) + ' / 8', capPips: capPips, congText: String(Math.round(g.cong)), congBar: congBar, scandText: String(Math.round(g.scand)), scandBar: scandBar,
+      needleWord: needleWord, needleSub: (nd >= 50 ? '+' : '−') + Math.abs(Math.round(nd - 50)), needleLeft: 'left:' + nd.toFixed(1) + '%',
+      hasImp: !!imp, impTitle: imp ? (imp.st === 'warn' ? 'IMPEACHMENT: ARTICLES DRAFTED' : 'IMPEACHMENT TRIAL · NIGHT ' + Math.min(3, imp.r + 1) + ' OF 3') : '',
+      impText: imp ? (imp.st === 'warn' ? 'The Senate vote comes soon. You can still move votes with your Desk actions.' : 'Senators leaning to convict: ' + Math.round(imp.conv) + '. Removal at 67.') : '',
+      impPct: imp ? imp.conv.toFixed(0) + '%' : '0%',
+      tabMapCls: tab === 'map' ? 'on' : '', tabDeskCls: tab === 'desk' ? 'on' : '', tabPressCls: tab === 'press' ? 'on' : '', tabScoresCls: tab === 'scores' ? 'on' : '',
+      goMap: () => this.setState({ tab: 'map' }),
+      goDesk: () => { const p0 = { tab: 'desk' }; if (st.tut === 0) p0.tut = 1; this.setState(p0); },
+      goPress: () => this.setState({ tab: 'press' }),
+      goScores: () => { this.setState({ tab: 'scores' }); this.loadBoard(); },
+      deskPing: pending,
+      showTitle: title && tab !== 'scores', showMap: !title && tab === 'map', showDesk: !title && tab === 'desk', showPress: !title && tab === 'press', showScores: tab === 'scores',
+      isDesk: phase === 'desk', isIncident: phase === 'incident', isTrial: phase === 'trial', isBrief: phase === 'brief', isEnd: phase === 'end',
       ...this.modeVals(g),
+      begin: () => this.act((x) => { x.phase = 'desk'; x.day = 1; x.ds = this.M(x); x.ds0 = x.ds; this.deal(x); }),
+      ...mb, ...coach, mapNote: title ? 'Everyone starts meh' : 'Tap a state. Gold outline = news there.',
+      hasMemo: !!mm, memosDone: memosDone, doneTitle: doneTitle, doneText: doneText,
       memoNo: String(memoNo), memoTotal: String(g.memos.length), memoDots: memoDots, todayDone: todayDone, hasToday: todayDone.length > 0,
       memoTitle: p ? p.t : '', memoText: p ? p.m : '',
-      memoLeanLabel: planned ? 'Leans planned' : 'Leans free market',
-      memoLeanStyle: 'font-size:11.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:3px 10px;border-radius:6px;' + (planned ? 'background:rgba(180,83,28,.25);color:#f4a874' : 'background:rgba(31,90,158,.35);color:#8fc0f2'),
-      memoChips: p ? chips(this.scaled(g, p.f), true) : [],
-      memoCardAnim: leaving ? 'animation:out' + (leaving === 'sign' ? 'Sign' : 'Veto') + ' .38s ease-in forwards;' : enter,
-      leaving: !!leaving, stampText: leaving === 'sign' ? 'SIGNED' : 'VETOED',
-      stampStyle: "position:absolute;top:34%;left:50%;margin-left:-110px;width:220px;text-align:center;font-family:'Alfa Slab One',serif;font-size:44px;letter-spacing:3px;padding:6px 0;border-radius:10px;transform:rotate(-8deg);animation:stampIn .3s ease-out both;" + (leaving === 'sign' ? 'color:#5fd08b;border:5px solid #5fd08b' : 'color:#a9b9d0;border:5px solid #a9b9d0') + ';background:rgba(15,27,45,.8)',
+      memoLeanLabel: planned ? 'Leans planned' : 'Leans free market', memoLeanCls: planned ? 'pl' : 'fm',
+      memoChips: p ? chips(this.scaled(g, p.f)).map((c) => Object.assign(c, { big: true })) : [],
+      congNote: 'Congress support ' + Math.round(g.cong) + ' ' + (g.cong >= 50 ? 'helps' : 'trims') + ' the effect.',
+      memoCardAnim: leaving ? 'animation:out' + (leaving === 'sign' ? 'Sign' : 'Veto') + ' .38s ease-in forwards;' : 'animation:in' + ap + ' .45s ease-out both;',
+      leaving: !!leaving, stampText: leaving === 'sign' ? 'SIGNED' : 'VETOED', stampCls: leaving === 'sign' ? 's' : 'v',
       memoUnc: p ? (p.sd < 0.4 ? 'low' : p.sd < 0.7 ? 'medium' : 'high') : '',
       memoReal: p ? p.real : '', memoPro: p ? p.pro : '', memoCon: p ? p.con : '',
-      showEv: showEv, evLabel: showEv ? 'Hide the evidence' : 'See the evidence',
-      toggleEv: () => this.setState({ ev: !showEv }),
+      showEv: showEv, evLabel: showEv ? 'Hide the evidence' : 'See the evidence', toggleEv: () => this.setState({ ev: !showEv }),
       sign: decide('sign'), veto: decide('veto'),
-      endQuiet: () => this.act((x) => { x.log += 'q'; this.endDay(x); }),
-      incKind: incKind, incTitle: incTitle, incText: incText, incReal: incReal, incOpts: incOpts, incBanner: incBanner, incTitleAnim: incShake ? 'animation:shakeX .55s ease-out;' : '',
-      news: news, results: results, hasResults: results.length > 0,
-      nextMorning: () => { this.setState({ story: null }); this.act((x) => { x.log += 'n'; this.nextMorning(x); }); },
-      nextLabel: nextLabel,
-      endKicker: endKicker, endTitle: endTitle, endLine: endLine, recap: recap,
-      again: () => this.setState({ tab: 'office', story: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '', g: this.makeGame(st.mode || 'free', g.title) }),
-      hasStory: !!storyN, storyOutlet: storyN ? storyN.o : '', storyHead: storyN ? storyN.h : '', storyParas: storyParas, closeStory: () => this.setState({ story: null }),
-      scoreText: scoreText, rankText: rankText, gC: gC || {}, gL: gL || {}, scoreRows: scoreRows, confetti: confetti, hasConfetti: confetti.length > 0 && tab === 'office', celebrateLine: celebrateLine,
-      ...this.accountVals(g, sc, gC, gL, m),
+      endDay: () => this.act((x) => { x.log += 'e'; this.endDay(x); }),
+      xSub: g.xToday ? 'Used for today. Capital refills +1 each morning.' : 'One per day · ' + Math.floor(g.cap) + ' capital to spend',
+      xToggleLabel: xOpen ? 'Hide' : 'Open', toggleX: () => this.setState({ xopen: !xOpen }), xOpenCls: xOpen ? 'open' : '',
+      hasQueued: !!g.xpend, queuedText: g.xpend ? 'Queued for tonight: ' + this.pol(g.xpend).t : '',
+      xCats: xcats, xList: xlist, hasXsel: false, ...xdet,
+      incKind, incTitle, incText, incReal, incOpts, incBanner, incTitleAnim: incShake ? 'animation:shakeX .55s ease-out;' : '', ...trial,
+      news, results, hasResults: results.length > 0,
+      nextMorning: () => { this.setState({ pstory: null }); this.act((x) => { x.log += 'n'; this.nextMorning(x); }); },
+      nextLabel, endKicker, endTitle, endLine, recap,
+      again: () => this.setState({ tab: 'map', pstory: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '', g: this.makeGame(st.mode || 'free', g.title) }),
+      hasStory: !!storyN, storyOutlet: storyN ? storyN.o : '', storyHead: storyN ? storyN.h : '', storyParas, closeStory: () => this.setState({ pstory: null }),
+      pressList, noPress: pressList.length === 0, ...oped,
+      scoreText, rankText, gC: gC || {}, gL: gL || {}, scoreRows, scoreExplain, confetti, hasConfetti: confetti.length > 0 && tab === 'desk', celebrateLine,
+      ...this.accountVals(g, sc),
       ...this.boardVals(lbRows),
-      mf: mf, ml: ml, mp: mp,
+      mf, ml, mp,
       selName: D.ST[sel][0], selReal: D.ST[sel][1], selMood: Math.round(selMood) + '%', selWord: moodWord(selMood),
       selBarStyle: 'transition:width .6s ease,background .6s;height:100%;border-radius:5px;width:' + selMood.toFixed(0) + '%;background:' + hex(moodColor(selMood)),
       reasons: reasons.slice(0, 4), hasReasons: reasons.length > 0, noReasons: reasons.length === 0,
       angriest: ranked.slice(0, 3).map(mk), happiest: ranked.slice(-3).reverse().map(mk),
-      mapNote: phase === 'title' ? 'Everyone starts meh' : 'Click a state. Gold outline = news there.'
     };
-  }}
+  }
+}
