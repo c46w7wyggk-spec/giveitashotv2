@@ -63,7 +63,7 @@ window.__classHome = () => { delete viewportEl.dataset.class; viewportEl.dataset
     m.boot();
   }
 })();
-window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (app.state.authOpen) app.setState({ authOpen: false }); else if (app.state.pstory != null) app.setState({ pstory: null }); } });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (app.state.helpOpen) app.setState({ helpOpen: false }); else if (app.state.authOpen) app.setState({ authOpen: false }); else if (app.state.pstory != null) app.setState({ pstory: null }); } });
 
 // PWA: offline-capable shell (production only, so dev and tests are unaffected)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {

@@ -2,10 +2,15 @@ import { Engine, dailySeed, utcDate, applyAction, XIDX } from './engine.js';
 import * as api from './api.js';
 import { shareCard } from './share.js';
 import * as classApi from './classroom/studentApi.js';
+import { MEAN, helpSections, tutorialSteps, minutesFor } from './learn.js';
+import { digest } from './engine.js';
+import { buildSummary } from './summary.js';
 
 const HOME_TAG = 'UATX';
 const PENDING_KEY = 'gias_pending_v2';
-const TUT_KEY = 'gias_tut_v2';
+const TUT_KEY = 'gias_tut_v3';
+const NUMW = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty', 'Twenty-One', 'Twenty-Two', 'Twenty-Three', 'Twenty-Four', 'Twenty-Five', 'Twenty-Six', 'Twenty-Seven', 'Twenty-Eight'];
+const spanWord = (d) => (d % 7 === 0 ? (d === 7 ? 'a week' : ['', '', 'two weeks', 'three weeks', 'four weeks'][d / 7]) : d + ' days');
 const WANT_KEY = 'gias_want_leader';
 const XCATS = [['tax', 'Taxes'], ['labor', 'Labor'], ['housing', 'Housing & Markets'], ['trade', 'Trade & Energy'], ['power', 'Power Plays']];
 const HANDLE_RE = /^[A-Za-z0-9_]{3,16}$/;
@@ -46,18 +51,36 @@ export class App extends Engine {
       else if (g.phase === 'incident' || g.phase === 'trial' || g.phase === 'brief' || g.phase === 'end') patch.tab = 'desk';
     }
     this.setState(patch);
-    if (g.phase === 'end' && cur.phase !== 'end') this.onGameEnd(g);
+    if (g.phase === 'end' && cur.phase !== 'end') { this.onGameEnd(g); this.celebrate(); }
+    else if (g.mode === 'class' && g.phase !== 'end' && /[en]$/.test(g.log || '')) this.sendProgress(g);
+  }
+  // Confetti plays once when the term ends, whichever tab is open, then removes itself.
+  celebrate() {
+    clearTimeout(this._cft);
+    this.setState({ cfOn: true });
+    this._cft = setTimeout(() => this.setState({ cfOn: false }), 7500);
+  }
+  // Class only: tell the server how far along this student is (it replays the log itself) so the teacher's leaderboard is live.
+  sendProgress(g) {
+    const P = this._prog || (this._prog = { t: 0, timer: null, log: '' });
+    P.log = g.log;
+    if (P.timer) return;
+    P.timer = setTimeout(async () => {
+      P.timer = null; P.t = Date.now();
+      try { await classApi.progressRun(P.log); } catch (e) { /* the leaderboard is best-effort; the final result is what counts */ }
+    }, this.noDelay ? 0 : Math.max(0, 5000 - (Date.now() - P.t)));
   }
   // ---------- classroom (Teacher Beta) ----------
   // A class run uses the session's seed from the server, is never posted to the public board, and is sent to the
   // classroom function, which replays the log itself. The score on this screen is only a preview.
   startClass(info) {
-    const g = this.newGame(info.seed);
+    const g = this.newGame(info.seed, info.days || 14, info.difficulty === 1 ? 1 : 0);
     g.title = 'President'; g.seed0 = info.seed; g.mode = 'class'; g.dd = null; g.log = '';
     g.phase = 'desk'; g.day = 1; g.ds = this.M(g); g.ds0 = g.ds; this.deal(g);
-    this.setState({ mode: 'class', g: g, tab: 'map', xsel: null, xopen: false, classMsg: '', classErr: '', classSent: false, classSending: false, rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '' });
+    this.setState({ mode: 'class', g: g, tab: 'map', xsel: null, xopen: false, tut: 0, helpOpen: false, mean: false, xmean: false, cfOn: false, ev: false, classMsg: '', classErr: '', classSent: false, classSending: false, rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '' });
   }
   async submitClass(g) {
+    if (this._prog && this._prog.timer) { clearTimeout(this._prog.timer); this._prog.timer = null; }
     this.setState({ rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '', classSending: true, classSent: false, classErr: '', classMsg: 'Sending your result to your teacher...' });
     try {
       await classApi.submitRun(g.log);
@@ -291,23 +314,19 @@ export class App extends Engine {
   endTut() { lsSet(TUT_KEY, 'done'); this.setState({ tut: -1 }); }
   coachVals(g, phase) {
     const st = this.state; const t = st.tut;
+    const steps = tutorialSteps({ days: g.days, lvl: g.lvl });
+    const i = Math.max(0, Math.min(steps.length - 1, t));
+    const S = steps[i];
     const on = t >= 0 && g.day === 1 && phase === 'desk';
-    const STEPS = [
-      ['1 OF 4 · THE MAP', 'Every state has a mood. Gold outlines mark breaking news, and tapping a state tells you why people feel the way they do. Each day starts here. When you are ready, head to your Desk.', 'Go to my Desk'],
-      ['2 OF 4 · MEMOS', 'Three bills land on your desk each day. Sign or veto each one. The chips show what to expect, arriving over about three days. Signing builds goodwill with Congress, vetoing costs a little.', 'Next'],
-      ['3 OF 4 · EXECUTIVE ACTIONS', 'The panel beside your memos holds bold, unilateral moves: ban unions, abolish a tax, or play dirty. Each costs political capital (the gold bar at the top), strains Congress, and some risk scandal. One per day.', 'Next'],
-      ['4 OF 4 · THE PRESS', 'After you end the day, read the headlines and the left and right op-eds here. Watch Congress and Scandal at the top: if both turn on you, an impeachment trial starts, and you can fight it.', 'Got it, back to work'],
-    ];
-    const S = STEPS[Math.max(0, Math.min(3, t))];
+    const go = (k) => {
+      const nx = steps[k]; const p = { tut: k };
+      if (nx.where === 'map') p.tab = 'map'; else if (nx.where === 'desk') { p.tab = 'desk'; if (/EXECUTIVE/.test(nx.kicker)) p.xopen = true; } else p.tab = 'press';
+      this.setState(p);
+    };
     return {
-      mbCoach: on && t === 0, deskCoach: on && (t === 1 || t === 2), pressCoach: on && t === 3,
-      coachStep: S[0], coachText: S[1], coachBtn: S[2],
-      coachNext: () => {
-        if (t === 0) this.setState({ tut: 1, tab: 'desk' });
-        else if (t === 1) this.setState({ tut: 2, xopen: true });
-        else if (t === 2) this.setState({ tut: 3, tab: 'press' });
-        else { this.endTut(); this.setState({ tab: 'desk' }); }
-      },
+      mbCoach: on && S.where === 'map', deskCoach: on && S.where === 'desk', pressCoach: on && S.where === 'press',
+      coachStep: S.kicker, coachText: S.text, coachBtn: S.btn,
+      coachNext: () => { if (i >= steps.length - 1) { this.endTut(); this.setState({ tab: 'desk' }); } else go(i + 1); },
       coachSkip: () => this.endTut(),
     };
   }
@@ -343,6 +362,8 @@ export class App extends Engine {
     const tab = ['map', 'desk', 'press', 'scores'].indexOf(st.tab) >= 0 ? st.tab : 'map';
     const title = phase === 'title';
     const showEv = !!st.ev;
+    const days = g.days || 14, core = g.lvl === 1, isClass = g.mode === 'class';
+    const showMean = isClass && !!st.mean, showXMean = isClass && !!st.xmean;
 
     // ---------- vitals ----------
     const prevM = (phase === 'desk' ? g.ds0 : g.ds) || m;
@@ -368,7 +389,7 @@ export class App extends Engine {
     const congBar = 'width:' + g.cong.toFixed(0) + '%;background:' + barColor(g.cong, true);
     const scandBar = 'width:' + g.scand.toFixed(0) + '%;background:' + barColor(g.scand, false);
     const dots = [];
-    for (let i = 1; i <= 14; i++) {
+    for (let i = 1; i <= days; i++) {
       const done = i < g.day || (i === g.day && (phase === 'brief' || phase === 'end'));
       const now = i === g.day && !title && !done;
       dots.push({ cls: done ? 'done' : now ? 'now' : '' });
@@ -386,7 +407,7 @@ export class App extends Engine {
     const leaving = st.leaving || null;
     const decide = (dec) => () => {
       if (this._busy) return;
-      const apply = () => { this.act((x) => { x.memos[x.mi].dec = dec; x.log += dec === 'sign' ? 's' : 'v'; x.mi += 1; }); this.setState({ ev: false, leaving: null }); this._busy = false; };
+      const apply = () => { this.act((x) => { x.memos[x.mi].dec = dec; x.log += dec === 'sign' ? 's' : 'v'; x.mi += 1; }); this.setState({ ev: false, mean: false, leaving: null }); this._busy = false; };
       this._busy = true;
       if (this.noDelay) { apply(); return; }
       this.setState({ leaving: dec });
@@ -394,19 +415,25 @@ export class App extends Engine {
     };
     const nSigned = g.memos.filter((x) => x.dec === 'sign').length;
     const doneTitle = g.memos.length === 0 ? 'A quiet morning.' : nSigned === g.memos.length ? 'Everything signed.' : nSigned === 0 ? 'Everything vetoed.' : 'Memos settled.';
+    const mootNames = (g.moot || []).filter((q) => q.by === g.xpend || g.xdone.indexOf(q.by) >= 0).map((q) => this.pol(q.id).t);
+    const mootText = mootNames.length ? 'Your executive action settled this issue, so ' + (mootNames.length === 1 ? 'a memo was' : mootNames.length + ' memos were') + ' withdrawn from your desk: ' + mootNames.map((n) => '\u201C' + n + '\u201D').join(', ') + '.' : '';
     const doneText = g.xpend ? 'Tonight: "' + this.pol(g.xpend).t + '". When you are ready, end the day and see what the night brings.'
       : g.xToday ? 'You have already used today\'s executive action.' : 'Take an executive action if you dare (one per day), or end the day and see what the night brings.';
 
     // ---------- executive actions ----------
-    const xc = XCATS.some((c) => c[0] === st.xcat) ? st.xcat : 'tax';
-    const xcats = XCATS.map((c) => ({ label: c[1], cls: c[0] === xc ? 'on' : '', pick: () => this.setState({ xcat: c[0], xsel: null }) }));
+    const XC = core ? XCATS.filter((c) => c[0] !== 'power') : XCATS;
+    const xc = XC.some((c) => c[0] === st.xcat) ? st.xcat : 'tax';
+    const takenNow = this.taken(g);
+    const blockTitle = (id) => { const b = this.blocker(g, id, takenNow); return b ? this.pol(b).t : ''; };
+    const xcats = XC.map((c) => ({ label: c[1], cls: c[0] === xc ? 'on' : '', pick: () => this.setState({ xcat: c[0], xsel: null }) }));
     const TAGS = { tax: ['Taxes', 'nt'], labor: ['Labor', 'nt'], housing: ['Markets', 'nt'], trade: ['Trade', 'nt'], power: ['Dark', 'dk'] };
     const xlean = (x) => (x.cat === 'power' ? ['Power play', 'dk'] : x.lean < 0 ? ['Leans planned', 'pl'] : x.lean > 0 ? ['Leans market', 'fm'] : ['Neutral', 'nt']);
     const xlist = D.XA.map((x, i) => ({ x, i })).filter((o) => o.x.cat === xc).map((o) => {
       const done = g.xdone.indexOf(o.x.id) >= 0 || g.xpend === o.x.id;
       const afford = g.cap >= o.x.cost && !g.xToday;
       const lean = xlean(o.x);
-      return { title: o.x.t, tag: lean[0], tagCls: lean[1], cost: costTxt(o.x.cost), cls: (done ? 'done ' : !afford ? 'off ' : '') + (st.xsel === o.x.id ? 'sel' : ''), pick: () => this.setState({ xsel: st.xsel === o.x.id ? null : o.x.id }) };
+      const blk = !done ? blockTitle(o.x.id) : '';
+      return { title: o.x.t, tag: blk ? 'Blocked' : lean[0], tagCls: blk ? 'dk' : lean[1], cost: blk ? 'Conflicts' : costTxt(o.x.cost), cls: (done ? 'done ' : (!afford || blk) ? 'off ' : '') + (st.xsel === o.x.id ? 'sel' : ''), pick: () => this.setState({ xsel: st.xsel === o.x.id ? null : o.x.id }) };
     });
     const xs = st.xsel ? D.XA.find((x) => x.id === st.xsel) : null;
     const xsIdx = xs ? D.XA.indexOf(xs) : -1;
@@ -414,8 +441,14 @@ export class App extends Engine {
     if (xs) {
       const lean = xlean(xs);
       const done = g.xdone.indexOf(xs.id) >= 0 || g.xpend === xs.id;
-      const reason = done ? 'Already done' : g.xToday ? 'One action per day' : g.cap < xs.cost ? 'Need ' + xs.cost + ' capital' : '';
+      const blkT = !done ? blockTitle(xs.id) : '';
+      const reason = done ? 'Already done' : blkT ? 'Blocked by a policy' : g.xToday ? 'One action per day' : g.cap < xs.cost ? 'Need ' + xs.cost + ' capital' : '';
       const meta = [{ t: 'Costs ' + xs.cost + ' political capital' }];
+      if (blkT) meta.unshift({ t: 'Blocked: it conflicts with \u201C' + blkT + '\u201D. Repeal that policy first.' });
+      else if (this.slotsOf(xs.id).length) {
+        const wd = g.memos.filter((m, i) => i >= g.mi && this.slotsOf(m.id).some((sl) => this.slotsOf(xs.id).indexOf(sl) >= 0));
+        if (wd.length) meta.push({ t: 'Would withdraw ' + wd.length + ' memo' + (wd.length === 1 ? '' : 's') + ' on your desk about the same issue' });
+      }
       meta.push({ t: 'Congress ' + (xs.cong >= 0 ? '+' : '−') + Math.abs(xs.cong) });
       if (xs.scand > 0) meta.push({ t: 'Scandal +' + xs.scand });
       if (xs.dark) meta.push({ t: Math.round(xs.catch * 100) + '% chance of a leak (+15 scandal)' });
@@ -423,7 +456,7 @@ export class App extends Engine {
       if (xs.capGain > 0) meta.push({ t: 'Refunds ' + xs.capGain + ' capital tonight' });
       xdet = {
         hasXsel: true, xTitle: xs.t, xTag: lean[0], xTagCls: lean[1], xText: xs.m, xChips: chips(xs.f), xMeta: meta,
-        xReal: xs.real, xPro: xs.pro, xCon: xs.con,
+        xReal: xs.real, xPro: xs.pro, xCon: xs.con, xMean: MEAN[xs.id] || '', xMeanLabel: showXMean ? 'Hide the explanation' : 'What does this mean?', toggleXMean: () => this.setState({ xmean: !showXMean }),
         xCancel: () => this.setState({ xsel: null }),
         xConfirmLabel: reason || 'Execute · ' + xs.cost + ' capital', xConfirmCls: reason ? 'off' : 'gold',
         xConfirm: () => { if (reason) return; this.act((x) => { x.log += 'x' + XIDX[xsIdx]; applyAction(this, x, 'x' + XIDX[xsIdx]); }); },
@@ -503,20 +536,20 @@ export class App extends Engine {
       const better = got.reduce((a, v, i) => a + (Math.abs(v) < Math.abs(exp[i]) * 0.8 ? 1 : 0), 0);
       return { anim: 'animation:in' + ap + ' .45s ease-out both;animation-delay:' + (news.length * 140 + 100) + 'ms;', title: (pp.x ? 'Executive action: ' : '') + q.t, chips: chips(got), note: worse > better ? 'Came in stronger than expected.' : better > worse ? 'Came in milder than expected.' : 'Close to what was predicted.' };
     });
-    const nextLabel = (g.over || g.day >= 14) ? 'See your legacy' : 'Start day ' + (g.day + 1);
+    const nextLabel = (g.over || g.day >= days) ? 'See your legacy' : 'Start day ' + (g.day + 1);
 
     // ---------- end ----------
     let endKicker = '', endTitle = '', endLine = '', recap = [];
     if (phase === 'end') {
       const nn = this.needle(g);
-      endKicker = g.over ? 'YOUR TERM ENDED EARLY' : 'YOUR 14 DAYS ARE UP';
+      endKicker = g.over ? 'YOUR TERM ENDED EARLY' : 'YOUR ' + days + ' DAYS ARE UP';
       if (g.ok === 'impeach') { endTitle = 'Removed by the Senate'; endLine = 'Sixty-seven senators agreed on something. Historians will frame it.'; }
       else if (g.ok === 'coup') { endTitle = 'Overthrown by Lunchtime'; endLine = 'The crowd is in the Oval Office. Someone is sitting in your chair and, to be fair, looks great in it.'; }
       else if (g.ok === 'fled') { endTitle = 'Last Helicopter Out'; endLine = 'You left before dawn. The country noticed by lunch.'; }
       else if (m.u >= 70) { endTitle = 'Besieged Executive'; endLine = 'You finished the term, but the capital looks like a movie set. Get a helicopter ready.'; }
       else if (g.scand >= 60) { endTitle = 'Teflon President'; endLine = 'Nothing stuck, mostly because nobody could find a pen that works. The ledger will be an interesting read.'; }
       else if (m.a < 30) { endTitle = 'Beloved by No One'; endLine = 'Few people love you. Fewer people like you. The data is not very kind.'; }
-      else if (nn < 35) { if (m.g > -1 && m.a >= 45) { endTitle = 'Comrade Commissioner of Mostly Working'; endLine = 'A heavily planned economy that, against the odds, held together for two weeks.'; } else { endTitle = 'Five-Year Plan, Fourteen-Day Collapse'; endLine = 'The plan was ambitious. The spreadsheet was not.'; } }
+      else if (nn < 35) { if (m.g > -1 && m.a >= 45) { endTitle = 'Comrade Commissioner of Mostly Working'; endLine = 'A heavily planned economy that, against the odds, held together for ' + spanWord(days) + '.'; } else { endTitle = 'Five-Year Plan, ' + NUMW[days] + '-Day Collapse'; endLine = 'The plan was ambitious. The spreadsheet was not.'; } }
       else if (nn > 65) { if (m.g > 0 && m.a >= 45) { endTitle = 'Invisible-Hand Emperor'; endLine = 'The market did the work. You got the credit and the photo ops.'; } else { endTitle = 'Laissez-Faire, Laissez-Fall'; endLine = 'The market was left to its own devices. Its devices were not great.'; } }
       else if (m.a >= 55 && m.u < 35) { endTitle = 'The Pragmatist'; endLine = 'A bit of everything, a lot of trade-offs. Everyone is mildly annoyed, which is the economist\'s definition of balance.'; }
       else { endTitle = 'Muddling Through'; endLine = 'Nobody is thrilled and the economy survived. That is a presidency.'; }
@@ -557,10 +590,10 @@ export class App extends Engine {
       const better = sortedRows.filter((e) => e.score > sc.score).length;
       rankText = g.mode === 'korm' ? 'Challenge run: unranked, nothing is posted.' : !st.rankBoard ? (api.configured ? '' : 'Offline preview: the online board is not configured.') : sortedRows.length ? 'This score would rank #' + (better + 1) + ' of ' + (sortedRows.length + 1) + (g.mode === 'daily' ? ' on today\'s Daily board.' : ' on the all-time board.') : 'First score on the board. Lonely at the top.';
       celebrate = !g.over && m.a >= 40;
-      celebrateLine = celebrate ? 'You made it through all 14 days.' : (g.over ? 'The confetti is mostly shredded paper.' : 'You survived, but nobody is throwing a parade.');
+      celebrateLine = celebrate ? 'You made it through all ' + days + ' days.' : (g.over ? 'The confetti is mostly shredded paper.' : 'You survived, but nobody is throwing a parade.');
       const pal = celebrate ? ['#ffd166', '#5fd08b', '#8fc0f2', '#ff7b72', '#f4a874', '#eef1f6'] : ['#8794a8', '#5b6b82', '#a9b9d0', '#c0392b'];
       const fr = (i, k) => { const x = Math.sin((i + 1) * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); };
-      for (let i = 0; i < (celebrate ? 56 : 28); i++) {
+      for (let i = 0; i < (celebrate ? 70 : 34); i++) {
         const w = 6 + Math.round(fr(i, 1) * 8);
         confetti.push({ style: 'position:absolute;top:-24px;left:' + (fr(i, 2) * 100).toFixed(1) + '%;width:' + w + 'px;height:' + Math.round(w * (0.5 + fr(i, 3))) + 'px;background:' + pal[i % pal.length] + ';border-radius:' + (fr(i, 4) > 0.6 ? '50%' : '2px') + ';opacity:0;animation:fall' + ap + ' ' + (2.8 + fr(i, 5) * 2.4).toFixed(2) + 's ease-in ' + (fr(i, 6) * 1.6).toFixed(2) + 's both' });
       }
@@ -611,7 +644,7 @@ export class App extends Engine {
     if (g.cong < 25 && !(g.imp && !g.imp.done)) alerts.push({ cls: 'y', t: 'Congress is losing patience. Low approval plus low support can trigger impeachment.' });
     const inDesk = phase === 'desk';
     const mb = {
-      mbKicker: title ? 'READY' : 'DAY ' + Math.min(14, g.day) + ' · ' + (inDesk ? 'MORNING BRIEFING' : 'DECISION WAITING'),
+      mbKicker: title ? 'READY' : 'DAY ' + Math.min(days, g.day) + ' · ' + (inDesk ? 'MORNING BRIEFING' : 'DECISION WAITING'),
       mbTitle: g.day === 1 && inDesk ? 'Welcome to the Oval Office.' : inDesk ? 'Good morning, Mr. President.' : phase === 'end' ? 'Your term is over.' : 'Your attention is needed.',
       mbText: inDesk ? (night.length ? 'Here is what the papers printed overnight. Then head to your Desk: ' + g.memos.length + ' memos wait, plus one executive action if you want it.' : 'The map shows how every state feels. ' + g.memos.length + ' memos wait at your Desk.') : 'Something is waiting at your Desk.',
       mbAlerts: alerts, mbNews: night,
@@ -619,10 +652,21 @@ export class App extends Engine {
     };
     const pending = !title && phase !== 'end' && tab !== 'desk';
     const coach = this.coachVals(g, phase);
+    // written summary of the finished term (class version only): built from the same digest the server stores
+    let sum = { hasSummary: false };
+    if (phase === 'end' && isClass && sc) {
+      try {
+        const sm = buildSummary(this, JSON.parse(JSON.stringify(digest(this, g))), { score: sc.score, cons: gC.letter, lib: gL.letter });
+        sum = { hasSummary: true, sumHead: sm.headline, sumParas: sm.paras.map((t) => ({ t })), sumQs: sm.questions.map((t) => ({ t })),
+          sumStats: sm.stats.map((x) => ({ k: x.k, start: x.start, end: x.end, cls: x.good ? 'up' : x.bad ? 'down' : '', mark: x.good ? '\u25B2' : x.bad ? '\u25BC' : '' })) };
+      } catch (e) { sum = { hasSummary: false }; }
+    }
+    const helpSecs = st.helpOpen ? helpSections({ days, lvl: g.lvl, cls: isClass }).map((hh) => ({ h: hh.h, p: hh.p.map((t) => ({ t })) })) : [];
 
     return {
       _share: { title: endTitle, score: sc ? sc.score : 0, cons: gC ? gC.letter : '', lib: gL ? gL.letter : '', role: g.title, needle: this.needle(g), mode: g.mode, dd: g.dd, kwin: !!(kormRes && kormRes.win) },
-      dayLabel: title ? 'READY' : 'DAY ' + Math.min(14, g.day) + ' / 14',
+      dayLabel: title ? 'READY' : 'DAY ' + Math.min(days, g.day) + ' / ' + days, dotsCls: days > 16 ? 'many' : '', termDays: String(days),
+      showScand: !core,
       dots: dots, stats: stats,
       capText: Math.floor(g.cap) + ' / 8', capPips: capPips, congText: String(Math.round(g.cong)), congBar: congBar, scandText: String(Math.round(g.scand)), scandBar: scandBar,
       needleWord: needleWord, needleSub: (nd >= 50 ? '+' : '−') + Math.abs(Math.round(nd - 50)), needleLeft: 'left:' + nd.toFixed(1) + '%',
@@ -631,7 +675,11 @@ export class App extends Engine {
       impPct: imp ? imp.conv.toFixed(0) + '%' : '0%',
       tabMapCls: tab === 'map' ? 'on' : '', tabDeskCls: tab === 'desk' ? 'on' : '', tabPressCls: tab === 'press' ? 'on' : '', tabScoresCls: tab === 'scores' ? 'on' : '',
       goMap: () => this.setState({ tab: 'map' }),
-      goDesk: () => { const p0 = { tab: 'desk' }; if (st.tut === 0) p0.tut = 1; this.setState(p0); },
+      goDesk: () => {
+        const p0 = { tab: 'desk' };
+        if (st.tut >= 0) { const stp = tutorialSteps({ days, lvl: g.lvl }); if (stp[st.tut] && stp[st.tut].where === 'map') p0.tut = stp.findIndex((x) => x.where === 'desk'); }
+        this.setState(p0);
+      },
       goPress: () => this.setState({ tab: 'press' }),
       goScores: () => { this.setState({ tab: 'scores' }); this.loadBoard(); },
       deskPing: pending,
@@ -639,7 +687,8 @@ export class App extends Engine {
       isDesk: phase === 'desk', isIncident: phase === 'incident', isTrial: phase === 'trial', isBrief: phase === 'brief', isEnd: phase === 'end',
       ...this.modeVals(g),
       begin: () => this.act((x) => { x.phase = 'desk'; x.day = 1; x.ds = this.M(x); x.ds0 = x.ds; this.deal(x); }),
-      ...mb, ...coach, mapNote: title ? 'Everyone starts meh' : 'Tap a state. Gold outline = news there.',
+      ...mb, ...coach, ...sum,
+      hasHelp: !!st.helpOpen, helpSecs, openHelp: () => this.setState({ helpOpen: true }), closeHelp: () => this.setState({ helpOpen: false }), mapNote: title ? 'Everyone starts meh' : 'Tap a state. Gold outline = news there.',
       hasMemo: !!mm, memosDone: memosDone, doneTitle: doneTitle, doneText: doneText,
       memoNo: String(memoNo), memoTotal: String(g.memos.length), memoDots: memoDots, todayDone: todayDone, hasToday: todayDone.length > 0,
       memoTitle: p ? p.t : '', memoText: p ? p.m : '',
@@ -650,6 +699,8 @@ export class App extends Engine {
       leaving: !!leaving, stampText: leaving === 'sign' ? 'SIGNED' : 'VETOED', stampCls: leaving === 'sign' ? 's' : 'v',
       memoUnc: p ? (p.sd < 0.4 ? 'low' : p.sd < 0.7 ? 'medium' : 'high') : '',
       memoReal: p ? p.real : '', memoPro: p ? p.pro : '', memoCon: p ? p.con : '',
+      canMean: isClass, showMean, memoMean: p ? (MEAN[p.id] || '') : '', meanLabel: showMean ? 'Hide the explanation' : 'What does this mean?', toggleMean: () => this.setState({ mean: !showMean }),
+      hasMoot: !!mootText && phase === 'desk', mootText,
       showEv: showEv, evLabel: showEv ? 'Hide the evidence' : 'See the evidence', toggleEv: () => this.setState({ ev: !showEv }),
       sign: decide('sign'), veto: decide('veto'),
       endDay: () => this.act((x) => { x.log += 'e'; this.endDay(x); }),
@@ -672,7 +723,7 @@ export class App extends Engine {
         { ok: kormRes.finished, cls: kormRes.finished ? 'kok' : 'kno', t: kormRes.finished ? 'Finished the term in one piece' : 'Did not finish the term' },
       ] : [],
       kormQuote: kormRes ? (kormRes.win ? '"He is very right." Tell Kormanik he was right all along.' : kormRes.needleOk ? 'Far enough right, but conservatives want results too: budget, prices, economy.' : 'Not right-wing enough yet. Sign the free-market memos and veto the planned-economy ones.') : '',
-      scoreText, rankText, gC: gC || {}, gL: gL || {}, scoreRows, scoreExplain, confetti, hasConfetti: confetti.length > 0 && tab === 'desk', celebrateLine,
+      scoreText, rankText, gC: gC || {}, gL: gL || {}, scoreRows, scoreExplain, confetti, hasConfetti: confetti.length > 0 && !!st.cfOn && phase === 'end', celebrateLine,
       ...this.accountVals(g, sc),
       ...this.boardVals(lbRows),
       mf, ml, mp,

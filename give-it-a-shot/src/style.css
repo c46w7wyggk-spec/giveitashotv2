@@ -228,8 +228,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 @keyframes stampIn{from{opacity:0;transform:rotate(-8deg) scale(1.9)}to{opacity:1;transform:rotate(-8deg) scale(1)}}
 @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,209,102,.7)}50%{box-shadow:0 0 0 6px rgba(255,209,102,0)}}
 @keyframes shakeX{0%,100%{transform:none}15%{transform:translateX(-8px)}30%{transform:translateX(8px)}45%{transform:translateX(-6px)}60%{transform:translateX(6px)}75%{transform:translateX(-3px)}}
-@keyframes fallA{from{transform:translateY(-30px) rotate(0);opacity:1}to{transform:translateY(1000px) rotate(900deg);opacity:1}}
-@keyframes fallB{from{transform:translateY(-30px) rotate(0);opacity:1}to{transform:translateY(1000px) rotate(900deg);opacity:1}}
+@keyframes fallA{0%{transform:translateY(-30px) rotate(0);opacity:1}85%{opacity:1}100%{transform:translateY(calc(100vh + 60px)) rotate(900deg);opacity:0}}
+@keyframes fallB{0%{transform:translateY(-30px) rotate(0);opacity:1}85%{opacity:1}100%{transform:translateY(calc(100vh + 60px)) rotate(900deg);opacity:0}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes glow{0%,100%{text-shadow:0 0 0 rgba(255,209,102,0)}50%{text-shadow:0 0 22px rgba(255,209,102,.55)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -376,7 +376,40 @@ h1,h2,h3,h4,.h1,.h2,.h3,.brand-t,.memo .t,.hl .h,.paper .h,.stamp{font-weight:40
   .top .brand{flex:1 1 auto;min-width:0}
   .top .top-r{flex:none}
   .top .tabs{justify-self:stretch;width:auto}
-  .vitals{grid-template-columns:repeat(auto-fit,minmax(48px,1fr))}
   .power{grid-template-columns:repeat(auto-fit,minmax(86px,1fr))}
   .nd{grid-column:1 / -1}
 }
+
+/* Meter tiles: the change badge (▲/▼) must always fit inside its box. Phones get a 3 x 2 grid; the badge wraps under the value if needed. */
+.tile .vrow{flex-wrap:wrap;row-gap:0}
+.tile .dlt{white-space:nowrap}
+@media (max-width:640px){
+  .vitals{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .tile{padding:5px 8px}
+  .tile .val{font-size:15px}
+  .tile .dlt{font-size:11px}
+}
+@media (max-width:340px){.tile .val{font-size:14px}.tile .dlt{font-size:10px}}
+
+/* ---------- help, summaries, plain-language notes ---------- */
+.helpbtn{width:32px;height:32px;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--tx);font-weight:800;font-size:15px;cursor:pointer;flex:none}
+.helpbtn:hover,.helpbtn:focus-visible{background:#1d3658;outline:2px solid var(--gold);outline-offset:1px}
+.dots.many{gap:2px}.dots.many .dot{width:6px;height:6px;border-width:1.5px}
+.helpdlg{width:min(640px,100%);max-height:calc(100vh - 32px);overflow:hidden}
+.helpbody{overflow:auto;display:flex;flex-direction:column;gap:14px;padding-right:4px;-webkit-overflow-scrolling:touch}
+.helpsec p{margin:6px 0 0;font-size:14px;line-height:1.5;color:#c3d1e6}
+.helph{margin:0;font-size:15px;color:var(--gold);letter-spacing:.3px}
+.evid.mean{border-left:3px solid var(--gold)}
+.sumcard{gap:10px}
+.sumhead{font-weight:700;font-size:15.5px;line-height:1.4;color:#eef1f6}
+.sumpara{margin:0;font-size:14px;line-height:1.55;color:#d3deee}
+.sumq{margin:0;font-size:14px;line-height:1.5;color:#d3deee;padding-left:12px;border-left:3px solid var(--line2)}
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px}
+.sumstat{display:flex;flex-direction:column;gap:2px;padding:7px 9px;border-radius:8px;background:var(--bg);font-size:12.5px}
+.sumstat .sl{color:var(--mut);text-transform:uppercase;font-size:10.5px;letter-spacing:.5px}
+.sumstat .sv{font-family:var(--mono);font-weight:700}
+.sumstat.up .sv{color:var(--gtx)}.sumstat.down .sv{color:var(--rtx)}
+@media (max-width:640px){.helpdlg{padding:16px 14px}.helpbtn{width:30px;height:30px}}
+.helpbody{flex:1 1 auto;min-height:0}
+.helpdlg>.btn,.helpdlg .row{flex:none}
+.helpdlg>.btn{height:46px}

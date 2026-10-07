@@ -25,6 +25,24 @@ export function makeNicknames(count = 12, rnd) {
   return [...out];
 }
 
+// A name a student typed. Keeps real names (any language's letters) and a few separators, nothing that could carry markup.
+// Returns { name } or { error }. Empty input returns { name: '' } so the caller can fall back to a random nickname.
+export const NAME_MAX = 24;
+export function cleanName(input) {
+  if (input == null || input === '') return { name: '' };
+  if (typeof input !== 'string' || input.length > 80) return { error: 'bad_name' };
+  const n = input.normalize('NFKC').replace(/\s+/g, ' ').trim();
+  if (n === '') return { name: '' };
+  if (n.length > NAME_MAX || !/^[\p{L}\p{M}\p{N}][\p{L}\p{M}\p{N} .'_-]*$/u.test(n)) return { error: 'bad_name' };
+  return { name: n };
+}
+// Candidates tried in order when the name is already taken in the class: "Sam", "Sam (2)", ... then a random nickname.
+export function nameCandidates(name, rnd) {
+  const out = [];
+  if (name) { out.push(name); for (let i = 2; i <= 9; i++) out.push(name.slice(0, NAME_MAX) + ' (' + i + ')'); }
+  return out.concat(makeNicknames(name ? 3 : 12, rnd));
+}
+
 const b64url = (bytes) => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 export function newToken(rnd = crypto.getRandomValues.bind(crypto)) { const b = new Uint8Array(32); rnd(b); return b64url(b); }
@@ -39,12 +57,12 @@ export const validLog = (log) => typeof log === 'string' && /^[svne0-3xA-Za-z0-9
 
 const r2 = (x) => Math.round(x * 100) / 100;
 // Turn a replayed game into the metrics row we store. Everything comes from the server-side replay, never from the browser.
-export function metricsFrom(run, engineVersion, log) {
+export function metricsFrom(run, engineVersion, log, digest) {
   const m = run.sc.m;
   return {
     completion_status: run.g.over ? 'removed' : 'completed',
     score: run.sc.score, cons_letter: run.cons, lib_letter: run.lib, needle: run.needle,
     econ_growth: r2(m.g), unemployment: r2(m.j), inflation: r2(m.i), deficit: r2(m.d), approval: r2(m.a), unrest: r2(m.u),
-    scandal: r2(run.g.scand || 0), engine_version: engineVersion, log,
+    scandal: r2(run.g.scand || 0), engine_version: engineVersion, log, digest: digest || null,
   };
 }

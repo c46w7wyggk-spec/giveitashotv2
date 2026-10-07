@@ -15,10 +15,11 @@
       <button class="tab {{tabScoresCls}}" type="button" onClick="{{goScores}}"><svg viewBox="0 0 24 24"><path d="M7 20V10M12 20V4M17 20v-7"></path></svg><span>Scores</span></button>
     </nav>
     <div class="top-r">
-      <div class="dots" aria-hidden="true">
+      <div class="dots {{dotsCls}}" aria-hidden="true">
         <sc-for list="{{dots}}" as="dt" hint-placeholder-count="14"><span class="dot {{dt.cls}}"></span></sc-for>
       </div>
       <div class="daylab">{{dayLabel}}</div>
+      <button class="helpbtn" type="button" aria-label="How to play" title="How to play" onClick="{{openHelp}}">?</button>
       <button class="acct {{authCls}}" type="button" onClick="{{authClick}}">{{authLabel}}</button>
     </div>
   </header>
@@ -42,10 +43,12 @@
       <div class="lab"><span>Congress</span><b>{{congText}}</b></div>
       <div class="bar"><i style="{{congBar}}"></i></div>
     </div>
+    <sc-if value="{{showScand}}" hint-placeholder-val="{{true}}">
     <div class="pw">
       <div class="lab"><span>Scandal</span><b>{{scandText}}</b></div>
       <div class="bar"><i style="{{scandBar}}"></i></div>
     </div>
+    </sc-if>
     <div class="pw nd">
       <div class="ends"><span style="color:#f4a874">PLANNED</span><span style="color:#8fc0f2">FREE MARKET</span></div>
       <div class="track"><i style="{{needleLeft}}"></i></div>
@@ -67,7 +70,7 @@
     <!-- ===================== TITLE ===================== -->
     <sc-if value="{{showTitle}}" hint-placeholder-val="{{true}}">
     <div class="page">
-      <h1 class="h1">You have 14 days in office.</h1>
+      <h1 class="h1">You have {{termDays}} days in office.</h1>
       <div class="lead">Every morning the map shows how the country feels. At your desk, three memos wait: sign or veto each one. Then, if you dare, take one bold executive action. Disasters, wars and angry crowds will interrupt, and if Congress and the public both turn on you, you will face an impeachment trial. Your goal is long-term prosperity.</div>
       <div class="grid2">
         <div class="card"><div class="eyebrow gold">SPEND CAPITAL</div><div class="small">Executive actions cost political capital and Congress goodwill. Some risk scandal. All of them are unilateral.</div></div>
@@ -232,6 +235,7 @@
         <sc-if value="{{deskCoach}}" hint-placeholder-val="{{false}}">
           <div class="coach"><div class="eyebrow gold">{{coachStep}}</div><div class="ct">{{coachText}}</div><div class="row wrap"><button class="btn btn-sm gold" type="button" onClick="{{coachNext}}">{{coachBtn}}</button><button class="btn btn-sm ghost" type="button" onClick="{{coachSkip}}">Skip tutorial</button></div></div>
         </sc-if>
+        <sc-if value="{{hasMoot}}" hint-placeholder-val="{{false}}"><div class="alert y" role="status">{{mootText}}</div></sc-if>
         <div class="deskgrid">
           <div style="display:flex;flex-direction:column;gap:14px;min-width:0">
             <sc-if value="{{hasMemo}}" hint-placeholder-val="{{false}}">
@@ -249,7 +253,13 @@
                   <div class="chips"><sc-for list="{{memoChips}}" as="c" hint-placeholder-count="4"><span class="chip big {{c.cls}}" style="{{c.style}}">{{c.t}}</span></sc-for></div>
                   <div class="small" style="margin-top:8px">Uncertainty: {{memoUnc}}. {{congNote}}</div>
                 </div>
-                <button class="btn btn-sm ghost" style="align-self:flex-start" type="button" onClick="{{toggleEv}}">{{evLabel}}</button>
+                <div class="row wrap" style="gap:8px;align-self:flex-start">
+                  <button class="btn btn-sm ghost" type="button" onClick="{{toggleEv}}">{{evLabel}}</button>
+                  <sc-if value="{{canMean}}" hint-placeholder-val="{{false}}"><button class="btn btn-sm ghost" type="button" onClick="{{toggleMean}}">{{meanLabel}}</button></sc-if>
+                </div>
+                <sc-if value="{{showMean}}" hint-placeholder-val="{{false}}">
+                  <div class="evid mean"><div><b>In plain terms.</b> {{memoMean}}</div></div>
+                </sc-if>
                 <sc-if value="{{showEv}}" hint-placeholder-val="{{false}}">
                   <div class="evid">
                     <div><b>Real world.</b> {{memoReal}}</div>
@@ -296,6 +306,8 @@
                   <div style="font-size:14px;line-height:1.45;color:#d3deee">{{xText}}</div>
                   <div class="chips"><sc-for list="{{xChips}}" as="xch" hint-placeholder-count="4"><span class="chip {{xch.cls}}" style="{{xch.style}}">{{xch.t}}</span></sc-for></div>
                   <div class="meta"><sc-for list="{{xMeta}}" as="xm" hint-placeholder-count="3"><span>{{xm.t}}</span></sc-for></div>
+                  <sc-if value="{{canMean}}" hint-placeholder-val="{{false}}"><button class="btn btn-sm ghost" style="align-self:flex-start" type="button" onClick="{{toggleXMean}}">{{xMeanLabel}}</button></sc-if>
+                  <sc-if value="{{showXMean}}" hint-placeholder-val="{{false}}"><div class="evid mean"><div><b>In plain terms.</b> {{xMean}}</div></div></sc-if>
                   <div class="evid"><div><b>Real world.</b> {{xReal}}</div><div><b style="color:#7be0a3">Supporters say:</b> {{xPro}}</div><div><b style="color:#ff9d96">Critics say:</b> {{xCon}}</div></div>
                   <div class="row"><button class="btn btn-md ghost" type="button" onClick="{{xCancel}}">Back</button><button class="btn btn-md grow {{xConfirmCls}}" type="button" onClick="{{xConfirm}}">{{xConfirmLabel}}</button></div>
                 </div>
@@ -414,6 +426,16 @@
           </sc-for>
         </div>
         <div class="small">{{scoreExplain}}</div>
+        <sc-if value="{{hasSummary}}" hint-placeholder-val="{{false}}">
+          <div class="card sumcard">
+            <div class="eyebrow gold">YOUR WRITTEN SUMMARY</div>
+            <div class="sumhead">{{sumHead}}</div>
+            <sc-for list="{{sumParas}}" as="sp" hint-placeholder-count="4"><p class="sumpara">{{sp.t}}</p></sc-for>
+            <div class="sumgrid"><sc-for list="{{sumStats}}" as="ss" hint-placeholder-count="6"><div class="sumstat {{ss.cls}}"><span class="sl">{{ss.k}}</span><span class="sv">{{ss.start}} → {{ss.end}} {{ss.mark}}</span></div></sc-for></div>
+            <div class="eyebrow">THINK ABOUT IT</div>
+            <sc-for list="{{sumQs}}" as="sq" hint-placeholder-count="3"><p class="sumq">{{sq.t}}</p></sc-for>
+          </div>
+        </sc-if>
         <sc-if value="{{isClass}}" hint-placeholder-val="{{false}}">
           <div class="card" role="status">
             <div class="eyebrow gold">CLASS RESULTS</div>
@@ -509,6 +531,21 @@
 
   <sc-if value="{{hasConfetti}}" hint-placeholder-val="{{false}}">
     <div class="confetti"><sc-for list="{{confetti}}" as="cf" hint-placeholder-count="30"><span style="{{cf.style}}"></span></sc-for></div>
+  </sc-if>
+
+  <sc-if value="{{hasHelp}}" hint-placeholder-val="{{false}}">
+    <div class="overlay" style="z-index:55">
+      <button type="button" class="scrim" aria-label="Close help" onClick="{{closeHelp}}"></button>
+      <div role="dialog" aria-label="How to play" class="dialog helpdlg">
+        <div class="row between" style="align-items:flex-start"><div class="h2">How to play</div><button class="btn btn-sm ghost" type="button" onClick="{{closeHelp}}">Close</button></div>
+        <div class="helpbody">
+          <sc-for list="{{helpSecs}}" as="hs" hint-placeholder-count="4">
+            <section class="helpsec"><h3 class="helph">{{hs.h}}</h3><sc-for list="{{hs.p}}" as="hp" hint-placeholder-count="3"><p>{{hp.t}}</p></sc-for></section>
+          </sc-for>
+        </div>
+        <button class="btn btn-md gold" type="button" onClick="{{closeHelp}}">Got it</button>
+      </div>
+    </div>
   </sc-if>
 
   <sc-if value="{{hasStory}}" hint-placeholder-val="{{false}}">

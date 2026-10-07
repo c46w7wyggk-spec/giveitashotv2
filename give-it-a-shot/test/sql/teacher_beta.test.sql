@@ -27,7 +27,7 @@ begin if v is not null and v <> 'null'::jsonb then raise exception 'FAIL % : exp
 create function t.metrics(sc int, removed boolean default false) returns jsonb language sql as $$
   select jsonb_build_object('completion_status', case when removed then 'removed' else 'completed' end, 'score', sc, 'cons_letter', 'B', 'lib_letter', 'C',
     'needle', 55, 'econ_growth', sc / 100.0, 'unemployment', 4.1, 'inflation', 2.2, 'deficit', 3.0 + sc / 1000.0, 'approval', 50 + sc / 50, 'unrest', 20,
-    'scandal', 5, 'engine_version', 2, 'log', 'sessseessee') $$;
+    'scandal', 5, 'engine_version', 2, 'log', 'sessseessee', 'digest', jsonb_build_object('days', 14, 'signed', jsonb_build_array('mw15'))) $$;
 
 -- fixtures (as postgres)
 insert into auth.users(id, email) values
@@ -153,7 +153,7 @@ do $$ declare code text := (select v from t.state where k='code'); cid uuid := (
 end $$;
 
 -- 6. sessions, server-recorded results, replay and cross-student protection
-do $$ declare cid uuid := (select v::uuid from t.state where k='cid'); sid uuid; s jsonb; ctx jsonb; begin
+do $$ declare cid uuid := (select v::uuid from t.state where k='cid'); sid uuid; s jsonb; ctx jsonb; r0 jsonb; begin
   perform t.as_service();
   ctx := public.student_context('hash-s1');
   perform t.isnull('no session yet', ctx->'session');
@@ -163,10 +163,39 @@ do $$ declare cid uuid := (select v::uuid from t.state where k='cid'); sid uuid;
   s := public.teacher_start_session(cid, 'Tax week', 'Play it through once.'); sid := (s->>'id')::uuid;
   insert into t.state values ('sid', sid::text);
   perform t.fails('only one active session', format('select public.teacher_start_session(%L, ''again'', '''')', cid), 'session_already_active');
+  perform t.fails('days below 3 rejected', format('select public.teacher_start_session(%L, ''x'', '''', 2, 0)', cid), 'invalid_days');
+  perform t.fails('days above 28 rejected', format('select public.teacher_start_session(%L, ''x'', '''', 29, 0)', cid), 'invalid_days');
+  perform t.fails('bad difficulty rejected', format('select public.teacher_start_session(%L, ''x'', '''', 14, 2)', cid), 'invalid_difficulty');
   perform t.back(); perform t.as_service();
   ctx := public.student_context('hash-s1');
   perform t.eq('student sees session title', ctx->'session'->>'title', 'Tax week');
+  perform t.eq('default length is 14 days', ctx->'session'->>'days', '14');
+  perform t.eq('default difficulty is standard', ctx->'session'->>'difficulty', '0');
+  perform t.eq('not started yet', ctx->'session'->>'started', 'false');
+  perform t.isnull('seed withheld until the countdown ends', ctx->'session'->'seed');
+  perform t.fails('cannot submit before start', format('select public.student_record_result(''hash-s1'', %L, t.metrics(600))', sid), 'not_started');
+  perform t.fails('cannot report progress before start', format('select public.student_record_progress(''hash-s1'', %L, 1, 100, 50, 0, false)', sid), 'not_started');
+  perform t.back();
+  perform t.as_user('b0000000-0000-0000-0000-00000000000b');
+  perform t.fails('B cannot start A countdown', format('select public.teacher_begin_countdown(%L)', sid), 'not_found');
+  perform t.back();
+  perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  r0 := public.teacher_begin_countdown(sid);
+  perform t.eq('countdown sets a start time in the future', (r0->>'starts_at')::timestamptz > now(), true);
+  perform t.eq('countdown is about 5 seconds', (r0->>'starts_at')::timestamptz - now() between interval '3 seconds' and interval '6 seconds', true);
+  perform t.eq('countdown is idempotent', public.teacher_begin_countdown(sid)->>'starts_at', r0->>'starts_at');
+  perform t.back(); perform t.as_service();
+  perform t.isnull('seed still withheld during countdown', public.student_context('hash-s1')->'session'->'seed');
+  perform t.back();
+  update public.classroom_sessions set starts_at = now() - interval '1 second' where id = sid;   -- fast-forward the 5 seconds
+  perform t.as_service();
+  ctx := public.student_context('hash-s1');
+  perform t.eq('started after countdown', ctx->'session'->>'started', 'true');
   if (ctx->'session'->>'seed')::bigint not between 0 and 2147483647 then raise exception 'seed out of range'; end if; perform t.ok('seed in engine range');
+  perform public.student_record_progress('hash-s1', sid, 3, 420, 51, 2, false);
+  perform public.student_record_progress('hash-s1', sid, 2, 400, 50, 2, false);   -- an older day cannot move progress backwards
+  perform t.back();
+  perform t.as_service();
   perform public.student_record_result('hash-s1', sid, t.metrics(600));
   perform public.student_record_result('hash-s2', sid, t.metrics(500));
   perform t.fails('replayed submission rejected', format('select public.student_record_result(''hash-s1'', %L, t.metrics(999))', sid), 'already_submitted');
@@ -175,7 +204,7 @@ do $$ declare cid uuid := (select v::uuid from t.state where k='cid'); sid uuid;
   perform t.fails('bad token cannot submit', format('select public.student_record_result(''forged'', %L, t.metrics(1))', sid), 'invalid_token');
   perform t.back();
 end $$;
-do $$ declare sid uuid := (select v::uuid from t.state where k='sid'); ctx jsonb; r jsonb; othercode text; ocid uuid; begin
+do $$ declare sid uuid := (select v::uuid from t.state where k='sid'); ctx jsonb; r jsonb; othercode text; ocid uuid; mid5 uuid; begin
   -- a student from ANOTHER classroom cannot submit into this session
   perform t.as_user('b0000000-0000-0000-0000-00000000000b');
   r := public.teacher_create_classroom('B Class'); ocid := (r->>'id')::uuid; othercode := r->>'join_code';
@@ -185,6 +214,8 @@ do $$ declare sid uuid := (select v::uuid from t.state where k='sid'); ctx jsonb
   perform t.back();
   -- results 3,4 then stats
   perform t.as_service();
+  perform public.student_record_progress('hash-s5', sid, 4, 350, 48, 3, false);
+  perform public.student_record_progress('hash-s4', sid, 9, 200, 30, 40, true);
   perform public.student_record_result('hash-s3', sid, t.metrics(700));
   perform public.student_record_result('hash-s4', sid, t.metrics(300, true));
   ctx := public.student_context('hash-s1');
@@ -199,6 +230,11 @@ do $$ declare sid uuid := (select v::uuid from t.state where k='sid'); ctx jsonb
   r := public.teacher_get_session(sid);
   perform t.eq('teacher sees 4 results', jsonb_array_length(r->'results'), 4);
   perform t.eq('teacher sees 5 participants (1 not finished)', jsonb_array_length(r->'participants'), 5);
+  perform t.eq('leaderboard is ordered by score', r->'participants'->0->>'live_score', '700');
+  perform t.eq('finished students show the final day', r->'participants'->0->>'day', '14');
+  perform t.eq('in-progress student shows live score', (select x->>'live_score' from jsonb_array_elements(r->'participants') x where x->>'completed' = 'false' and x->>'live_score' is not null), '350');
+  perform t.eq('in-progress student shows current day', (select x->>'day' from jsonb_array_elements(r->'participants') x where x->>'completed' = 'false' and x->>'live_score' is not null), '4');
+  perform t.eq('removed-from-office flagged on the board', (select x->>'over' from jsonb_array_elements(r->'participants') x where x->>'live_score' = '300'), 'true');
   perform t.eq('stats completed', r->'stats'->>'completed', '4');
   perform t.eq('stats avg score', r->'stats'->'average'->>'score', '525');
   perform t.eq('stats removed count', r->'stats'->>'removed_from_office', '1');
@@ -206,6 +242,15 @@ do $$ declare sid uuid := (select v::uuid from t.state where k='sid'); ctx jsonb
   perform t.eq('distribution has 6 bins', jsonb_array_length(r->'stats'->'distribution'), 6);
   if r::text ~* '(token|hash-s|log|email|user_id|a0000000)' then raise exception 'teacher payload leaks sensitive field: %', r::text; end if;
   perform t.ok('teacher payload carries no token/log/email/user ids');
+  r := public.teacher_session_digests(sid);
+  perform t.eq('digests: one row per finished student', jsonb_array_length(r->'rows'), 4);
+  perform t.eq('digests carry the decision summary', r->'rows'->0->'digest'->>'days', '14');
+  if r::text ~* '(token|hash-s|"log"|email|user_id|a0000000)' then raise exception 'digest payload leaks sensitive field'; end if;
+  perform t.ok('digest payload carries no token/log/email/user ids');
+  perform t.back(); mid5 := (select id from public.classroom_members where token_hash = 'hash-s5'); perform t.as_user('b0000000-0000-0000-0000-00000000000b');
+  perform t.fails('B cannot read A digests', format('select public.teacher_session_digests(%L)', sid), 'not_found');
+  perform t.fails('B cannot remove A member', format('select public.teacher_remove_member(%L)', mid5), 'not_found');
+  perform t.back(); perform t.as_user('a0000000-0000-0000-0000-00000000000a');
   perform public.teacher_set_reveal(sid, true);
   perform t.back(); perform t.as_service();
   ctx := public.student_context('hash-s1');
@@ -346,7 +391,7 @@ do $$ declare names text; begin
    where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')
      and (p.proname like 'teacher\_%' or p.proname like 'admin\_%' or p.proname like '\_%' or p.proname in ('rl_hit','rl_peek','gen_join_code','classroom_join','student_context','student_record_result','student_leave','classroom_session_stats','grant_role_by_email','revoke_role_by_email','purge_archived_classrooms','user_has_capability'));
   perform t.eq('authenticated-executable function allow-list',
-    names, 'admin_find_users,admin_grant_role,admin_list_roles,admin_revoke_role,teacher_archive_classroom,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_revoke_join_code,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
+    names, 'admin_find_users,admin_grant_role,admin_list_roles,admin_revoke_role,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
   select string_agg(p.proname, ',') into names from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') and p.proname ~ '^(teacher|admin|classroom|student|rl|grant|revoke|purge|gen|_)';
   perform t.eq('anon can execute none of the new functions', names, null);

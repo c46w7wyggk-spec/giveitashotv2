@@ -116,3 +116,40 @@ summary{cursor:pointer;font-weight:700}
   .t-btn{flex:1 1 auto}.t-card.row .t-btn{width:100%}
 }
 @media (prefers-reduced-motion:reduce){.t-meter i{transition:none}}
+
+/* ---------- v2: session length slider, difficulty, waiting room, countdown, live board, summaries ---------- */
+.t-slider{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.t-slider input[type=range]{flex:1 1 220px;min-width:160px;height:36px;accent-color:#ffd166}
+.t-sout{font-weight:700;font-size:15px;min-width:200px}
+.t-diff{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.t-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--t-line,#2a4062);border-radius:10px;cursor:pointer}
+.t-opt input{margin-top:4px;width:18px;height:18px;accent-color:#ffd166}
+.t-opt:has(input:checked){border-color:#ffd166;background:rgba(255,209,102,.08)}
+.t-launch{border:2px solid #ffd166}
+.t-count{font-size:96px;line-height:1;font-weight:800;text-align:center;font-family:var(--slab,serif);color:#ffd166;padding:12px 0}
+.t-countdown{text-align:center}
+.t-wait{display:flex;align-items:center;gap:10px;padding:12px;border-radius:10px;background:rgba(255,255,255,.05)}
+.t-spin{width:16px;height:16px;border:3px solid rgba(255,255,255,.25);border-top-color:#ffd166;border-radius:50%;animation:t-rot 1s linear infinite;flex:none}
+@keyframes t-rot{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.t-spin{animation:none}}
+.t-board td,.t-board th{vertical-align:middle}
+.t-board .t-rk{width:28px;font-weight:700;color:#ffd166}
+.t-board .t-num{text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+.t-board tr.done{background:rgba(95,208,139,.07)}
+.t-prog{height:8px;border-radius:4px;background:#24405f;min-width:90px;overflow:hidden}
+.t-prog i{display:block;height:100%;background:#5fd08b;transition:width .6s ease}
+.t-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.t-summary{display:flex;flex-direction:column;gap:8px}
+.t-summary p{margin:0;line-height:1.55}
+.t-summary ul{margin:0;padding-left:20px}
+.t-sumhead{font-weight:700}
+.t-sumtable{width:100%;border-collapse:collapse;font-size:13.5px}
+.t-sumtable th,.t-sumtable td{text-align:left;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,.1)}
+.t-sumtable tr.up td i{color:#5fd08b;font-style:normal;margin-left:4px}.t-sumtable tr.down td i{color:#ff9d96;font-style:normal;margin-left:4px}
+.t-sumrow{padding:10px 0;border-top:1px solid rgba(255,255,255,.1)}
+.t-h4{margin:6px 0 0;font-size:14px}
+@media (max-width:640px){.t-count{font-size:72px}.t-sout{min-width:0}}
+.t-card,.t-scroll,#t-main,.t-wrap{min-width:0;max-width:100%}
+#t-main{display:flex;flex-direction:column}
+.t-scroll,.t-card{position:relative}
+.t-board th[scope=row]{text-align:left}.t-board td:first-child{text-align:left}

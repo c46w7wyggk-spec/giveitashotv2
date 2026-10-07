@@ -103,3 +103,18 @@ export function toast(msg, kind = 'ok') {
 export async function copyText(text) {
   try { await navigator.clipboard.writeText(text); toast('Copied.'); } catch (e) { toast('Copy failed. Select the text and copy it manually.', 'err'); }
 }
+
+// ---- written summary card (used for a student's own result and for the teacher's per-student view)
+export function summaryCard(sm, opts = {}) {
+  if (!sm) return '';
+  const stats = sm.stats && sm.stats.length ? '<table class="t-sumtable"><thead><tr><th scope="col">Meter</th><th scope="col">Start</th><th scope="col">End</th></tr></thead><tbody>' +
+    sm.stats.map((s) => '<tr class="' + (s.good ? 'up' : s.bad ? 'down' : '') + '"><th scope="row">' + esc(s.k) + '</th><td>' + esc(s.start) + '</td><td>' + esc(s.end) + (s.good ? ' <span class="t-sr">(better)</span><i aria-hidden="true">▲</i>' : s.bad ? ' <span class="t-sr">(worse)</span><i aria-hidden="true">▼</i>' : '') + '</td></tr>').join('') + '</tbody></table>' : '';
+  return '<section class="t-summary" aria-label="' + esc(opts.label || 'Written summary') + '"><h3 class="t-h3">' + esc(opts.title || 'Summary of your term') + '</h3><p class="t-sumhead">' + esc(sm.headline) + '</p>' +
+    sm.paras.map((p) => '<p>' + esc(p) + '</p>').join('') + stats +
+    (sm.questions && sm.questions.length ? '<h4 class="t-h4">Think about it</h4><ul>' + sm.questions.map((q) => '<li>' + esc(q) + '</li>').join('') + '</ul>' : '') + '</section>';
+}
+export function classSummaryCard(cs, bare) {
+  if (!cs) return '';
+  return '<section class="t-summary" aria-label="Class summary">' + (bare ? '' : '<h3 class="t-h3">Class summary</h3>') + cs.paras.map((p) => '<p>' + esc(p) + '</p>').join('') +
+    (cs.questions && cs.questions.length ? '<h4 class="t-h4">Discussion questions</h4><ul>' + cs.questions.map((q) => '<li>' + esc(q) + '</li>').join('') + '</ul>' : '') + '</section>';
+}

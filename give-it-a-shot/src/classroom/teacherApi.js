@@ -13,6 +13,9 @@ const MSG = {
   classroom_archived: 'This classroom is archived.',
   session_already_active: 'A session is already running in this classroom.',
   invalid_text: 'That title or those instructions are too long.',
+  invalid_days: 'Choose between 3 and 28 days.',
+  invalid_difficulty: 'Choose a difficulty level.',
+  session_not_active: 'This session has already ended.',
   invalid_input: 'Check the form and try again.',
   invalid_role: 'That role cannot be granted.',
   cannot_revoke_self: 'You cannot remove your own admin access.',
@@ -47,7 +50,10 @@ export const setJoinCode = (id, hours) => rpc('teacher_set_join_code', { p_id: i
 export const revokeJoinCode = (id) => rpc('teacher_revoke_join_code', { p_id: id });
 export const archiveClassroom = (id) => rpc('teacher_archive_classroom', { p_id: id });
 export const deleteClassroom = (id) => rpc('teacher_delete_classroom', { p_id: id });
-export const startSession = (id, title, instructions) => rpc('teacher_start_session', { p_classroom: id, p_title: title, p_instructions: instructions });
+export const startSession = (id, title, instructions, days, difficulty) => rpc('teacher_start_session', { p_classroom: id, p_title: title, p_instructions: instructions, p_days: days, p_difficulty: difficulty });
+export const beginCountdown = (id) => rpc('teacher_begin_countdown', { p_id: id });
+export const digests = (id) => rpc('teacher_session_digests', { p_id: id });
+export const removeMember = (id) => rpc('teacher_remove_member', { p_member: id });
 export const getSession = (id) => rpc('teacher_get_session', { p_id: id });
 export const endSession = (id) => rpc('teacher_end_session', { p_id: id });
 export const setReveal = (id, on) => rpc('teacher_set_reveal', { p_id: id, p_reveal: on });

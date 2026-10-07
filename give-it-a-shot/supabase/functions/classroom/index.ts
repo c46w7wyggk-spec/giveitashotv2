@@ -2,8 +2,8 @@
 // gateway cannot check a JWT. Authentication here is the student's secret token (only its SHA-256 hash is stored).
 // Teachers and admins do NOT use this function: they call RPCs directly with their own JWT (see the migration).
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { ENGINE_VERSION, runLog } from "./engine.js";
-import { TOKEN_RE, metricsFrom, makeNicknames, newToken, normalizeCode, sha256Hex, validLog } from "./lib.js";
+import { ENGINE_VERSION, Engine, digest, replayPartial, runLog } from "./engine.js";
+import { TOKEN_RE, cleanName, metricsFrom, nameCandidates, newToken, normalizeCode, sha256Hex, validLog } from "./lib.js";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +21,7 @@ const KNOWN: Record<string, [number, string]> = {
   invalid_token: [401, "Your classroom session was not found. Join again with the code."],
   classroom_closed: [410, "This classroom has been closed."],
   session_not_active: [409, "This session has ended."],
+  not_started: [409, "The simulation has not started yet. Wait for your teacher to press Start."],
   already_submitted: [409, "Your result for this session was already recorded."],
   not_found: [404, "Not found."],
   try_again: [503, "Please try again."],
@@ -74,8 +75,10 @@ Deno.serve(async (req) => {
     };
     if (!code) return await fail();   // malformed input counts as a failed guess too
     if (!(await hit("join:ip:" + ip, 300, 600))) return tooMany();
+    const nm = cleanName(body.name);
+    if (nm.error) return json({ error: "bad_name", message: "Use 1 to 24 letters, numbers or spaces (. - _ and apostrophes are fine)." }, 400);
     const token = newToken();
-    const { data, error } = await db.rpc("classroom_join", { p_code: code, p_token_hash: await sha256Hex(token), p_names: makeNicknames(12) });
+    const { data, error } = await db.rpc("classroom_join", { p_code: code, p_token_hash: await sha256Hex(token), p_names: nameCandidates(nm.name) });
     if (error) return error.message?.trim() === "invalid_code" ? await fail() : dbError(error);
     const row = Array.isArray(data) ? data[0] : data;
     return json({ ok: true, token, nickname: row.o_display_name, classroom: { name: row.o_classroom_name } });
@@ -108,14 +111,34 @@ Deno.serve(async (req) => {
     if (!ctx.session) return json({ error: "no_session", message: "There is no session to submit to." }, 409);
     if (ctx.session.status !== "active") return dbError({ message: "session_not_active" });
     if (ctx.completed) return dbError({ message: "already_submitted" });
-    // The seed comes from the database, never from the browser; the score comes from replaying the log with the shared engine.
-    let run;
-    try { run = runLog(ctx.session.seed, "President", body.log); }
+    if (!ctx.session.started || ctx.session.seed == null) return dbError({ message: "not_started" });
+    // The seed, length and difficulty come from the database, never from the browser; the score comes from replaying the log with the shared engine.
+    let run, dg;
+    try { run = runLog(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty }); dg = digest(new Engine(), run.g); }
     catch (e) { return json({ error: "invalid_game", message: "That game record could not be verified: " + (e as Error).message }, 400); }
-    const metrics = metricsFrom(run, ENGINE_VERSION, body.log);
+    const metrics = metricsFrom(run, ENGINE_VERSION, body.log, dg);
     const { error } = await db.rpc("student_record_result", { p_token_hash: th, p_session: ctx.session.id, p_metrics: metrics });
     if (error) return dbError(error);
     return json({ ok: true, result: { score: metrics.score, cons_letter: metrics.cons_letter, lib_letter: metrics.lib_letter, completion_status: metrics.completion_status } });
+  }
+
+  // Live leaderboard feed: the server replays the (unfinished) log with the session's own seed, length and level.
+  if (action === "progress") {
+    if (!(await hit("progress:" + th, 40, 60))) return tooMany();
+    if (!validLog(body.log)) return json({ error: "bad_log", message: "That game record is not valid." }, 400);
+    const { data: ctx, error: ce } = await db.rpc("student_context", { p_token_hash: th });
+    if (ce) return dbError(ce);
+    if (!ctx.session || ctx.session.status !== "active") return json({ ok: true, skipped: true });
+    if (ctx.completed) return json({ ok: true, skipped: true });
+    if (!ctx.session.started || ctx.session.seed == null) return dbError({ message: "not_started" });
+    let rp;
+    try { rp = replayPartial(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty }); }
+    catch (e) { return json({ error: "invalid_game", message: "That game record could not be verified." }, 400); }
+    const m = rp.eng.M(rp.g);
+    const { error } = await db.rpc("student_record_progress", { p_token_hash: th, p_session: ctx.session.id, p_day: rp.day,
+      p_score: rp.score, p_approval: Math.round(m.a * 10) / 10, p_scandal: Math.round((rp.g.scand || 0) * 10) / 10, p_over: !!rp.g.over });
+    if (error) return dbError(error);
+    return json({ ok: true });
   }
 
   return json({ error: "unknown_action" }, 400);

@@ -41,7 +41,8 @@ const XA = [
 { id: 'packcourts', cat: 'power', t: '', m: '', lean: 0, cost: 4, f: [-0.3, 0, 0, 0, -2, 4], sd: 0.9, ang: ['urban', 0.4], who: ['TX', 'CA', 'NY', 'FL'], wd: -2, scand: 8, cong: -7, catch: 0.25, dark: true, shield: 4, capGain: 0, real: '', pro: '', con: '', hl: '', hlx: ['', ''] },
 { id: 'cronies', cat: 'power', t: '', m: '', lean: 0, cost: 4, f: [-0.4, 0.1, 0.2, 0.4, 0, -1], sd: 0.9, ang: null, who: ['NY', 'TX', 'LA', 'DE'], wd: -2, scand: 22, cong: 6, catch: 0.6, dark: true, shield: 10, capGain: 2, real: '', pro: '', con: '', hl: '', hlx: ['', ''] }
 ];
-export const ENGINE_VERSION = 2;
+export const ENGINE_VERSION = 3;
+export const MIN_DAYS = 3, MAX_DAYS = 28;
 export class Engine {
 data() {
 if (this._D) return this._D;
@@ -332,7 +333,23 @@ const QUIPS = {
 C: { A: ['', ''], B: ['', ''], C: ['', ''], D: ['', ''], F: ['', ''] },
 L: { A: ['', ''], B: ['', ''], C: ['', ''], D: ['', ''], F: ['', ''] }
 };
-this._D = { KEYS, POL, XA, DIS_OPTS, EV, FAC, ST, TITLES, HL, EVHL, FACHL, OUT, PUNDL, PUNDR, SUPQ, OPPQ, ECON, PUND, QUIPS };
+const SLOT = {
+mw15: ['minwage'], mw0: ['minwage'], nominwage: ['minwage'],
+sp: ['healthsys'], hsa: ['healthsys'],
+rc: ['rent'], endrc: ['rent'],
+top70: ['toprate'], top90: ['toprate'], flat: ['toprate', 'inctax'], consumptax: ['toprate', 'inctax', 'capgains', 'vat'],
+cg0: ['capgains'], natvat: ['vat'],
+corp15: ['corptax'], nocorptax: ['corptax'],
+ssx: ['ssbenefit', 'payrollcap'], ssp: ['ssbenefit'], nopayrollcap: ['payrollcap'],
+jobg: ['jobguar'], job20: ['jobguar'],
+norw: ['rtw'], rtw: ['rtw'], nopubunion: ['pubunion'], nounions: ['pubunion', 'allunions', 'rtw'],
+tar25: ['tariffs'], trade: ['tariffs'], tariff40: ['tariffs'], freetrade: ['tariffs'],
+frack: ['fossil'], parksoil: ['fossil'], drillall: ['fossil'],
+zone: ['zoning'], nozoning: ['zoning'],
+lic: ['licensing'], nolicense: ['licensing'],
+wealth: ['wealthtax'], carbon: ['carbon']
+};
+this._D = { KEYS, POL, XA, SLOT, DIS_OPTS, EV, FAC, ST, TITLES, HL, EVHL, FACHL, OUT, PUNDL, PUNDR, SUPQ, OPPQ, ECON, PUND, QUIPS };
 return this._D;
 }
 rn(g) {
@@ -345,31 +362,57 @@ pick(g, arr) { return arr[Math.floor(this.rn(g) * arr.length)]; }
 shuffle(g, arr) { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(this.rn(g) * (i + 1)); const x = a[i]; a[i] = a[j]; a[j] = x; } return a; }
 clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 pol(id) { const D = this.data(); return D.POL.find((p) => p.id === id) || D.XA.find((p) => p.id === id); }
-newGame(seed) {
+newGame(seed, days, lvl) {
 const D = this.data();
-const g = { rs: seed | 0, day: 1, phase: 'title', title: 'President', memos: [], pols: [], evs: [], hits: [], vet: {}, sched: {}, inc: [], carry: [], flash: [], news: [], todayPol: [], over: false, ok: '', bond: false, riot: false, ds: null, ds0: null, mi: 0,
-cap: 5, cong: 50, scand: 0, imp: null, trials: 0, lastTrial: -9, trialDay: 0, rev: 0, revDay: -9, surv: false, shield: 0, xToday: false, xpend: null, xdone: [], press: [], sidc: 0 };
-const days = this.shuffle(g, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]).slice(0, 6);
-const dis = this.pick(g, ['hurricane', 'quake', 'fire', 'tornado']);
-const war = this.pick(g, ['war_oil', 'war_ally']);
-const rest = this.shuffle(g, ['pandemic', 'boom', 'crash', 'cyber']).slice(0, 4);
-const ids = this.shuffle(g, [dis, war].concat(rest));
-days.forEach((d, i) => { g.sched[d] = ids[i]; });
+days = days == null ? 14 : days; lvl = lvl == null ? 0 : lvl;
+if (!Number.isInteger(days) || days < MIN_DAYS || days > MAX_DAYS) throw new Error('bad days');
+if (lvl !== 0 && lvl !== 1) throw new Error('bad level');
+const mpd = lvl === 1 ? this.clamp(Math.round(28 / days), 1, 2) : this.clamp(Math.round(36 / days), 1, 3);
+const g = { rs: seed | 0, day: 1, days: days, lvl: lvl, mpd: mpd, phase: 'title', title: 'President', memos: [], moot: [], pols: [], evs: [], hits: [], vet: {}, sched: {}, inc: [], carry: [], flash: [], news: [], todayPol: [], over: false, ok: '', bond: false, riot: false, ds: null, ds0: null, mi: 0,
+cap: 5, cong: 50, scand: 0, imp: null, trials: 0, lastTrial: -9, trialDay: 0, rev: 0, revDay: -9, surv: false, shield: 0, xToday: false, xpend: null, xdone: [], press: [], sidc: 0, evlog: [], crlog: [], ser: [], nv: 0 };
+const slots = []; for (let d = 2; d <= days - 1; d++) slots.push(d);
+const n = Math.min(10, slots.length, Math.max(1, Math.round(days * 3 / 7)));
+const evDays = this.shuffle(g, slots).slice(0, n);
+const dis = this.shuffle(g, ['hurricane', 'quake', 'fire', 'tornado']);
+const war = this.shuffle(g, ['war_oil', 'war_ally']);
+const rest = this.shuffle(g, ['pandemic', 'boom', 'crash', 'cyber']);
+const extra = this.shuffle(g, dis.slice(1).concat(war.slice(1)));
+const ids = this.shuffle(g, [dis[0], war[0]].concat(rest, extra).slice(0, n));
+evDays.forEach((d, i) => { g.sched[d] = ids[i]; });
 return g;
+}
+slotsOf(id) { return this.data().SLOT[id] || []; }
+taken(g) {
+const t = {};
+g.pols.forEach((p) => { if (!p.rep) this.slotsOf(p.id).forEach((s) => { t[s] = p.id; }); });
+if (g.xpend) this.slotsOf(g.xpend).forEach((s) => { t[s] = g.xpend; });
+g.memos.forEach((m) => { if (m.dec === 'sign') this.slotsOf(m.id).forEach((s) => { t[s] = m.id; }); });
+return t;
+}
+blocker(g, id, taken) {
+const t = taken || this.taken(g);
+for (const s of this.slotsOf(id)) if (t[s] && t[s] !== id) return t[s];
+return null;
 }
 deal(g) {
 const D = this.data();
 const used = {}; g.pols.forEach((p) => { used[p.id] = true; });
-let pool = D.POL.filter((p) => !used[p.id] && !(g.vet[p.id] != null && g.day - g.vet[p.id] < 3));
-if (pool.length < 3) pool = D.POL.filter((p) => !used[p.id]);
+const taken = this.taken(g);
+const free = (p) => !used[p.id] && !this.blocker(g, p.id, taken);
+const want = g.mpd == null ? 3 : g.mpd;
+let pool = D.POL.filter((p) => free(p) && !(g.vet[p.id] != null && g.day - g.vet[p.id] < 3));
+if (pool.length < want) pool = D.POL.filter(free);
 const chosen = [];
 const take = (flt) => {
-let a = pool.filter((p) => flt(p) && chosen.indexOf(p) < 0);
-if (!a.length) a = pool.filter((p) => chosen.indexOf(p) < 0);
-if (a.length) chosen.push(this.pick(g, a));
+const ok = (p) => chosen.indexOf(p) < 0 && !this.blocker(g, p.id, taken);
+let a = pool.filter((p) => flt(p) && ok(p));
+if (!a.length) a = pool.filter(ok);
+if (a.length) { const c = this.pick(g, a); chosen.push(c); this.slotsOf(c.id).forEach((s) => { taken[s] = c.id; }); }
 };
-take((p) => p.lean < 0); take((p) => p.lean > 0); take(() => true);
+const rules = want >= 3 ? [(p) => p.lean < 0, (p) => p.lean > 0, () => true] : want === 2 ? [(p) => p.lean < 0, (p) => p.lean > 0] : [() => true];
+rules.forEach(take);
 g.memos = this.shuffle(g, chosen).map((p) => ({ id: p.id, dec: null }));
+g.moot = [];
 g.mi = 0;
 }
 nights(g, d) { return (g.day - d) + ((g.phase === 'brief' || g.phase === 'end') ? 1 : 0); }
@@ -468,7 +511,7 @@ g.todayPol.push(p.id);
 this.addNews(g, this.polStory(g, p, f));
 g.hits.push({ d: g.day, st: p.who, v: p.wd, l: p.t });
 } else {
-g.vet[p.id] = g.day;
+g.vet[p.id] = g.day; g.nv += 1;
 g.cong = this.clamp(g.cong - 1.5, 0, 100);
 }
 });
@@ -511,14 +554,14 @@ const sid = g.sched[g.day];
 if (sid) {
 const ev = D.EV[sid];
 const e = { k: 'event', id: sid, st: this.pick(g, ev.st) };
-g.inc.push(e); this.addEv(g, ev.base, 0.2);
+g.inc.push(e); this.addEv(g, ev.base, 0.2); g.evlog.push({ d: g.day, id: sid });
 g.hits.push({ d: g.day, st: [e.st], v: sid === 'boom' ? 12 : -20, l: ev.kind + ': ' + ev.title.replace(' {st}', '').replace('{st}', '') });
 g.flash.push({ st: e.st, icon: ev.icon });
 this.addNews(g, this.evStory(g, sid, e.st));
 } else if (m.d > 14 && !g.bond) {
 g.bond = true;
 const ev = D.EV.bond; const e = { k: 'event', id: 'bond', st: this.pick(g, ev.st) };
-g.inc.push(e); this.addEv(g, ev.base, 0.2);
+g.inc.push(e); this.addEv(g, ev.base, 0.2); g.evlog.push({ d: g.day, id: 'bond' });
 g.flash.push({ st: e.st, icon: ev.icon });
 this.addNews(g, this.evStory(g, 'bond', e.st));
 }
@@ -527,9 +570,11 @@ const c = { k: 'crisis', fac: 'urban', pol: null, st: this.pick(g, D.FAC.urban.s
 g.inc.push(c); this.crisisHit(g, c, 1);
 }
 g.phase = savedPhase;
+{ const mm = this.M(g); g.ser.push([g.day, mm.g, mm.j, mm.i, mm.d, mm.a, mm.u].map((v, k) => (k ? Math.round(v * 10) / 10 : v))); }
 if (g.inc.length) g.phase = 'incident'; else this.toBrief(g);
 }
 crisisHit(g, c, scale) {
+if (scale >= 1) g.crlog.push({ d: g.day, fac: c.fac, pol: c.pol || '' });
 const F = this.data().FAC[c.fac];
 this.addEv(g, F.base.map((x) => x * scale), 0.2);
 g.hits.push({ d: g.day, st: [c.st], v: -22, l: F.name });
@@ -615,7 +660,7 @@ return;
 }
 if (!g.over) {
 if (g.imp && g.imp.st === 'warn' && g.imp.w < g.day) g.imp.st = 'trial';
-if (!g.imp && g.trials < 2 && g.day >= 3 && g.day - g.lastTrial > 4 && m.a < 28 && g.cong < 25) {
+if (!g.imp && g.lvl !== 1 && g.trials < 2 && g.day >= 3 && g.day - g.lastTrial > 4 && m.a < 28 && g.cong < 25) {
 g.trials += 1;
 g.imp = { st: 'warn', w: g.day, r: 0, conv: this.clamp(Math.round(38 + (30 - g.cong) * 0.9 + (32 - m.a) * 0.6 + g.scand * 0.25 - g.shield), 22, 78) };
 this.push(g, '', '');
@@ -662,8 +707,8 @@ if (imp.r >= 3) this.verdict(g);
 this.toBrief(g);
 }
 nextMorning(g) {
-if (g.imp && !g.imp.done && g.imp.st === 'trial' && g.day >= 14 && !g.over) this.verdict(g);
-if (g.over || g.day >= 14) { g.phase = 'end'; return; }
+if (g.imp && !g.imp.done && g.imp.st === 'trial' && g.day >= g.days && !g.over) this.verdict(g);
+if (g.over || g.day >= g.days) { g.phase = 'end'; return; }
 g.day += 1; g.phase = 'desk';
 g.cap = Math.min(8, g.cap + 1); g.xToday = false;
 const m0 = this.M(g);
@@ -706,8 +751,8 @@ if (log[i] === 'x') { if (i + 1 >= log.length) throw new Error('bad log'); out.p
 }
 return out;
 }
-export function begin(eng, seed, role) {
-const g = eng.newGame(seed); g.title = 'President';
+export function begin(eng, seed, role, days, lvl) {
+const g = eng.newGame(seed, days, lvl); g.title = 'President';
 g.phase = 'desk'; g.day = 1; g.ds = eng.M(g); g.ds0 = g.ds; eng.deal(g);
 return g;
 }
@@ -721,7 +766,14 @@ eng.endDay(g);
 } else if (a.length === 2 && a[0] === 'x') {
 const D = eng.data(); const x = D.XA[XIDX.indexOf(a[1])];
 if (g.phase !== 'desk' || !x || g.xToday || g.cap < x.cost || g.xdone.indexOf(x.id) >= 0) throw new Error('');
+if (g.lvl === 1 && x.cat === 'power') throw new Error('');
+if (eng.blocker(g, x.id)) throw new Error('');
 g.cap -= x.cost; g.xToday = true; g.xpend = x.id;
+const mine = eng.slotsOf(x.id); g.moot = g.moot || [];
+g.memos = g.memos.filter((m, i) => {
+if (i < g.mi || !eng.slotsOf(m.id).some((sl) => mine.indexOf(sl) >= 0)) return true;
+g.moot.push({ id: m.id, by: x.id }); return false;
+});
 } else if (a >= '0' && a <= '3' && a.length === 1) {
 if (g.phase === 'incident') eng.resolveIncident(g, +a);
 else if (g.phase === 'trial') eng.resolveTrial(g, +a);
@@ -732,13 +784,36 @@ eng.nextMorning(g);
 } else throw new Error('unknown action ' + a);
 return g;
 }
-export function runLog(seed, role, log) {
+export function runLog(seed, role, log, opts) {
 const eng = new Engine();
 if (!eng.data().TITLES.some((t) => t.id === role)) throw new Error('unknown role');
 if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
-const g = begin(eng, seed, role);
+const o = opts || {};
+const g = begin(eng, seed, role, o.days, o.lvl);
 for (const a of tokens(log)) { if (g.phase === 'end') throw new Error(''); applyAction(eng, g, a); }
 if (g.phase !== 'end') throw new Error('');
 const sc = eng.scoreCard(g);
 return { g, sc, cons: eng.grade(sc.cons).letter, lib: eng.grade(sc.lib).letter, needle: Math.round(sc.nd) };
+}
+export function digest(eng, g) {
+const sc = eng.scoreCard(g);
+const r1 = (v) => Math.round(v * 10) / 10;
+return {
+days: g.days, lvl: g.lvl, day: g.day, over: !!g.over, ok: g.ok || '', surv: !!g.surv,
+signed: g.pols.filter((p) => !p.x).map((p) => p.id), repealed: g.pols.filter((p) => p.rep).map((p) => p.id),
+vetoed: Object.keys(g.vet), nv: g.nv, xa: g.xdone.slice(), moot: (g.moot || []).map((q) => q.id + '>' + q.by),
+ev: g.evlog.map((e) => e.d + ':' + e.id), cr: g.crlog.map((c) => c.d + ':' + c.fac + (c.pol ? ':' + c.pol : '')),
+trials: g.trials, rev: g.rev, scand: r1(g.scand), cong: r1(g.cong), cap: g.cap,
+ser: g.ser, sub: Object.fromEntries(Object.entries(sc.sub).map(([k, v]) => [k, Math.round(v)])), nd: Math.round(sc.nd),
+};
+}
+export function replayPartial(seed, role, log, opts) {
+const eng = new Engine();
+if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
+const o = opts || {};
+const g = begin(eng, seed, role, o.days, o.lvl);
+if (log.endsWith('x')) log = log.slice(0, -1);
+for (const a of tokens(log)) { if (g.phase === 'end') break; applyAction(eng, g, a); }
+const sc = eng.scoreCard(g);
+return { g, day: g.day, over: g.phase === 'end', score: sc.score, eng };
 }

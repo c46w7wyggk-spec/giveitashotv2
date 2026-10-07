@@ -1,7 +1,8 @@
 // Give It A Shot — deterministic game engine. Shared by the browser and the submit-score edge function.
 // Same seed + same action log => same game, same score. Bump ENGINE_VERSION on ANY change that alters outcomes.
 import { XA } from './xactions.js';
-export const ENGINE_VERSION = 2;
+export const ENGINE_VERSION = 3;
+export const MIN_DAYS = 3, MAX_DAYS = 28;
 
 export class Engine {
   data() {
@@ -295,7 +296,26 @@ export class Engine {
       C: { A: ['Finally, someone who read the budget before signing it.', 'Adam Smith is smiling. Possibly weeping.'], B: ['Respectable. Would not mind this one at a barbecue.', 'Mostly sound, with a few baffling decisions.'], C: ['Some good instincts, some deeply puzzling ones.', 'The invisible hand is checking its watch.'], D: ['The markets are crying, and not from joy.', 'Somewhere, a deficit hawk is hyperventilating.'], F: ['This is why we have constitutions.', 'A cautionary tale, and not a short one.'] },
       L: { A: ['Solidarity forever. Also, the spreadsheets check out.', 'The people have spoken, and they sound relieved.'], B: ['Progress, with an asterisk the size of a footnote.', 'Good bones, needs a better closing argument.'], C: ['Meh. Reads like a pamphlet written by a committee.', 'The vibes were right. The outcomes were not.'], D: ['A lot of speeches. Not a lot of results.', 'The movement is concerned, and drafting a statement.'], F: ['Somewhere, a union organizer just sighed in Latin.', 'The revolution has been postponed, citing weather.'] }
     };
-    this._D = { KEYS, POL, XA, DIS_OPTS, EV, FAC, ST, TITLES, HL, EVHL, FACHL, OUT, PUNDL, PUNDR, SUPQ, OPPQ, ECON, PUND, QUIPS };
+    // Policy slots: two policies that change the same lever (e.g. the minimum wage) cannot both be enacted.
+    // Enacting one retires every other policy that shares a slot, from the desk and from executive actions alike.
+    // Slot names stay short (15 characters or fewer) so the slim server engine keeps them.
+    const SLOT = {
+      mw15: ['minwage'], mw0: ['minwage'], nominwage: ['minwage'],
+      sp: ['healthsys'], hsa: ['healthsys'],
+      rc: ['rent'], endrc: ['rent'],
+      top70: ['toprate'], top90: ['toprate'], flat: ['toprate', 'inctax'], consumptax: ['toprate', 'inctax', 'capgains', 'vat'],
+      cg0: ['capgains'], natvat: ['vat'],
+      corp15: ['corptax'], nocorptax: ['corptax'],
+      ssx: ['ssbenefit', 'payrollcap'], ssp: ['ssbenefit'], nopayrollcap: ['payrollcap'],
+      jobg: ['jobguar'], job20: ['jobguar'],
+      norw: ['rtw'], rtw: ['rtw'], nopubunion: ['pubunion'], nounions: ['pubunion', 'allunions', 'rtw'],
+      tar25: ['tariffs'], trade: ['tariffs'], tariff40: ['tariffs'], freetrade: ['tariffs'],
+      frack: ['fossil'], parksoil: ['fossil'], drillall: ['fossil'],
+      zone: ['zoning'], nozoning: ['zoning'],
+      lic: ['licensing'], nolicense: ['licensing'],
+      wealth: ['wealthtax'], carbon: ['carbon']
+    };
+    this._D = { KEYS, POL, XA, SLOT, DIS_OPTS, EV, FAC, ST, TITLES, HL, EVHL, FACHL, OUT, PUNDL, PUNDR, SUPQ, OPPQ, ECON, PUND, QUIPS };
     return this._D;
   }
 
@@ -311,33 +331,66 @@ export class Engine {
   clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   pol(id) { const D = this.data(); return D.POL.find((p) => p.id === id) || D.XA.find((p) => p.id === id); }
 
-  newGame(seed) {
+  // days: 3-28. lvl: 0 = standard (AP), 1 = core (plain language, no scandal or impeachment, fewer memos).
+  newGame(seed, days, lvl) {
     const D = this.data();
-    const g = { rs: seed | 0, day: 1, phase: 'title', title: 'President', memos: [], pols: [], evs: [], hits: [], vet: {}, sched: {}, inc: [], carry: [], flash: [], news: [], todayPol: [], over: false, ok: '', bond: false, riot: false, ds: null, ds0: null, mi: 0,
-      cap: 5, cong: 50, scand: 0, imp: null, trials: 0, lastTrial: -9, trialDay: 0, rev: 0, revDay: -9, surv: false, shield: 0, xToday: false, xpend: null, xdone: [], press: [], sidc: 0 };
-    // Schedule 6 random events across days 2-13, always including a disaster and a war.
-    const days = this.shuffle(g, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]).slice(0, 6);
-    const dis = this.pick(g, ['hurricane', 'quake', 'fire', 'tornado']);
-    const war = this.pick(g, ['war_oil', 'war_ally']);
-    const rest = this.shuffle(g, ['pandemic', 'boom', 'crash', 'cyber']).slice(0, 4);
-    const ids = this.shuffle(g, [dis, war].concat(rest));
-    days.forEach((d, i) => { g.sched[d] = ids[i]; });
+    days = days == null ? 14 : days; lvl = lvl == null ? 0 : lvl;
+    if (!Number.isInteger(days) || days < MIN_DAYS || days > MAX_DAYS) throw new Error('bad days');
+    if (lvl !== 0 && lvl !== 1) throw new Error('bad level');
+    // memos per day: long terms get fewer so the bill pool lasts (standard: 3 up to 14 days; core: 2, then 1 past 18 days)
+    const mpd = lvl === 1 ? this.clamp(Math.round(28 / days), 1, 2) : this.clamp(Math.round(36 / days), 1, 3);
+    const g = { rs: seed | 0, day: 1, days: days, lvl: lvl, mpd: mpd, phase: 'title', title: 'President', memos: [], moot: [], pols: [], evs: [], hits: [], vet: {}, sched: {}, inc: [], carry: [], flash: [], news: [], todayPol: [], over: false, ok: '', bond: false, riot: false, ds: null, ds0: null, mi: 0,
+      cap: 5, cong: 50, scand: 0, imp: null, trials: 0, lastTrial: -9, trialDay: 0, rev: 0, revDay: -9, surv: false, shield: 0, xToday: false, xpend: null, xdone: [], press: [], sidc: 0, evlog: [], crlog: [], ser: [], nv: 0 };
+    // Schedule random events on days 2..days-1: about 3 per 7 days, always a disaster and a war first (14 days = 6 events).
+    const slots = []; for (let d = 2; d <= days - 1; d++) slots.push(d);
+    const n = Math.min(10, slots.length, Math.max(1, Math.round(days * 3 / 7)));
+    const evDays = this.shuffle(g, slots).slice(0, n);
+    const dis = this.shuffle(g, ['hurricane', 'quake', 'fire', 'tornado']);
+    const war = this.shuffle(g, ['war_oil', 'war_ally']);
+    const rest = this.shuffle(g, ['pandemic', 'boom', 'crash', 'cyber']);
+    const extra = this.shuffle(g, dis.slice(1).concat(war.slice(1)));
+    const ids = this.shuffle(g, [dis[0], war[0]].concat(rest, extra).slice(0, n));
+    evDays.forEach((d, i) => { g.sched[d] = ids[i]; });
     return g;
+  }
+
+  // ---------- policy slots ----------
+  slotsOf(id) { return this.data().SLOT[id] || []; }
+  // slot -> id of the policy that currently holds it (enacted, queued as an executive action, or signed today)
+  taken(g) {
+    const t = {};
+    g.pols.forEach((p) => { if (!p.rep) this.slotsOf(p.id).forEach((s) => { t[s] = p.id; }); });
+    if (g.xpend) this.slotsOf(g.xpend).forEach((s) => { t[s] = g.xpend; });
+    g.memos.forEach((m) => { if (m.dec === 'sign') this.slotsOf(m.id).forEach((s) => { t[s] = m.id; }); });
+    return t;
+  }
+  // id of the enacted policy that blocks `id`, or null when it is free to use
+  blocker(g, id, taken) {
+    const t = taken || this.taken(g);
+    for (const s of this.slotsOf(id)) if (t[s] && t[s] !== id) return t[s];
+    return null;
   }
 
   deal(g) {
     const D = this.data();
     const used = {}; g.pols.forEach((p) => { used[p.id] = true; });
-    let pool = D.POL.filter((p) => !used[p.id] && !(g.vet[p.id] != null && g.day - g.vet[p.id] < 3));
-    if (pool.length < 3) pool = D.POL.filter((p) => !used[p.id]);
+    const taken = this.taken(g);
+    const free = (p) => !used[p.id] && !this.blocker(g, p.id, taken);
+    const want = g.mpd == null ? 3 : g.mpd;
+    let pool = D.POL.filter((p) => free(p) && !(g.vet[p.id] != null && g.day - g.vet[p.id] < 3));
+    if (pool.length < want) pool = D.POL.filter(free);
     const chosen = [];
     const take = (flt) => {
-      let a = pool.filter((p) => flt(p) && chosen.indexOf(p) < 0);
-      if (!a.length) a = pool.filter((p) => chosen.indexOf(p) < 0);
-      if (a.length) chosen.push(this.pick(g, a));
+      const ok = (p) => chosen.indexOf(p) < 0 && !this.blocker(g, p.id, taken);
+      let a = pool.filter((p) => flt(p) && ok(p));
+      if (!a.length) a = pool.filter(ok);
+      if (a.length) { const c = this.pick(g, a); chosen.push(c); this.slotsOf(c.id).forEach((s) => { taken[s] = c.id; }); }
     };
-    take((p) => p.lean < 0); take((p) => p.lean > 0); take(() => true);
+    // one planned-leaning and one market-leaning bill when there is room, then anything
+    const rules = want >= 3 ? [(p) => p.lean < 0, (p) => p.lean > 0, () => true] : want === 2 ? [(p) => p.lean < 0, (p) => p.lean > 0] : [() => true];
+    rules.forEach(take);
     g.memos = this.shuffle(g, chosen).map((p) => ({ id: p.id, dec: null }));
+    g.moot = [];
     g.mi = 0;
   }
 
@@ -442,7 +495,7 @@ export class Engine {
         this.addNews(g, this.polStory(g, p, f));
         g.hits.push({ d: g.day, st: p.who, v: p.wd, l: p.t });
       } else {
-        g.vet[p.id] = g.day;
+        g.vet[p.id] = g.day; g.nv += 1;
         g.cong = this.clamp(g.cong - 1.5, 0, 100);
       }
     });
@@ -488,14 +541,14 @@ export class Engine {
     if (sid) {
       const ev = D.EV[sid];
       const e = { k: 'event', id: sid, st: this.pick(g, ev.st) };
-      g.inc.push(e); this.addEv(g, ev.base, 0.2);
+      g.inc.push(e); this.addEv(g, ev.base, 0.2); g.evlog.push({ d: g.day, id: sid });
       g.hits.push({ d: g.day, st: [e.st], v: sid === 'boom' ? 12 : -20, l: ev.kind + ': ' + ev.title.replace(' {st}', '').replace('{st}', '') });
       g.flash.push({ st: e.st, icon: ev.icon });
       this.addNews(g, this.evStory(g, sid, e.st));
     } else if (m.d > 14 && !g.bond) {
       g.bond = true;
       const ev = D.EV.bond; const e = { k: 'event', id: 'bond', st: this.pick(g, ev.st) };
-      g.inc.push(e); this.addEv(g, ev.base, 0.2);
+      g.inc.push(e); this.addEv(g, ev.base, 0.2); g.evlog.push({ d: g.day, id: 'bond' });
       g.flash.push({ st: e.st, icon: ev.icon });
       this.addNews(g, this.evStory(g, 'bond', e.st));
     }
@@ -505,9 +558,11 @@ export class Engine {
       g.inc.push(c); this.crisisHit(g, c, 1);
     }
     g.phase = savedPhase;
+    { const mm = this.M(g); g.ser.push([g.day, mm.g, mm.j, mm.i, mm.d, mm.a, mm.u].map((v, k) => (k ? Math.round(v * 10) / 10 : v))); }
     if (g.inc.length) g.phase = 'incident'; else this.toBrief(g);
   }
   crisisHit(g, c, scale) {
+    if (scale >= 1) g.crlog.push({ d: g.day, fac: c.fac, pol: c.pol || '' });
     const F = this.data().FAC[c.fac];
     this.addEv(g, F.base.map((x) => x * scale), 0.2);
     g.hits.push({ d: g.day, st: [c.st], v: -22, l: F.name });
@@ -593,7 +648,7 @@ export class Engine {
     }
     if (!g.over) {
       if (g.imp && g.imp.st === 'warn' && g.imp.w < g.day) g.imp.st = 'trial';
-      if (!g.imp && g.trials < 2 && g.day >= 3 && g.day - g.lastTrial > 4 && m.a < 28 && g.cong < 25) {
+      if (!g.imp && g.lvl !== 1 && g.trials < 2 && g.day >= 3 && g.day - g.lastTrial > 4 && m.a < 28 && g.cong < 25) {
         g.trials += 1;
         g.imp = { st: 'warn', w: g.day, r: 0, conv: this.clamp(Math.round(38 + (30 - g.cong) * 0.9 + (32 - m.a) * 0.6 + g.scand * 0.25 - g.shield), 22, 78) };
         this.push(g, 'House drafts articles of impeachment', 'Committee chairs say the vote is coming. You have a day or two to change the math, one way or another.');
@@ -640,8 +695,8 @@ export class Engine {
     this.toBrief(g);
   }
   nextMorning(g) {
-    if (g.imp && !g.imp.done && g.imp.st === 'trial' && g.day >= 14 && !g.over) this.verdict(g);
-    if (g.over || g.day >= 14) { g.phase = 'end'; return; }
+    if (g.imp && !g.imp.done && g.imp.st === 'trial' && g.day >= g.days && !g.over) this.verdict(g);
+    if (g.over || g.day >= g.days) { g.phase = 'end'; return; }
     g.day += 1; g.phase = 'desk';
     g.cap = Math.min(8, g.cap + 1); g.xToday = false;
     const m0 = this.M(g);
@@ -691,8 +746,8 @@ export function tokens(log) {
   }
   return out;
 }
-export function begin(eng, seed, role) {
-  const g = eng.newGame(seed); g.title = 'President';
+export function begin(eng, seed, role, days, lvl) {
+  const g = eng.newGame(seed, days, lvl); g.title = 'President';
   g.phase = 'desk'; g.day = 1; g.ds = eng.M(g); g.ds0 = g.ds; eng.deal(g);
   return g;
 }
@@ -706,7 +761,15 @@ export function applyAction(eng, g, a) {
   } else if (a.length === 2 && a[0] === 'x') {
     const D = eng.data(); const x = D.XA[XIDX.indexOf(a[1])];
     if (g.phase !== 'desk' || !x || g.xToday || g.cap < x.cost || g.xdone.indexOf(x.id) >= 0) throw new Error('bad executive action');
+    if (g.lvl === 1 && x.cat === 'power') throw new Error('power plays are off in core mode');
+    if (eng.blocker(g, x.id)) throw new Error('executive action conflicts with an enacted policy');
     g.cap -= x.cost; g.xToday = true; g.xpend = x.id;
+    // The action settles its lever: any memo still waiting on the desk that touches it is withdrawn.
+    const mine = eng.slotsOf(x.id); g.moot = g.moot || [];
+    g.memos = g.memos.filter((m, i) => {
+      if (i < g.mi || !eng.slotsOf(m.id).some((sl) => mine.indexOf(sl) >= 0)) return true;
+      g.moot.push({ id: m.id, by: x.id }); return false;
+    });
   } else if (a >= '0' && a <= '3' && a.length === 1) {
     if (g.phase === 'incident') eng.resolveIncident(g, +a);
     else if (g.phase === 'trial') eng.resolveTrial(g, +a);
@@ -717,13 +780,41 @@ export function applyAction(eng, g, a) {
   } else throw new Error('unknown action ' + a);
   return g;
 }
-export function runLog(seed, role, log) {
+// opts: { days: 3-28 (default 14), lvl: 0 standard | 1 core (default 0) }. The public game always uses the defaults.
+export function runLog(seed, role, log, opts) {
   const eng = new Engine();
   if (!eng.data().TITLES.some((t) => t.id === role)) throw new Error('unknown role');
   if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
-  const g = begin(eng, seed, role);
+  const o = opts || {};
+  const g = begin(eng, seed, role, o.days, o.lvl);
   for (const a of tokens(log)) { if (g.phase === 'end') throw new Error('log continues past end'); applyAction(eng, g, a); }
   if (g.phase !== 'end') throw new Error('game not finished');
   const sc = eng.scoreCard(g);
   return { g, sc, cons: eng.grade(sc.cons).letter, lib: eng.grade(sc.lib).letter, needle: Math.round(sc.nd) };
+}
+
+// Compact, deterministic record of what a player decided, computed from a replayed game. Stored with class results
+// and turned into written summaries by the client. Ids only (short strings), so it survives the slim server engine.
+export function digest(eng, g) {
+  const sc = eng.scoreCard(g);
+  const r1 = (v) => Math.round(v * 10) / 10;
+  return {
+    days: g.days, lvl: g.lvl, day: g.day, over: !!g.over, ok: g.ok || '', surv: !!g.surv,
+    signed: g.pols.filter((p) => !p.x).map((p) => p.id), repealed: g.pols.filter((p) => p.rep).map((p) => p.id),
+    vetoed: Object.keys(g.vet), nv: g.nv, xa: g.xdone.slice(), moot: (g.moot || []).map((q) => q.id + '>' + q.by),
+    ev: g.evlog.map((e) => e.d + ':' + e.id), cr: g.crlog.map((c) => c.d + ':' + c.fac + (c.pol ? ':' + c.pol : '')),
+    trials: g.trials, rev: g.rev, scand: r1(g.scand), cong: r1(g.cong), cap: g.cap,
+    ser: g.ser, sub: Object.fromEntries(Object.entries(sc.sub).map(([k, v]) => [k, Math.round(v)])), nd: Math.round(sc.nd),
+  };
+}
+// Replays a possibly unfinished log (class live leaderboard). Stops at the first token that does not apply.
+export function replayPartial(seed, role, log, opts) {
+  const eng = new Engine();
+  if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
+  const o = opts || {};
+  const g = begin(eng, seed, role, o.days, o.lvl);
+  if (log.endsWith('x')) log = log.slice(0, -1);
+  for (const a of tokens(log)) { if (g.phase === 'end') break; applyAction(eng, g, a); }
+  const sc = eng.scoreCard(g);
+  return { g, day: g.day, over: g.phase === 'end', score: sc.score, eng };
 }

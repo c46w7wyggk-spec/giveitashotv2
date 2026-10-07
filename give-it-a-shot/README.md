@@ -1,6 +1,6 @@
 # Give It A Shot
 
-A 14-day economic-policy game. Vite + vanilla JS front end, Supabase (Auth, Postgres, one Edge Function) for accounts and leaderboards.
+An economic-policy game (3–28 days; 14 is the default). Vite + vanilla JS front end, Supabase (Auth, Postgres, one Edge Function) for accounts and leaderboards.
 
 ## How scoring stays honest
 The browser records every choice as a short log (`s` sign, `v` veto, `e` end day, `n` next morning, `0-3` incident or trial option, `x`+char executive action).
@@ -41,6 +41,6 @@ Each build writes `/version.json`. The app checks it on open, on focus and every
 UATX-only mode (sign in with `@student.uaustin.org`). Win: finish the term with the needle at 80+ and an A from conservatives. Unranked; nothing is posted. See `test/korm-sim.mjs`.
 
 ## Teacher Beta (private, invite-only)
-Classrooms for teachers: join codes, anonymous student nicknames, same-seed class sessions, class results and discussion prompts. Off by default.
+Classrooms for teachers: join codes, student names (first name + last initial), same-seed class sessions with a 5-second synchronized start, a live leaderboard, difficulty levels, a 3–28 day length, written summaries and discussion prompts. Off by default.
 Full guide (security, setup, deploy, pilot workflow, privacy): [`docs/TEACHER_BETA.md`](docs/TEACHER_BETA.md) and [`docs/TEACHER_BETA_PRIVACY.md`](docs/TEACHER_BETA_PRIVACY.md).
 Tests: `npm run test:sql`, `npm run test:edge`, `npm run test:ui` (need a local Postgres 16 and Deno; see `docs/TEACHER_BETA.md`, section Testing).

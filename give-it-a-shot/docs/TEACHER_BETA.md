@@ -15,7 +15,7 @@ Student data and privacy: [`TEACHER_BETA_PRIVACY.md`](TEACHER_BETA_PRIVACY.md).
 | No `vercel.json` | Added, with rewrites for `/teachers`, `/teacher/*`, `/classroom/*` (deep links would 404 otherwise). |
 | Live DB has 4 applied migrations; repo only has 1 | New migration is `20261008000000_teacher_beta.sql`; it does not depend on the 3 unversioned ones. |
 
-Game mode: the 14-day President game only. Supreme Leader is excluded because its scores are not server-verified yet.
+Game mode: the President game only, 3–28 days (teacher's slider, about 1–2 minutes per day), at AP (standard) or Core (simplified) difficulty. Supreme Leader is excluded because its scores are not server-verified yet.
 
 ## 2. Architecture in one picture
 
@@ -39,7 +39,7 @@ Teacher and admin calls never touch the service role key; the browser never send
 
 **Classroom isolation.** Covered above plus: a student token is bound to one member row, one classroom; `student_record_result` re-checks that the session belongs to that member's classroom.
 
-**Student privacy.** Anonymous participants with server-generated nicknames; no email/name/account (see privacy doc). Teachers get nickname + metrics only. Highlights are values without names; individual results are hidden by default and listed alphabetically, not ranked. Students see class totals only when the teacher shares them, only after they finish, and only with ≥ 3 results.
+**Student privacy.** Students type a first name and last initial; no email or account (see privacy doc). Teachers see names, a live leaderboard, results and written summaries. Highlights are values without names; individual results are hidden by default and listed alphabetically, not ranked. Students see class totals only when the teacher shares them, only after they finish, and only with ≥ 3 results.
 
 **Score verification.** The session's `seed` is created by the database. A student submits only an action log; the edge function validates its shape (same regex as `submit-score`), replays it with the shared engine from the stored seed, and stores the engine's numbers. `score: 999999`, a different `seed` or `role`, a wrong `session_id` in the body are all ignored (tested). `UNIQUE(session_id, member_id)` makes replays impossible. A session must be `active` at the moment of insert.
 
@@ -117,7 +117,7 @@ or the *Revoke* button on `/teacher/admin`. Revoked rows are kept as an audit tr
 ## 8. Pilot workflow (5 to 10 teachers)
 1. **Authorize:** as above; send them `https://giveitashot.online/teachers`.
 2. **Create:** teacher signs in at `/teacher`, types a classroom name, **Create**. The join code appears immediately (target: under two minutes from sign-in to "students are joining").
-3. **Students join:** they open `giveitashot.online/classroom`, type the code, see a random nickname.
+3. **Students join:** they open `giveitashot.online/classroom`, type the code, enter their first name and last initial. The teacher's Start button begins a 5-second countdown and every student's game starts together.
 4. **Launch:** teacher sets a title/instructions, **Start session**; students see **Start simulation** within about 6 seconds.
 5. **Results:** the session page shows who has finished, class averages, highlights, score distribution, ranges, optional individual table, and discussion prompts. **End session** when done; optionally **Share class results**.
 6. **Feedback:** *Give Feedback* is on every teacher page. Read it with:
@@ -144,7 +144,7 @@ The suites use a small stand-in for Supabase's roles/`auth` schema and forward t
 1. Flag off: `/teacher` shows "currently unavailable". Turn it on.
 2. Signed out: `/teacher` shows sign-in. Sign in as a non-authorized account: "Not on the Teacher Beta list". `/teacher/admin` refused.
 3. Grant yourself `teacher_admin`; create a classroom; copy the code.
-4. Phone/private window: `/classroom`, wrong code → error; right code → nickname.
+4. Phone/private window: `/classroom`, wrong code → error; right code → name box.
 5. Teacher: start session. Student: Start simulation, play to the end → "Your class results are being collected for discussion." Teacher page updates to 1 finished with numbers.
 6. Teacher B (second account with `teacher_beta`) opens teacher A's classroom/session URLs → "not found", no data.
 7. Revoke teacher B → their next click is refused. Student refreshes the page → still in the classroom. Teacher ends session → student can no longer submit.
@@ -154,7 +154,7 @@ The suites use a small stand-in for Supabase's roles/`auth` schema and forward t
 
 ## 10. Known limitations (be aware before inviting teachers)
 - One game mode (President, 14 days). No custom scenarios.
-- Student identity is the browser's stored token. Clearing storage or switching device = join again as a new nickname; the old one stays in the roster (no "remove student" button yet).
+- Student identity is the browser's stored token. Clearing storage or switching device = join again with their name; the teacher can remove the old entry with the Remove button.
 - A student who has not finished when the teacher ends the session cannot submit; a refresh mid-game restarts that game.
 - Everyone plays the same seed, so classmates can compare notes; scores are for discussion, not grading, and a student could use outside help.
 - Polling (6 s per student, 5 s per open teacher session) writes `last_active_at`. Fine for a pilot; revisit before dozens of simultaneous classes.
