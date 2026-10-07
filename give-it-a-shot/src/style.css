@@ -7,7 +7,11 @@
 html,body{margin:0;height:100%;background:var(--bg0);overscroll-behavior:none}
 body{overflow:hidden;font-family:'Space Grotesk',sans-serif;color:var(--tx);-webkit-text-size-adjust:100%}
 #viewport{position:fixed;inset:0;overflow:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);background:var(--bg)}
-#app,#lapp{position:absolute;inset:0}
+#app,#lapp,#tapp{position:absolute;inset:0}
+#tapp{display:none;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch}
+#viewport[data-mode=teacher] #tapp{display:block}
+#viewport[data-class] .acct{display:none}
+#viewport[data-mode=teacher] #app,#viewport[data-mode=teacher] #lapp{display:none}
 [hidden]{display:none!important}
 #viewport[data-mode=president] #lapp,#viewport[data-mode=leader] #app{display:none}
 button{font-family:inherit;color:inherit;touch-action:manipulation}

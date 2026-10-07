@@ -1,0 +1,305 @@
+// /teachers (public info) and /teacher/* (invite-only). The page is only a view: every call below is re-authorized in the
+// database against the signed-in user's JWT (feature flag, capability, ownership, rate limit). Hiding a link protects nothing;
+// the server does the protecting.
+import * as api from '../api.js';
+import * as T from './teacherApi.js';
+import { esc, num, relTime, when, untilText, avgCards, distChart, rangeChart, highlightList, gradeChips, confirmDialog, toast, copyText, METRICS, fmtMetric } from './kit.js';
+import { PROMPTS, WARMUP, EXIT_TICKET } from './prompts.js';
+
+const RETURN_KEY = 'gias_after_login';
+const CONTACT = import.meta.env.VITE_TEACHER_CONTACT_EMAIL || '';
+let root, me = null, meFor = null, gate = 'loading', route = null, poll = null, lastHtml = '', loadSeq = 0;
+const ui = { showIndiv: false, sent: false, sending: false, signinErr: '', email: '' };
+
+// ------------------------------------------------------------------ routing
+function parse(path) {
+  const seg = path.split('/').filter(Boolean);
+  if (seg[0] === 'teachers') return { name: 'landing' };
+  if (seg[0] !== 'teacher') return { name: 'notfound' };
+  if (seg.length === 1) return { name: 'dashboard' };
+  if (seg[1] === 'classrooms') return seg[2] && seg.length === 3 ? { name: 'classroom', id: seg[2] } : seg.length === 2 ? { name: 'classrooms' } : { name: 'notfound' };
+  if (seg[1] === 'sessions' && seg[2] && seg.length === 3) return { name: 'session', id: seg[2] };
+  if (['resources', 'feedback', 'admin'].includes(seg[1]) && seg.length === 2) return { name: seg[1] };
+  return { name: 'notfound' };
+}
+export function go(path, replace) { window.history[replace ? 'replaceState' : 'pushState'](null, '', path); load(); }
+
+// ------------------------------------------------------------------ chrome
+const nav = (name, href, label) => '<a class="t-nav' + (route && route.name === name ? ' on' : '') + '" href="' + href + '" data-nav>' + label + '</a>';
+function shell(inner, opts = {}) {
+  const authed = gate === 'ok' && me;
+  const who = authed ? esc(me.handle ? '@' + me.handle : 'Signed in') : '';
+  return '<div class="t-wrap' + (opts.narrow ? ' narrow' : '') + '"><header class="t-top"><a class="t-brand" href="/teacher" data-nav><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="#eef1f6"></path></svg><div><div class="t-brand-t">GIVE IT A SHOT</div><div class="t-brand-s">For teachers <span class="t-pill">BETA</span></div></div></a>' +
+    (authed ? '<nav class="t-navs" aria-label="Teacher">' + nav('dashboard', '/teacher', 'Dashboard') + nav('resources', '/teacher/resources', 'Guide') + nav('feedback', '/teacher/feedback', 'Feedback') + (me.is_admin ? nav('admin', '/teacher/admin', 'Admin') : '') + '</nav>' +
+      '<div class="t-who"><span class="t-note">' + who + '</span><button class="t-btn ghost sm" data-act="signout">Sign out</button></div>' : '') +
+    '</header><main id="t-main" tabindex="-1">' + inner + '</main><footer class="t-foot">' +
+    (authed ? '<button class="t-btn ghost sm" data-act="feedback">Give Feedback</button> ' : '') +
+    'Teacher Beta is invite-only and may change. <a href="/teacher/resources" data-nav>Privacy notes</a> · <a href="/" data-nav-out>Back to the game</a></footer></div>';
+}
+function paint(html, keepScroll) {
+  if (html === lastHtml) return;
+  const y = root.scrollTop; lastHtml = html; root.innerHTML = html;
+  if (keepScroll) root.scrollTop = y;
+}
+const loading = () => paint(shell('<div class="t-card"><p class="t-note" role="status">Loading...</p></div>', { narrow: true }));
+const errCard = (e) => '<div class="t-card"><h1 class="t-h1">Something went wrong</h1><p role="alert">' + esc(e.message || 'Try again.') + '</p><button class="t-btn" data-act="reload">Try again</button> <a class="t-btn ghost" href="/teacher" data-nav>Dashboard</a></div>';
+
+// ------------------------------------------------------------------ gate
+async function ensureGate() {
+  if (!api.configured) { gate = 'offline'; return false; }
+  const user = await api.getUser();
+  if (!user) { me = null; meFor = null; gate = 'signin'; return false; }
+  ui.email = user.email || ui.email;
+  if (!me || meFor !== user.id) {
+    try { me = await T.me(); meFor = user.id; }
+    catch (e) { if (e.code === 'not_authenticated') { gate = 'signin'; return false; } gate = 'error'; ui.gateErr = e.message; return false; }
+  }
+  if (!me.enabled) { gate = 'disabled'; return false; }
+  if (!me.authorized) { gate = 'denied'; return false; }
+  gate = 'ok'; return true;
+}
+function gateView() {
+  if (gate === 'offline') return shell('<div class="t-card"><h1 class="t-h1">Unavailable</h1><p>The online service is not configured.</p></div>', { narrow: true });
+  if (gate === 'disabled') return shell('<div class="t-card"><h1 class="t-h1">Teacher Beta is currently unavailable</h1><p>Please check back later.</p><a class="t-btn ghost" href="/" data-nav-out>Back to the game</a></div>', { narrow: true });
+  if (gate === 'error') return shell(errCard({ message: ui.gateErr }), { narrow: true });
+  if (gate === 'denied') return shell('<div class="t-card"><h1 class="t-h1">Not on the Teacher Beta list</h1><p>' + esc(ui.email || 'This account') + ' has not been given access. The beta is invite-only: ask the person who invited you to enable your account.</p><button class="t-btn ghost" data-act="signout">Sign in with a different email</button> <a class="t-btn ghost" href="/" data-nav-out>Back to the game</a></div>', { narrow: true });
+  return shell('<form class="t-card" data-form="signin" novalidate><div class="t-eyebrow">TEACHER BETA · INVITE ONLY</div><h1 class="t-h1">' + (ui.sent ? 'Check your email' : 'Sign in') + '</h1>' +
+    (ui.sent ? '<p>We sent a sign-in link to <b>' + esc(ui.email) + '</b>. Open it in this browser. It can take a minute and may land in spam.</p><button type="button" class="t-btn ghost" data-act="resend">Use a different email</button>' :
+      '<p>Use the email address your invitation was sent to. We email you a one-time link; there is no password.</p><label class="t-label" for="t-email">Email</label><input id="t-email" name="email" class="t-input" type="email" autocomplete="email" inputmode="email" value="' + esc(ui.email) + '" ' + (ui.sending ? 'disabled' : '') + '><div class="t-err" role="alert">' + esc(ui.signinErr) + '</div><button class="t-btn gold lg" type="submit" ' + (ui.sending ? 'disabled' : '') + '>' + (ui.sending ? 'Sending...' : 'Email me a sign-in link') + '</button>') + '</form>', { narrow: true });
+}
+
+// ------------------------------------------------------------------ pages
+function landing() {
+  const steps = [['Create a classroom', 'Takes a few seconds. You get a short join code.'], ['Students join', 'They enter the code at giveitashot.online/classroom. No accounts, no emails: each student gets a random nickname.'], ['Run a session', 'Everyone plays the same 14-day presidency, so outcomes are comparable.'], ['Discuss', 'See class averages and ranges, then use the discussion prompts.']];
+  return shell('<section class="t-card"><div class="t-eyebrow">PRIVATE TEACHER BETA</div><h1 class="t-h1">Give It A Shot for the classroom</h1><p class="t-lead">A short economic-policy simulation where every student runs the same country and the class compares what happened. Designed for classroom discussions involving civics, economics, public policy, political institutions, and tradeoffs.</p>' +
+    '<ol class="t-steps">' + steps.map((s) => '<li><b>' + esc(s[0]) + '.</b> ' + esc(s[1]) + '</li>').join('') + '</ol>' +
+    '<p>The Teacher Beta is invite-only while we test it with a small number of teachers.' + (CONTACT ? ' To ask for access, email <a href="mailto:' + esc(CONTACT) + '">' + esc(CONTACT) + '</a>.' : '') + '</p>' +
+    '<div class="t-actions"><a class="t-btn gold" href="/teacher" data-nav>Teacher sign in</a><a class="t-btn ghost" href="/classroom" data-nav-out>I am a student</a></div></section>', { narrow: true });
+}
+
+function classroomCard(c) {
+  const sess = c.active_session;
+  return '<article class="t-card row"><div class="grow"><h3 class="t-h3"><a href="/teacher/classrooms/' + esc(c.id) + '" data-nav>' + esc(c.name) + '</a>' + (c.archived_at ? ' <span class="t-chip">archived</span>' : '') + '</h3>' +
+    '<p class="t-note">' + c.member_count + ' student' + (c.member_count === 1 ? '' : 's') + ' joined' + (sess ? ' · session running: ' + esc(sess.title) + ' (' + sess.completed + ' finished)' : '') + '</p></div>' +
+    (c.join_code ? '<div class="t-code sm" aria-label="Join code">' + esc(c.join_code) + '</div>' : '') +
+    '<a class="t-btn' + (sess ? ' gold' : '') + '" href="/teacher/' + (sess ? 'sessions/' + esc(sess.id) : 'classrooms/' + esc(c.id)) + '" data-nav>' + (sess ? 'Open session' : 'Open') + '</a></article>';
+}
+async function pDashboard(all) {
+  const d = await T.dashboard();
+  const open = d.classrooms.filter((c) => !c.archived_at), archived = d.classrooms.filter((c) => c.archived_at);
+  const list = all ? d.classrooms : open;
+  return shell('<div class="t-title"><h1 class="t-h1">' + (all ? 'All classrooms' : 'Your classrooms') + '</h1><span class="t-pill big">Teacher Beta · invite only</span></div>' +
+    '<form class="t-card row" data-form="create" novalidate><div class="grow"><label class="t-label" for="new-name">New classroom</label><input id="new-name" class="t-input" name="name" maxlength="80" placeholder="e.g. Period 3 Civics" autocomplete="off"><div class="t-err" id="create-err" role="alert"></div></div><button class="t-btn gold" type="submit">Create classroom</button></form>' +
+    (list.length ? list.map(classroomCard).join('') : '<div class="t-card t-empty"><h3 class="t-h3">No classrooms yet</h3><p>Create your first classroom above. You will get a join code to share with students right away.</p></div>') +
+    (!all && archived.length ? '<p class="t-note"><a href="/teacher/classrooms" data-nav>' + archived.length + ' archived classroom' + (archived.length === 1 ? '' : 's') + '</a></p>' : '') +
+    '<h2 class="t-h2">Recent sessions</h2>' + (d.recent_sessions.length ? '<div class="t-card flush"><ul class="t-list">' + d.recent_sessions.map((s) => '<li><a href="/teacher/sessions/' + esc(s.id) + '" data-nav><b>' + esc(s.title) + '</b></a><span class="t-note">' + esc(s.classroom_name) + ' · ' + esc(when(s.started_at)) + ' · ' + s.completed + ' finished</span><span class="t-chip ' + (s.status === 'active' ? 'live' : '') + '">' + esc(s.status === 'active' ? 'running' : 'ended') + '</span></li>').join('') + '</ul></div>' : '<div class="t-card t-empty"><p>No sessions yet.</p></div>'));
+}
+
+const codeSpaced = (c) => esc(c.slice(0, 3) + ' ' + c.slice(3));
+async function pClassroom(id) {
+  if (!T.isUuid(id)) throw new T.TError('not_found');
+  const d = await T.getClassroom(id);
+  const c = d.classroom, live = d.sessions.find((s) => s.status === 'active'), past = d.sessions.filter((s) => s.status !== 'active');
+  const codeLive = c.join_code && new Date(c.join_code_expires_at) > new Date();
+  const link = window.location.origin + '/classroom';
+  const codePanel = c.archived_at ? '<p class="t-note">This classroom is archived, so students can no longer join.</p>' :
+    codeLive ? '<div class="t-code" aria-label="Join code ' + esc(c.join_code.split('').join(' ')) + '">' + codeSpaced(c.join_code) + '</div><p class="t-note">Students go to <b>' + esc(link.replace(/^https?:\/\//, '')) + '</b> and enter this code. ' + esc(untilText(c.join_code_expires_at)) + '.</p>' +
+      '<div class="t-actions"><button class="t-btn" data-act="copycode" data-v="' + esc(c.join_code) + '">Copy code</button><button class="t-btn ghost" data-act="copylink" data-v="' + esc(link) + '">Copy link</button><button class="t-btn ghost" data-act="newcode" data-id="' + esc(c.id) + '">New code</button><button class="t-btn ghost" data-act="revokecode" data-id="' + esc(c.id) + '">Turn off joining</button></div>' :
+      '<p class="t-alert">Joining is turned off. Make a code when you are ready for students to join.</p><div class="t-actions"><label class="t-note" for="ttl">Valid for</label><select id="ttl" class="t-input sm"><option value="1">1 hour</option><option value="24" selected>24 hours</option><option value="168">7 days</option></select><button class="t-btn gold" data-act="newcode" data-id="' + esc(c.id) + '">Make a join code</button></div>';
+  const sessionPanel = c.archived_at ? '' : live ?
+    '<section class="t-card"><div class="t-eyebrow">CURRENT SESSION</div><h2 class="t-h2">' + esc(live.title) + ' <span class="t-chip live">running</span></h2><p>' + live.completed + ' of ' + d.members.length + ' students finished.</p><a class="t-btn gold" href="/teacher/sessions/' + esc(live.id) + '" data-nav>Open session dashboard</a></section>' :
+    '<form class="t-card" data-form="start" data-id="' + esc(c.id) + '" novalidate><div class="t-eyebrow">START A SESSION</div><h2 class="t-h2">Run the simulation with your class</h2><p class="t-note">Everyone plays the same 14-day term, so outcomes are directly comparable. Students who have joined will see the Start button within a few seconds.</p>' +
+      '<label class="t-label" for="s-title">Session title</label><input id="s-title" class="t-input" name="title" maxlength="80" value="Class simulation"><label class="t-label" for="s-ins">Instructions for students (optional)</label><textarea id="s-ins" class="t-input" name="instructions" rows="3" maxlength="600" placeholder="e.g. Play through once. Do not talk until everyone is finished."></textarea><div class="t-err" id="start-err" role="alert"></div><button class="t-btn gold lg" type="submit">Start session for ' + d.members.length + ' student' + (d.members.length === 1 ? '' : 's') + '</button></form>';
+  return shell('<p class="t-crumb"><a href="/teacher" data-nav>Dashboard</a> / ' + esc(c.name) + '</p><div class="t-title"><h1 class="t-h1">' + esc(c.name) + '</h1>' + (c.archived_at ? '<span class="t-chip">archived</span>' : '<span class="t-chip live">open</span>') + '</div>' +
+    '<section class="t-card"><div class="t-eyebrow">JOIN CODE</div>' + codePanel + '</section>' + sessionPanel +
+    '<section class="t-card"><div class="t-eyebrow">STUDENTS</div><h2 class="t-h2">' + d.members.length + ' joined</h2>' + (d.members.length ? '<ul class="t-names">' + d.members.map((m) => '<li>' + esc(m.display_name) + ' <span class="t-note">' + esc(relTime(m.last_active_at)) + '</span></li>').join('') + '</ul><p class="t-note">Students appear under random nicknames. You never see their names or emails.</p>' : '<p class="t-empty">Nobody has joined yet. Share the code above.</p>') + '</section>' +
+    (past.length ? '<section class="t-card flush"><div class="t-eyebrow pad">PAST SESSIONS</div><ul class="t-list">' + past.map((s) => '<li><a href="/teacher/sessions/' + esc(s.id) + '" data-nav><b>' + esc(s.title) + '</b></a><span class="t-note">' + esc(when(s.started_at)) + ' · ' + s.completed + ' finished</span></li>').join('') + '</ul></section>' : '') +
+    '<section class="t-card"><div class="t-eyebrow">MANAGE</div><div class="t-actions">' + (c.archived_at ? '' : '<button class="t-btn ghost" data-act="archive" data-id="' + esc(c.id) + '">Archive classroom</button>') + '<button class="t-btn danger" data-act="delete" data-id="' + esc(c.id) + '">Delete classroom and its data</button></div><p class="t-note">Archiving ends any running session and stops new joins; results stay available. Deleting removes the classroom, nicknames and all results permanently.</p></section>');
+}
+
+function participantsHtml(list) {
+  return '<ul class="t-names">' + list.map((p) => '<li class="' + (p.completed ? 'done' : '') + '"><span class="t-tick" aria-hidden="true">' + (p.completed ? '✓' : '…') + '</span>' + esc(p.display_name) + ' <span class="t-note">' + (p.completed ? 'finished' : 'playing or waiting') + '</span></li>').join('') + '</ul>';
+}
+function individualTable(results) {
+  const head = '<tr><th>Student</th><th>Score</th>' + METRICS.map((m) => '<th>' + esc(m.label.replace(' (GDP growth)', '')) + '</th>').join('') + '<th>Status</th></tr>';
+  return '<div class="t-scroll"><table class="t-table"><thead>' + head + '</thead><tbody>' + results.map((r) => '<tr><th scope="row">' + esc(r.display_name) + '</th><td>' + esc(r.score) + '</td>' + METRICS.map((m) => '<td>' + esc(fmtMetric(m, r[m.key])) + '</td>').join('') + '<td>' + (r.completion_status === 'removed' ? 'removed from office' : 'finished term') + '</td></tr>').join('') + '</tbody></table></div><p class="t-note">Listed alphabetically by nickname, not ranked.</p>';
+}
+async function pSession(id) {
+  if (!T.isUuid(id)) throw new T.TError('not_found');
+  const d = await T.getSession(id);
+  const s = d.session, st = d.stats, n = d.participants.length, done = st.completed, active = s.status === 'active';
+  const allDone = n > 0 && done >= n;
+  route.active = active;
+  return shell('<p class="t-crumb"><a href="/teacher" data-nav>Dashboard</a> / <a href="/teacher/classrooms/' + esc(d.classroom.id) + '" data-nav>' + esc(d.classroom.name) + '</a> / ' + esc(s.title) + '</p>' +
+    '<div class="t-title"><h1 class="t-h1">' + esc(s.title) + '</h1><span class="t-chip ' + (active ? 'live' : '') + '">' + (active ? 'running' : 'ended') + '</span></div>' +
+    '<section class="t-card"><div class="t-eyebrow">PROGRESS</div><h2 class="t-h2">' + done + ' of ' + n + ' finished</h2><div class="t-meter" role="progressbar" aria-valuemin="0" aria-valuemax="' + n + '" aria-valuenow="' + done + '"><i style="width:' + (n ? Math.round((done / n) * 100) : 0) + '%"></i></div>' +
+    (n ? participantsHtml(d.participants) : '<p class="t-empty">Nobody has joined this classroom yet.</p>') +
+    '<div class="t-actions">' + (active ? '<button class="t-btn danger" data-act="endsession" data-id="' + esc(s.id) + '" data-pending="' + (n - done) + '">End session</button>' : '') +
+    '<button class="t-btn ' + (s.reveal_results ? 'gold' : 'ghost') + '" data-act="reveal" data-id="' + esc(s.id) + '" data-on="' + (s.reveal_results ? '0' : '1') + '" aria-pressed="' + !!s.reveal_results + '">' + (s.reveal_results ? 'Class results are shared with students (turn off)' : 'Share class results with students') + '</button></div>' +
+    '<p class="t-note">Students never see each other’s names or individual scores. When shared, they see class totals only, and only once at least 3 students have finished.</p>' +
+    (active && allDone ? '<div class="t-alert ok" role="status">Everyone has finished. A good moment to end the session and start the discussion.</div>' : '') + '</section>' +
+    '<section class="t-card"><div class="t-eyebrow">CLASS RESULTS</div><h2 class="t-h2">Class average</h2>' + avgCards(st.average) +
+    (st.average ? '<p class="t-note">' + st.removed_from_office + ' of ' + done + ' were removed from office before the term ended.</p>' : '') + '</section>' +
+    (st.average ? '<section class="t-card"><div class="t-eyebrow">HIGHLIGHTS</div><h2 class="t-h2">Where the class did best</h2>' + highlightList(st.highlights) + '<p class="t-note">Values only, with no student names attached.</p></section>' +
+      '<section class="t-card"><div class="t-eyebrow">DISTRIBUTION</div><h2 class="t-h2">How scores spread out</h2>' + distChart(st.distribution) + '<p class="t-note">Grades from conservatives: ' + gradeChips(st.conservative_grades) + '<br>Grades from liberals: ' + gradeChips(st.liberal_grades) + '</p></section>' +
+      '<section class="t-card"><div class="t-eyebrow">COMPARE OUTCOMES</div><h2 class="t-h2">Range across the class</h2><p class="t-note">The bar spans the lowest to highest result; the white mark is the class average.</p>' + rangeChart(d.results) + '</section>' +
+      '<section class="t-card"><div class="t-eyebrow">INDIVIDUAL RESULTS</div>' + (ui.showIndiv ? individualTable(d.results) + '<button class="t-btn ghost" data-act="indiv">Hide individual results</button>' : '<p class="t-note">Hidden by default so the discussion stays about decisions, not rankings.</p><button class="t-btn ghost" data-act="indiv">Show individual results</button>') + '</section>' : '') +
+    promptsSection(done > 0), { });
+}
+function promptsSection(ready) {
+  return '<section class="t-card"><div class="t-eyebrow">DISCUSSION</div><h2 class="t-h2">Discussion prompts</h2><p class="t-note">' + (ready ? 'Pick two or three. Ask students to point to a specific decision they made.' : 'Available once students finish. Open them any time to plan.') + '</p>' +
+    '<details><summary>Warm-up (before students play)</summary><ul class="t-bul">' + WARMUP.map((p) => '<li>' + esc(p) + '</li>').join('') + '</ul></details>' +
+    PROMPTS.map((g, i) => '<details' + (i === 0 && ready ? ' open' : '') + '><summary>' + esc(g.title) + '</summary><ul class="t-bul">' + g.items.map((p) => '<li>' + esc(p) + '</li>').join('') + '</ul></details>').join('') +
+    '<details><summary>Exit ticket</summary><ul class="t-bul">' + EXIT_TICKET.map((p) => '<li>' + esc(p) + '</li>').join('') + '</ul></details></section>';
+}
+
+function pResources() {
+  const sec = (t, body) => '<section class="t-card"><h2 class="t-h2">' + esc(t) + '</h2>' + body + '</section>';
+  const ul = (a) => '<ul class="t-bul">' + a.map((x) => '<li>' + x + '</li>').join('') + '</ul>';
+  return shell('<div class="t-title"><h1 class="t-h1">Teacher guide</h1></div>' +
+    sec('What is Give It A Shot?', '<p>A 14-day economic-policy simulation. Each day the student, as President, signs or vetoes memos and may take bold executive actions, while approval, Congress, scandal and the economy respond. The game is a deliberately simplified parody; it is a starting point for discussion, not a forecast of what real policies do.</p><p>Designed for classroom discussions involving civics, economics, public policy, political institutions, and tradeoffs.</p>') +
+    sec('How long does a session take?', '<p>Most students need roughly 15 to 25 minutes to play a full 14-day term. This is our estimate, not a measured figure: please tell us how long it took in your class. A 45 to 50 minute period fits setup, play and a short debrief.</p>') +
+    sec('Suggested lesson structure', ul(['<b>5 min:</b> Warm-up question; tell students the goal is long-term prosperity, not winning an argument.', '<b>3 min:</b> Students go to <b>' + esc(window.location.host) + '/classroom</b> and enter the code. Start the session when most have joined.', '<b>20 min:</b> Students play. Everyone gets the same country and starting events.', '<b>15 min:</b> End the session, review the class results together, and use two or three discussion prompts.', '<b>2 min:</b> Exit ticket.'])) +
+    sec('Learning objectives', ul(['Identify tradeoffs between growth, inflation, unemployment and the deficit.', 'Explain how political incentives (approval, Congress, scandal) can pull against economically optimal choices.', 'Compare different decisions made in identical circumstances and reason about why outcomes differed.', 'Evaluate the assumptions a simulation makes about the real world.'])) +
+    sec('Discussion questions', PROMPTS.map((g) => '<h3 class="t-h3">' + esc(g.title) + '</h3>' + ul(g.items.map(esc))).join('')) +
+    sec('Technical requirements', ul(['Any current browser on a phone, tablet, laptop or Chromebook, with an internet connection.', 'Students do <b>not</b> need an account or email address.', 'Teachers sign in with an invited email address (one-time link, no password).', 'If a student refreshes mid-game, that game restarts. Their finished result is saved only when they finish.'])) +
+    sec('Privacy notes', ul(['Students are identified only by a random nickname generated for your classroom (for example, “Brave Otter 42”). We do not ask for or store a student name or email.', 'We store each student’s in-game decisions and resulting scores, plus a last-active time, for the classroom.', 'You see nicknames, who has finished, and results. You cannot see student emails because we never collect them.', 'Students see their own result. Class totals are shown to them only if you choose to share, and only once at least 3 students have finished.', 'You can archive a classroom (stops joining) or delete it (permanently removes all of its data). A student can leave at any time, which deletes their nickname and result.', 'This beta has not been independently reviewed for legal or regulatory compliance. If your school requires an approval process for student software, please check with your administrator before using it.'])) +
+    sec('Feedback', '<p>We are asking a small group of teachers to help shape this. What worked, what confused students, and what you would change are the most useful things you can tell us.</p><button class="t-btn gold" data-act="feedback">Give Feedback</button>'));
+}
+
+async function pFeedback() {
+  const d = await T.dashboard().catch(() => ({ classrooms: [] }));
+  const done = ui.fbDone;
+  return shell('<div class="t-title"><h1 class="t-h1">Give feedback</h1></div>' + (done ? '<div class="t-card"><div class="t-alert ok" role="status">Thank you. Your feedback was sent.</div><a class="t-btn" href="/teacher" data-nav>Back to dashboard</a></div>' :
+    '<form class="t-card" data-form="feedback" novalidate><p>This takes about two minutes and goes straight to the person building the beta.</p>' +
+    '<label class="t-label" for="f-class">Which classroom is this about? (optional)</label><select id="f-class" name="classroom" class="t-input"><option value="">Not about one classroom</option>' + d.classrooms.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</select>' +
+    '<label class="t-label" for="f-worked">What worked?</label><textarea id="f-worked" name="worked" class="t-input" rows="3" maxlength="2000"></textarea>' +
+    '<label class="t-label" for="f-conf">What was confusing?</label><textarea id="f-conf" name="confused" class="t-input" rows="3" maxlength="2000"></textarea>' +
+    '<label class="t-label" for="f-change">What would you change?</label><textarea id="f-change" name="change" class="t-input" rows="3" maxlength="2000"></textarea>' +
+    '<fieldset class="t-fs"><legend class="t-label">Would you use it again?</legend><label><input type="radio" name="again" value="yes"> Yes</label> <label><input type="radio" name="again" value="no"> No</label></fieldset>' +
+    '<fieldset class="t-fs"><legend class="t-label">Would you pay for it?</legend><label><input type="radio" name="pay" value="yes"> Yes</label> <label><input type="radio" name="pay" value="maybe"> Maybe</label> <label><input type="radio" name="pay" value="no"> No</label></fieldset>' +
+    '<p class="t-note">Nothing is charged and nothing is being sold. This only tells us what is worth building.</p><div class="t-err" id="fb-err" role="alert"></div><button class="t-btn gold lg" type="submit">Send feedback</button></form>'), { narrow: true });
+}
+
+async function pAdmin() {
+  if (!me.is_admin) throw new T.TError('not_authorized');
+  const roles = await T.adminRoles();
+  const found = ui.found || [];
+  const rolesList = '<ul class="t-list">' + roles.map((r) => '<li><span><b>' + esc(r.handle ? '@' + r.handle : r.email) + '</b> <span class="t-note">' + esc(r.email) + '</span></span><span class="t-chip">' + esc(r.role) + '</span><button class="t-btn ghost sm" data-act="revokerole" data-uid="' + esc(r.user_id) + '" data-role="' + esc(r.role) + '" data-who="' + esc(r.handle || r.email) + '">Revoke</button></li>').join('') + '</ul>';
+  return shell('<div class="t-title"><h1 class="t-h1">Beta access</h1><span class="t-pill big">Admin</span></div>' +
+    '<form class="t-card row" data-form="find" novalidate><div class="grow"><label class="t-label" for="a-q">Find a user by exact email or handle prefix</label><input id="a-q" class="t-input" name="q" autocomplete="off" value="' + esc(ui.findQ || '') + '"><div class="t-err" id="find-err" role="alert"></div></div><button class="t-btn" type="submit">Search</button></form>' +
+    (ui.findQ ? '<section class="t-card flush">' + (found.length ? '<ul class="t-list">' + found.map((u) => '<li><span><b>' + esc(u.handle ? '@' + u.handle : '(no handle yet)') + '</b> <span class="t-note">' + esc(u.email) + '</span></span><span>' + u.roles.map((r) => '<span class="t-chip">' + esc(r) + '</span>').join(' ') + '</span><span class="t-actions"><button class="t-btn sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_beta">Grant teacher_beta</button><button class="t-btn ghost sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_admin">Grant teacher_admin</button></span></li>').join('') + '</ul>' : '<p class="t-empty pad">No match. The person must have signed in to the game at least once.</p>') + '</section>' : '') +
+    '<h2 class="t-h2">Currently authorized</h2><section class="t-card flush">' + (roles.length ? rolesList : '<p class="t-empty pad">No one yet.</p>') + '</section><p class="t-note">Revoking takes effect immediately: the next request that person makes is refused.</p>');
+}
+
+// ------------------------------------------------------------------ loader
+async function load() {
+  clearInterval(poll); poll = null; lastHtml = '';
+  const seq = ++loadSeq;
+  route = parse(window.location.pathname);
+  document.title = route.name === 'landing' ? 'Teachers · Give It A Shot' : 'Teacher Beta · Give It A Shot';
+  if (route.name === 'landing') { paint(landing()); return; }
+  if (route.name === 'notfound') { paint(shell('<div class="t-card"><h1 class="t-h1">Page not found</h1><a class="t-btn" href="/teacher" data-nav>Dashboard</a></div>', { narrow: true })); return; }
+  loading();
+  if (!(await ensureGate())) { if (seq === loadSeq) paint(gateView()); return; }
+  await draw(seq, false);
+  if (seq !== loadSeq) return;
+  if (route.name === 'session' || route.name === 'classroom') {
+    poll = setInterval(() => { if (!document.hidden && !document.querySelector('dialog[open]') && !isTyping()) draw(seq, true); }, route.name === 'session' ? 5000 : 8000);
+  }
+}
+const isTyping = () => { const a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && root.contains(a); };
+async function draw(seq, quiet) {
+  try {
+    let html;
+    switch (route.name) {
+      case 'dashboard': html = await pDashboard(false); break;
+      case 'classrooms': html = await pDashboard(true); break;
+      case 'classroom': html = await pClassroom(route.id); break;
+      case 'session': html = await pSession(route.id); break;
+      case 'resources': html = pResources(); break;
+      case 'feedback': html = await pFeedback(); break;
+      case 'admin': html = await pAdmin(); break;
+    }
+    if (seq === loadSeq) { paint(html, quiet); if (!quiet) root.scrollTop = 0; if (route.name === 'session' && route.active === false) { clearInterval(poll); poll = null; } }
+  } catch (e) {
+    if (seq !== loadSeq) return;
+    if (['not_authorized', 'not_authenticated', 'teacher_beta_disabled'].includes(e.code)) { me = null; meFor = null; clearInterval(poll); if (!(await ensureGate())) { paint(gateView()); return; } }
+    if (quiet) return;   // a failed background refresh should not replace what the teacher is reading
+    paint(shell(errCard(e), { narrow: true }));
+  }
+}
+const refresh = () => draw(loadSeq, false);
+const fail = (e) => toast(e.message || 'Something went wrong.', 'err');
+
+// ------------------------------------------------------------------ events
+async function onAct(el) {
+  const a = el.dataset.act, id = el.dataset.id;
+  try {
+    if (a === 'reload') return load();
+    if (a === 'signout') { await api.signOut(); me = null; meFor = null; ui.sent = false; return load(); }
+    if (a === 'resend') { ui.sent = false; return paint(gateView()); }
+    if (a === 'feedback') { T.track('teacher_feedback_clicked'); return go('/teacher/feedback'); }
+    if (a === 'copycode') return copyText(el.dataset.v);
+    if (a === 'copylink') return copyText(el.dataset.v);
+    if (a === 'newcode') { const ttl = document.getElementById('ttl'); await T.setJoinCode(id, ttl ? Number(ttl.value) : 24); toast('New join code ready.'); return refresh(); }
+    if (a === 'revokecode') { if (!(await confirmDialog({ title: 'Turn off joining?', body: 'The current code stops working immediately. Students already in the classroom stay.', confirm: 'Turn off' }))) return; await T.revokeJoinCode(id); toast('Joining is off.'); return refresh(); }
+    if (a === 'archive') { if (!(await confirmDialog({ title: 'Archive this classroom?', body: 'This ends any running session and stops new students joining. Results stay available to you.', confirm: 'Archive' }))) return; await T.archiveClassroom(id); toast('Classroom archived.'); return refresh(); }
+    if (a === 'delete') { if (!(await confirmDialog({ title: 'Delete this classroom?', body: 'This permanently deletes the classroom, every nickname and all results. This cannot be undone.', confirm: 'Delete permanently', danger: true }))) return; await T.deleteClassroom(id); toast('Classroom deleted.'); return go('/teacher'); }
+    if (a === 'endsession') { const p = Number(el.dataset.pending || 0); if (!(await confirmDialog({ title: 'End this session?', body: p > 0 ? p + ' student' + (p === 1 ? ' has' : 's have') + ' not finished. They will not be able to submit after you end it.' : 'Everyone has finished. Students can no longer submit.', confirm: 'End session', danger: p > 0 }))) return; await T.endSession(id); toast('Session ended.'); return load(); }
+    if (a === 'reveal') { await T.setReveal(id, el.dataset.on === '1'); toast(el.dataset.on === '1' ? 'Class results are now shared with students.' : 'Class results hidden from students.'); return refresh(); }
+    if (a === 'indiv') { ui.showIndiv = !ui.showIndiv; lastHtml = ''; return refresh(); }
+    if (a === 'grant') { await T.adminGrant(el.dataset.uid, el.dataset.role); toast('Access granted.'); ui.found = await T.adminFind(ui.findQ); return refresh(); }
+    if (a === 'revokerole') { if (!(await confirmDialog({ title: 'Revoke access?', body: el.dataset.who + ' will lose ' + el.dataset.role + ' immediately.', confirm: 'Revoke', danger: true }))) return; await T.adminRevoke(el.dataset.uid, el.dataset.role); toast('Access revoked.'); return refresh(); }
+  } catch (e) { fail(e); if (['not_authorized', 'not_authenticated', 'teacher_beta_disabled'].includes(e.code)) load(); }
+}
+async function onSubmit(form, e) {
+  e.preventDefault();
+  const f = new FormData(form), kind = form.dataset.form;
+  const setErr = (id, m) => { const x = document.getElementById(id); if (x) x.textContent = m; };
+  const btn = form.querySelector('button[type=submit]'); if (btn && btn.disabled) return;
+  try {
+    if (kind === 'signin') {
+      const email = String(f.get('email') || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { ui.signinErr = 'Enter a valid email address.'; ui.email = email; return paint(gateView()); }
+      ui.email = email; ui.sending = true; ui.signinErr = ''; paint(gateView());
+      try { window.localStorage.setItem(RETURN_KEY, window.location.pathname); } catch (err) { /* without storage the link lands on the game; they can reopen /teacher */ }
+      try { await api.signInEmail(email); ui.sent = true; } catch (err) { ui.signinErr = /rate limit|too many|seconds/i.test(String(err.message)) ? 'Too many sign-in emails right now. Wait a few minutes and try again.' : 'Could not send the email. Try again.'; }
+      ui.sending = false; return paint(gateView());
+    }
+    if (kind === 'create') {
+      const name = String(f.get('name') || '').trim();
+      if (!name) return setErr('create-err', 'Give the classroom a name.');
+      btn.disabled = true;
+      try { const c = await T.createClassroom(name); return go('/teacher/classrooms/' + c.id); } catch (err) { btn.disabled = false; return setErr('create-err', err.message); }
+    }
+    if (kind === 'start') {
+      btn.disabled = true;
+      try { const s = await T.startSession(form.dataset.id, String(f.get('title') || '').trim(), String(f.get('instructions') || '').trim()); return go('/teacher/sessions/' + s.id); } catch (err) { btn.disabled = false; return setErr('start-err', err.message); }
+    }
+    if (kind === 'feedback') {
+      const again = f.get('again'), pay = f.get('pay');
+      btn.disabled = true;
+      try { await T.sendFeedback({ worked: String(f.get('worked') || ''), confused: String(f.get('confused') || ''), change: String(f.get('change') || ''), useAgain: again == null ? null : again === 'yes', wouldPay: pay || null, classroom: f.get('classroom') || null }); ui.fbDone = true; return refresh(); } catch (err) { btn.disabled = false; return setErr('fb-err', err.message); }
+    }
+    if (kind === 'find') {
+      const q = String(f.get('q') || '').trim(); ui.findQ = q;
+      if (q.length < 3) return setErr('find-err', 'Type at least 3 characters.');
+      try { ui.found = await T.adminFind(q); return refresh(); } catch (err) { return setErr('find-err', err.message); }
+    }
+  } catch (err) { fail(err); }
+}
+
+export function mount(el) {
+  root = el;
+  root.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-nav]');
+    if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey && e.button === 0) { e.preventDefault(); go(a.getAttribute('href')); return; }
+    const x = e.target.closest('[data-act]'); if (x && root.contains(x)) onAct(x);
+  });
+  root.addEventListener('submit', (e) => { const f = e.target.closest('form[data-form]'); if (f) onSubmit(f, e); });
+  window.addEventListener('popstate', () => { if (document.getElementById('viewport').dataset.mode === 'teacher') load(); });
+  if (api.sb) api.sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT' && gate === 'ok') { me = null; meFor = null; load(); } });
+  ui.fbDone = false;
+  load();
+}

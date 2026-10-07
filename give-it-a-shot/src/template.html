@@ -414,6 +414,18 @@
           </sc-for>
         </div>
         <div class="small">{{scoreExplain}}</div>
+        <sc-if value="{{isClass}}" hint-placeholder-val="{{false}}">
+          <div class="card" role="status">
+            <div class="eyebrow gold">CLASS RESULTS</div>
+            <div style="font-size:14.5px;line-height:1.45;color:#d3deee">{{classMsg}}</div>
+            <sc-if value="{{classErr}}" hint-placeholder-val="{{false}}"><div style="font-size:13px;color:#ff9d96">{{classErr}}</div></sc-if>
+            <div class="row" style="gap:8px">
+              <sc-if value="{{classCanRetry}}" hint-placeholder-val="{{false}}"><button class="btn btn-md gold" type="button" onClick="{{classRetry}}">Try sending again</button></sc-if>
+              <button class="btn btn-md ghost" type="button" onClick="{{classBack}}">Back to your classroom</button>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{notClass}}" hint-placeholder-val="{{true}}">
         <div class="card">
           <div class="eyebrow">{{postTitle}}</div>
           <sc-if value="{{showSignIn}}" hint-placeholder-val="{{true}}">
@@ -428,6 +440,7 @@
           <sc-if value="{{lbErr}}" hint-placeholder-val="{{false}}"><div style="font-size:13px;color:#ff9d96">{{lbErr}}</div></sc-if>
           <button class="btn btn-md ghost" type="button" onClick="{{share}}">{{shareLabel}}</button>
         </div>
+        </sc-if>
         <div class="eyebrow">YOUR RECORD VS THE RESEARCH</div>
         <sc-for list="{{recap}}" as="p" hint-placeholder-count="3">
           <div class="card" style="padding:10px 13px;gap:5px">
@@ -436,7 +449,7 @@
           </div>
         </sc-for>
         <div class="note">The verdict judges consequences inside the game, not ideology. Planned and market runs both end well and badly depending on size, timing and luck. Sandbox mode with per-state dials is shelved for later.</div>
-        <button class="btn btn-lg gold" type="button" onClick="{{again}}">Play again with a new seed</button>
+        <sc-if value="{{notClass}}" hint-placeholder-val="{{true}}">        <button class="btn btn-lg gold" type="button" onClick="{{again}}">Play again with a new seed</button></sc-if>
       </div>
       </sc-if>
 

@@ -39,3 +39,8 @@ Each build writes `/version.json`. The app checks it on open, on focus and every
 
 ## Kormanik Challenge
 UATX-only mode (sign in with `@student.uaustin.org`). Win: finish the term with the needle at 80+ and an A from conservatives. Unranked; nothing is posted. See `test/korm-sim.mjs`.
+
+## Teacher Beta (private, invite-only)
+Classrooms for teachers: join codes, anonymous student nicknames, same-seed class sessions, class results and discussion prompts. Off by default.
+Full guide (security, setup, deploy, pilot workflow, privacy): [`docs/TEACHER_BETA.md`](docs/TEACHER_BETA.md) and [`docs/TEACHER_BETA_PRIVACY.md`](docs/TEACHER_BETA_PRIVACY.md).
+Tests: `npm run test:sql`, `npm run test:edge`, `npm run test:ui` (need a local Postgres 16 and Deno; see `docs/TEACHER_BETA.md`, section Testing).

@@ -3,6 +3,7 @@ import template from './template.html?raw';
 import { mount } from './runtime.js';
 import { App } from './ui.js';
 import { watchForUpdates } from './update.js';
+import * as api from './api.js';
 
 const root = document.getElementById('app');
 let view;
@@ -37,6 +38,31 @@ window.__showLeader = async () => {
 };
 window.__leaderExit = () => { document.getElementById('viewport').dataset.mode = 'president'; };
 app.init();
+
+// ---- Classroom / Teacher Beta routes (/teachers, /teacher/*, /classroom/*) ----
+// These live in their own lazily loaded chunk, so the public game's bundle and behaviour are unchanged.
+// Nothing here grants access: every teacher call is re-checked by the database (see the Teacher Beta migration).
+const CLASS_ROUTE = /^\/(teachers?|classroom)(\/|$)/;
+const RETURN_KEY = 'gias_after_login';
+const viewportEl = document.getElementById('viewport');
+window.__classPlay = (info) => { app.startClass(info); viewportEl.dataset.class = '1'; viewportEl.dataset.mode = 'president'; };
+window.__classHome = () => { delete viewportEl.dataset.class; viewportEl.dataset.mode = 'teacher'; window.dispatchEvent(new Event('gias:class-home')); };
+(async () => {
+  let path = window.location.pathname.replace(/\/+$/, '') || '/';
+  let ret = null;
+  try { ret = window.localStorage.getItem(RETURN_KEY); } catch (e) { /* storage blocked */ }
+  // A magic link always lands on the site root; send the teacher back to the page they came from.
+  if (ret && path === '/' && /access_token=|[?&]code=|token_hash=/.test(window.location.hash + window.location.search) && api.sb) {
+    try { await api.sb.auth.getSession(); } catch (e) { /* the sign-in exchange failed; the teacher page will ask them to sign in again */ }
+    try { window.localStorage.removeItem(RETURN_KEY); } catch (e) { /* ignore */ }
+    if (CLASS_ROUTE.test(ret)) { window.history.replaceState(null, '', ret); path = ret.replace(/\/+$/, ''); }
+  }
+  if (CLASS_ROUTE.test(path)) {
+    viewportEl.dataset.mode = 'teacher';
+    const m = await import('./classroom/boot.js');
+    m.boot();
+  }
+})();
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (app.state.authOpen) app.setState({ authOpen: false }); else if (app.state.pstory != null) app.setState({ pstory: null }); } });
 
 // PWA: offline-capable shell (production only, so dev and tests are unaffected)

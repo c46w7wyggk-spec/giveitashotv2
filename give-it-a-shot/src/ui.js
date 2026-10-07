@@ -1,6 +1,7 @@
 import { Engine, dailySeed, utcDate, applyAction, XIDX } from './engine.js';
 import * as api from './api.js';
 import { shareCard } from './share.js';
+import * as classApi from './classroom/studentApi.js';
 
 const HOME_TAG = 'UATX';
 const PENDING_KEY = 'gias_pending_v2';
@@ -47,7 +48,28 @@ export class App extends Engine {
     this.setState(patch);
     if (g.phase === 'end' && cur.phase !== 'end') this.onGameEnd(g);
   }
+  // ---------- classroom (Teacher Beta) ----------
+  // A class run uses the session's seed from the server, is never posted to the public board, and is sent to the
+  // classroom function, which replays the log itself. The score on this screen is only a preview.
+  startClass(info) {
+    const g = this.newGame(info.seed);
+    g.title = 'President'; g.seed0 = info.seed; g.mode = 'class'; g.dd = null; g.log = '';
+    g.phase = 'desk'; g.day = 1; g.ds = this.M(g); g.ds0 = g.ds; this.deal(g);
+    this.setState({ mode: 'class', g: g, tab: 'map', xsel: null, xopen: false, classMsg: '', classErr: '', classSent: false, classSending: false, rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '' });
+  }
+  async submitClass(g) {
+    this.setState({ rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '', classSending: true, classSent: false, classErr: '', classMsg: 'Sending your result to your teacher...' });
+    try {
+      await classApi.submitRun(g.log);
+      this.setState({ classSending: false, classSent: true, classMsg: 'Your class results are being collected for discussion. Other students\' results stay hidden until your teacher shares them.' });
+    } catch (e) {
+      const already = e && e.code === 'already_submitted';
+      this.setState({ classSending: false, classSent: already, classMsg: already ? 'Your result for this session was already recorded.' : 'Your result has not been sent yet.', classErr: already ? '' : String((e && e.message) || e) });
+    }
+  }
+  classHome() { this.setState({ mode: 'free', g: this.makeGame('free', 'President'), tab: 'map', classMsg: '', classErr: '' }); if (window.__classHome) window.__classHome(); }
   async onGameEnd(g) {
+    if (g.mode === 'class') { this.submitClass(g); return; }
     this.setState({ rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '' });
     if (!api.configured || g.mode === 'korm') return;
     try {
@@ -197,7 +219,7 @@ export class App extends Engine {
     const daily = g.mode === 'daily';
     const playedToday = daily && !!(st.streak && st.streak.played_today) && !posted;
     const signedUp = !!(user && profile);
-    const canPost = !!sc && !playedToday && g.mode !== 'korm';
+    const canPost = !!sc && !playedToday && g.mode !== 'korm' && g.mode !== 'class';
     const ready = signedUp && canPost && !posted;
     const step = st.authStep;
     const email = (st.authEmail || '').trim();
@@ -232,6 +254,9 @@ export class App extends Engine {
       showPosted: posted, lbMsg: st.lbMsg || '',
       lbErr: st.lbErr || (playedToday ? 'You already posted today\'s Daily Executive. Come back tomorrow for a new seed.' : '') || (g.mode === 'korm' ? '' : !api.configured ? 'Offline preview: the online board is not configured.' : ''),
       share: () => this.doShare(), shareLabel: st.shareMsg || 'Share your result',
+      isClass: g.mode === 'class', notClass: g.mode !== 'class',
+      classMsg: st.classMsg || '', classErr: st.classErr || '', classCanRetry: !!(g.mode === 'class' && !st.classSending && !st.classSent),
+      classRetry: () => this.submitClass(g), classBack: () => this.classHome(),
       hasAuth: !!st.authOpen, closeAuth: () => this.setState({ authOpen: false }),
       authTitle: titles[step] || '', authText: texts[step] || '',
       authStepEmail: step === 'email', authStepSent: step === 'sent', authStepHandle: step === 'handle', authStepAccount: step === 'account',
@@ -636,7 +661,7 @@ export class App extends Engine {
       news, results, hasResults: results.length > 0,
       nextMorning: () => { this.setState({ pstory: null }); this.act((x) => { x.log += 'n'; this.nextMorning(x); }); },
       nextLabel, endKicker, endTitle, endLine, recap,
-      again: () => this.setState({ tab: 'map', pstory: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '', g: this.makeGame(st.mode || 'free', g.title) }),
+      again: () => (g.mode === 'class' ? this.classHome() : this.setState({ tab: 'map', pstory: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '', g: this.makeGame(st.mode || 'free', g.title) })),
       hasStory: !!storyN, storyOutlet: storyN ? storyN.o : '', storyHead: storyN ? storyN.h : '', storyParas, closeStory: () => this.setState({ pstory: null }),
       pressList, noPress: pressList.length === 0, ...oped,
       hasKormRes: !!kormRes, kormWin: !!(kormRes && kormRes.win), kormLose: !!(kormRes && !kormRes.win),

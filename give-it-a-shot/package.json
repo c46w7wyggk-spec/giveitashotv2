@@ -8,7 +8,10 @@
     "build": "vite build",
     "preview": "vite preview --port 4173",
     "test": "node test/replay.mjs && node test/replay-slim.mjs && node test/leader-sim.mjs 60",
-    "make-server-engine": "node scripts/make-server-engine.mjs"
+    "make-server-engine": "node scripts/make-server-engine.mjs",
+    "test:sql": "bash test/sql/run.sh",
+    "test:edge": "bash test/edge/run.sh",
+    "test:ui": "bash test/ui/run.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

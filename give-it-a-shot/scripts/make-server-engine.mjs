@@ -8,5 +8,6 @@ const out = src
   .replace(/^\s*\/\/.*$/gm, '')
   .replace(/'(?:[^'\\\n]|\\.)*'/g, (m) => (m.length - 2 > 15 ? "''" : m))
   .replace(/^[ \t]+/gm, '').replace(/\n\s*\n+/g, '\n');
-fs.writeFileSync(new URL('../supabase/functions/submit-score/engine.js', import.meta.url), out);
+// Every edge function that replays games gets the same slim engine.
+for (const fn of ['submit-score', 'classroom']) fs.writeFileSync(new URL('../supabase/functions/' + fn + '/engine.js', import.meta.url), out);
 console.log('full', src.length, 'slim', out.length);

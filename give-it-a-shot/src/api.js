@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 const URL = import.meta.env.VITE_SUPABASE_URL || 'https://gaurlsgdfwasrapvlmyd.supabase.co';
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_TFJz6blaRoBE4YdxJzd8gQ_Y6_EWG4O';
 export const configured = !!(URL && KEY);
+export const SB_URL = URL, SB_KEY = KEY;
 export const googleEnabled = import.meta.env.VITE_GOOGLE_AUTH === '1';
 
 export const sb = configured ? createClient(URL, KEY, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } }) : null;

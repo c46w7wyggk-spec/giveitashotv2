@@ -1,0 +1,15 @@
+{
+  "rewrites": [
+    { "source": "/teachers", "destination": "/index.html" },
+    { "source": "/teacher", "destination": "/index.html" },
+    { "source": "/teacher/:path*", "destination": "/index.html" },
+    { "source": "/classroom", "destination": "/index.html" },
+    { "source": "/classroom/:path*", "destination": "/index.html" }
+  ],
+  "headers": [
+    { "source": "/teacher/:path*", "headers": [{ "key": "Cache-Control", "value": "no-store" }, { "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/teacher", "headers": [{ "key": "Cache-Control", "value": "no-store" }, { "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/classroom/:path*", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] },
+    { "source": "/classroom", "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }] }
+  ]
+}
