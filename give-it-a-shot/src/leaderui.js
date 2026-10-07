@@ -6,6 +6,14 @@ const LAB = { econ: 'Economy', tre: 'Treasury', ppl: 'People', army: 'Army', eli
 const BAD_UP = { heat: 1, anger: 1 };
 const POS = [[352, 40], [48, 40], [48, 262], [200, 20], [352, 262]];
 const RIVN = { bump: 'Bump', dragon: 'Dragon', euro: 'Euro', bear: 'Bear', oil: 'Oil' };
+const ACAT = [
+  { id: 'grow', t: 'Build', ids: ['rally', 'build', 'propag', 'bribeE', 'lowlie'] },
+  { id: 'sec', t: 'Security', ids: ['bribeG', 'mobil', 'spies', 'purge'] },
+  { id: 'dirty', t: 'Dirty', ids: ['silence', 'extortE', 'blackmail'] },
+  { id: 'abroad', t: 'Abroad', ids: ['trade', 'ally', 'bribeL', 'extort'] },
+];
+const star = (cx, cy, R) => Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? R * 0.45 : R; return (cx + r * Math.cos(a)).toFixed(1) + ',' + (cy + r * Math.sin(a)).toFixed(1); }).join(' ');
+const curve = (x1, y1, x2, y2, bend) => { const mx = (x1 + x2) / 2, my = (y1 + y2) / 2, dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1; return 'M' + x1 + ' ' + y1 + ' Q' + (mx - dy / L * bend).toFixed(1) + ' ' + (my + dx / L * bend).toFixed(1) + ' ' + x2 + ' ' + y2; };
 const recol = (v) => (v >= 60 ? '#5fd08b' : v >= 35 ? '#ffd166' : '#ff7b72');
 const pct = (v, c) => 'width:' + Math.max(2, Math.min(100, v)) + '%;background:' + c;
 
@@ -13,7 +21,7 @@ export class LeaderApp extends Leader {
   constructor(rerender) {
     super();
     this._rerender = rerender;
-    this.state = { tab: 'map', sel: [], conSel: undefined, act: null, tgt: null, coach: true, g: this.fresh() };
+    this.state = { tab: 'map', acat: 'grow', pf: 'all', sel: [], conSel: undefined, act: null, tgt: null, coach: true, g: this.fresh() };
   }
   setState(p) { Object.assign(this.state, p); this._rerender(); }
   fresh() { return this.newGame(Math.floor(Math.random() * 2147483647)); }
@@ -32,8 +40,8 @@ export class LeaderApp extends Leader {
   fxChips(f) {
     const out = [];
     const add = (k, v) => { if (!v) return; const bad = BAD_UP[k] ? v > 0 : v < 0; out.push({ t: LAB[k] + (v > 0 ? ' +' : ' ') + (Math.abs(v) >= 1 ? Math.round(v) : v), cls: bad ? 'bad' : 'good' }); };
-    ['econ', 'tre', 'ppl', 'army', 'elite', 'fear', 'heat'].forEach((k) => add(k, f[k]));
-    if (f.rel) for (const k in f.rel) out.push({ t: RIVN[k] + (f.rel[k] > 0 ? ' +' : ' ') + f.rel[k], cls: f.rel[k] > 0 ? 'good' : 'bad' });
+    ['econ', 'tre', 'ppl', 'army', 'elite', 'fear', 'heat', 'fav'].forEach((k) => add(k, f[k]));
+    if (f.rel) for (const k in f.rel) out.push({ t: (RIVN[k] || 'Relations') + (f.rel[k] > 0 ? ' +' : ' ') + f.rel[k], cls: f.rel[k] > 0 ? 'good' : 'bad' });
     if (f.anger) out.push({ t: 'Bump anger ' + (f.anger > 0 ? '+' : '') + f.anger, cls: f.anger > 0 ? 'bad' : 'good' });
     if (f.debt) out.push({ t: 'Debt grows', cls: 'bad' });
     if (f.guard) out.push({ t: 'Security +' + f.guard, cls: 'good' });
@@ -85,16 +93,23 @@ export class LeaderApp extends Leader {
     v.onLeader = (e) => { const g2 = Object.assign({}, st.g, { ln: e.target.value }); st.g = g2; };
     v.reroll = () => this.restart();
     v.toPol = () => { const g2 = JSON.parse(JSON.stringify(st.g)); g2.cn = (g2.cn || '').trim() || 'Nowhere'; g2.ln = (g2.ln || '').trim() || 'Supreme Leader'; g2.phase = 'pol'; this.setState({ g: g2 }); };
-    v.cityDots = g.cities.map((c, i) => ({ x: c.x, y: c.y, r: 4 + c.pop, ty: c.y + 8 + c.pop + 6, n: c.n, col: this.cityCol(g, c) }));
+    const cityGeo = (c, i) => { const r = 2.5 + c.pop * 0.9; const w = Math.round(c.n.length * 5.4 + 12); return { x: c.x, y: c.y, r: r, ring: r + 5, isCap: i === 0, notCap: i !== 0, star: star(c.x, c.y, r + 5), n: c.n, lw: w, lx: c.x - w / 2, ly: c.y + r + 6, ty: c.y + r + 17, col: i === 0 ? '#ffd166' : '#eef1f6' }; };
+    v.cityDots = g.cities.map(cityGeo);
+    v.roads = g.cities.slice(1).map((c, i) => ({ d: curve(g.cities[0].x, g.cities[0].y, c.x, c.y, (i % 2 ? -1 : 1) * 14) }));
+    v.polyPoints = g.shape;
 
     if (ph === 'pol') {
       v.pickCount = 'Chosen ' + st.sel.length + ' of 5';
       v.polBtnCls = st.sel.length === 5 ? 'gold' : 'off';
       v.polBtnLabel = st.sel.length === 5 ? 'Lock in these five' : 'Pick ' + (5 - st.sel.length) + ' more';
       v.polConfirm = () => { if (st.sel.length === 5) { const g2 = JSON.parse(JSON.stringify(st.g)); st.sel.forEach((id) => apply(this, g2, PL[g2.pool.indexOf(id)])); this.setState({ g: g2, conSel: undefined }); } };
-      v.polCards = g.pool.map((id) => {
+      const PF = [['all', 'All'], ['left', 'Left'], ['right', 'Right'], ['mix', 'Mixed']];
+      v.pfList = PF.map((f) => ({ t: f[1], cls: st.pf === f[0] ? 'on' : '', pick: () => this.setState({ pf: f[0] }) }));
+      const lsum = st.sel.reduce((a, id) => a + this.pol(id).lean, 0);
+      v.leanLine = st.sel.length === 0 ? 'Left pleases the people and angers Bump. Right pleases investors.' : 'Your mix leans ' + (lsum <= -3 ? 'LEFT: happy people, angry Bump.' : lsum >= 3 ? 'RIGHT: rich elites, grumpier people.' : 'toward the middle: balanced.');
+      v.polCards = g.pool.filter((id) => { if (st.pf === 'all') return true; const t = this.leanTag(this.pol(id).lean)[0]; return (st.pf === 'left' && t === 'Left') || (st.pf === 'right' && t === 'Right') || (st.pf === 'mix' && t === 'Mixed'); }).map((id) => {
         const p = this.pol(id); const on = st.sel.indexOf(id) >= 0; const l = this.leanTag(p.lean);
-        return { t: p.t, d: p.d, lean: l[0], leanCls: l[1], chips: this.perDay(p.e, p), cls: on ? 'sel' : (st.sel.length >= 5 ? 'off' : ''), pick: () => { const s = st.sel.slice(); const i = s.indexOf(id); if (i >= 0) s.splice(i, 1); else if (s.length < 5) s.push(id); this.setState({ sel: s }); } };
+        return { t: p.t, d: p.d, lean: l[0], leanCls: l[1], chips: this.perDay(p.e, p).slice(0, 3), cls: on ? 'sel' : (st.sel.length >= 5 ? 'off' : ''), pick: () => { const s = st.sel.slice(); const i = s.indexOf(id); if (i >= 0) s.splice(i, 1); else if (s.length < 5) s.push(id); this.setState({ sel: s }); } };
       });
     }
     if (ph === 'con') {
@@ -114,10 +129,9 @@ export class LeaderApp extends Leader {
       const dl = (a, b, inv) => { const d = Math.round(b - a); return { delta: d ? (d > 0 ? '▲' : '▼') + Math.abs(d) : '', dcls: d ? ((d > 0) !== !!inv ? 'good' : 'bad') : '' }; };
       const rank = now.rank; const rd = d0.rank - rank;
       v.stats = [['econ', 'Economy', 'Econ'], ['tre', 'Treasury', 'Cash'], ['ppl', 'People', 'People'], ['army', 'Army', 'Army'], ['elite', 'Elites', 'Elite']].map((r) => {
-        const x = dl(d0.m[r[0]], now.m[r[0]]); return { label: r[1], short: r[2], value: String(Math.round(now.m[r[0]])), delta: x.delta, dcls: x.dcls };
-      }).concat([{ label: 'World rank', short: 'Rank', value: '#' + rank, delta: rd ? (rd > 0 ? '▲' : '▼') + Math.abs(rd) : '', dcls: rd ? (rd > 0 ? 'good' : 'bad') : '' }]);
+        const x = dl(d0.m[r[0]], now.m[r[0]]); const val = now.m[r[0]]; return { label: r[1], short: r[2], value: String(Math.round(val)), delta: x.delta, dcls: x.dcls, bar: pct(val, recol(val)) };
+      }).concat([{ label: 'World rank', short: 'Rank', bar: pct((21 - rank) * 5, '#8fc0f2'), value: '#' + rank, delta: rd ? (rd > 0 ? '▲' : '▼') + Math.abs(rd) : '', dcls: rd ? (rd > 0 ? 'good' : 'bad') : '' }]);
       v.favText = g.fav + ' / 8'; v.favPips = Array.from({ length: 8 }, (_, i) => ({ cls: i < g.fav ? 'on' : '' }));
-      v.fearText = String(Math.round(g.fear)); v.fearBar = pct(g.fear, '#b48cf2');
       v.heatText = String(Math.round(g.heat)); v.heatBar = pct(g.heat, g.heat > 60 ? '#ff7b72' : g.heat > 35 ? '#ffd166' : '#5fd08b');
       v.moodText = this.mood(g); v.angerBar = pct(g.anger, g.anger > 60 ? '#ff7b72' : g.anger > 30 ? '#ffd166' : '#5fd08b');
 
@@ -125,8 +139,13 @@ export class LeaderApp extends Leader {
       v.showMap = T === 'map';
       v.mbCoach = st.coach && g.day === 1; v.coachDone = () => this.setState({ coach: false });
       v.mbKicker = 'DAY ' + g.day + ' OF ' + DAYS;
+      const target = Math.max(1, g.startRank - 5);
+      v.goalHead = rank <= target ? 'Goal reached. Hold on to it.' : 'Goal: reach #' + target;
+      v.goalSub = 'You are #' + rank + ' (started #' + g.startRank + '). Stay in power to day ' + DAYS + '.';
+      v.goalBar = 'width:' + Math.round(Math.max(0, Math.min(1, (g.startRank - rank) / Math.max(1, g.startRank - target))) * 100) + '%';
+      v.fearLine = 'Fear ' + Math.round(g.fear) + '/100 keeps the crowds quiet but not the generals.';
       v.mbTitle = g.cn + ' wakes up.';
-      v.mbText = (g.ln || 'Supreme Leader') + ', you are ranked #' + rank + ' of 20 nations' + (rank === g.startRank ? '.' : ' (you started at #' + g.startRank + ').') + ' Bump is ' + this.mood(g).toLowerCase() + '.';
+      v.mbText = 'Bump is ' + this.mood(g).toLowerCase() + '.';
       const al = [];
       if (g.m.army < 32) al.push({ cls: 'r', t: 'The generals are restless.' });
       if (g.m.elite < 25) al.push({ cls: 'r', t: 'The elite is losing patience.' });
@@ -136,10 +155,10 @@ export class LeaderApp extends Leader {
       if (g.heat > 55) al.push({ cls: 'y', t: 'The world is watching you.' });
       v.mbAlerts = al.slice(0, 3);
       v.mbButton = ph === 'event' ? 'Read today’s event' : g.acted ? 'Go to the desk' : 'Go to my desk';
-      v.rivalDots = RIVALS.map((r, i) => ({ x: POS[i][0], y: POS[i][1], ly: POS[i][1] + 4, ty: POS[i][1] + (POS[i][1] < 150 ? 28 : -20), n: RIVN[r.id], letter: { bump: 'B', dragon: 'D', euro: 'E', bear: 'P', oil: 'O' }[r.id], col: recol(g.rel[r.id]) }));
-      v.rivalLines = RIVALS.map((r, i) => ({ x1: POS[i][0], y1: POS[i][1], x2: g.cities[0].x, y2: g.cities[0].y, col: recol(g.rel[r.id]) }));
+      v.rivalDots = RIVALS.map((r, i) => { const x = POS[i][0], y = POS[i][1], nm = RIVN[r.id] + ' ' + Math.round(g.rel[r.id]), w = Math.round(nm.length * 5.6 + 12), up = y < 150; const col = recol(g.rel[r.id]);
+        return { x, y, ly: y + 4.5, ring: col, ringBig: 19, n: nm, lw: w, lx: x - w / 2, ly2: up ? y + 20 : y - 36, ty: up ? y + 31 : y - 25, letter: { bump: 'B', dragon: 'D', euro: 'E', bear: 'P', oil: 'O' }[r.id], col }; });
+      v.rivalLines = RIVALS.map((r, i) => ({ d: curve(POS[i][0], POS[i][1], g.cities[0].x, g.cities[0].y, (i % 2 ? -1 : 1) * 38), col: recol(g.rel[r.id]) }));
       v.cityList = g.cities.map((c, i) => ({ n: c.n, cap: i === 0 ? ' (capital)' : '', pop: ['', 'tiny', 'small', 'town', 'big', 'huge'][c.pop] }));
-      v.cityDots = g.cities.map((c, i) => ({ x: c.x, y: c.y, r: 3 + c.pop, ty: c.y + c.pop + 15, n: c.n, col: i === 0 ? '#ffd166' : this.cityCol(g, c) }));
     }
 
     // desk tab
@@ -158,9 +177,12 @@ export class LeaderApp extends Leader {
     if (ph === 'desk') {
       const sel = st.act;
       v.canPlan = !g.acted;
-      v.actList = ACTS.map((a, i) => {
+      const cat = ACAT.find((c) => c.id === st.acat) || ACAT[0];
+      v.actCats = ACAT.map((c) => ({ t: c.t, cls: c.id === cat.id ? 'on' : '', pick: () => this.setState({ acat: c.id, act: null, tgt: null }) }));
+      v.actList = cat.ids.map((id) => {
+        const i = ACTS.findIndex((x) => x.id === id); const a = ACTS[i];
         const fc = this.actCost(g, a); const ok = this.canAct(g, a);
-        return { t: a.t, kind: a.kind === 'dark' ? 'Dark' : 'Clean', kindCls: a.kind === 'dark' ? 'dk' : 'nt', cost: fc + (fc === 1 ? ' Favor' : ' Favors') + (a.tre ? ' · $' + a.tre : ''), cls: (ok ? '' : 'off ') + (sel === i ? 'sel' : ''), pick: () => this.setState({ act: sel === i ? null : i, tgt: null }) };
+        return { t: a.t, d: a.d, dark: a.kind === 'dark', kind: a.kind === 'dark' ? 'Dark' : 'Clean', kindCls: a.kind === 'dark' ? 'dk' : 'nt', cost: fc + (fc === 1 ? ' Favor' : ' Favors') + (a.tre ? ' · $' + a.tre : ''), chips: this.fxChips(a.ok).slice(0, 4), risky: a.p < 1, cls: (ok ? '' : 'off ') + (sel === i ? 'sel' : ''), pick: () => this.setState({ act: sel === i ? null : i, tgt: null }) };
       });
       v.hasSel = sel != null;
       if (sel != null) {
@@ -177,7 +199,7 @@ export class LeaderApp extends Leader {
       } else { v.selT = ''; v.selD = ''; v.selCost = ''; v.selOdds = ''; v.needsTgt = false; v.tgtList = []; v.goCls = 'off'; v.goLabel = ''; v.doIt = () => {}; }
       v.endLabel = g.acted ? 'End the day' : 'Skip action and end the day';
       v.endDay = () => this.do('e');
-    } else { v.canPlan = false; v.hasSel = false; v.needsTgt = false; v.actList = []; v.tgtList = []; v.endDay = () => {}; v.endLabel = ''; v.doIt = () => {}; v.goCls = ''; v.goLabel = ''; v.selT = ''; v.selD = ''; v.selCost = ''; v.selOdds = ''; }
+    } else { v.canPlan = false; v.actCats = []; v.hasSel = false; v.needsTgt = false; v.actList = []; v.tgtList = []; v.endDay = () => {}; v.endLabel = ''; v.doIt = () => {}; v.goCls = ''; v.goLabel = ''; v.selT = ''; v.selD = ''; v.selCost = ''; v.selOdds = ''; }
     if (ph === 'brief') {
       v.briefTitle = g.over ? 'Your rule ends tonight.' : 'The night passes.';
       v.briefLines = g.lines.map((t) => ({ cls: g.over ? 'r' : 'y', t })).concat(g.lines.length ? [] : [{ cls: 'y', t: 'A quiet night. Nobody stormed anything.' }]);

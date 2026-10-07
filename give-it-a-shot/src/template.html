@@ -77,6 +77,7 @@
       <div class="grid2">
         <button class="opt {{modeFreeCls}}" type="button" onClick="{{pickFree}}"><span class="h3">Free Play</span><span class="d">A fresh random term every time.</span></button>
         <button class="opt {{modeDailyCls}}" type="button" onClick="{{pickDaily}}"><span class="h3">Daily Executive</span><span class="d">{{dailyLine}}</span></button>
+        <sc-if value="{{showKorm}}" hint-placeholder-val="{{false}}"><button class="opt {{modeKormCls}}" type="button" onClick="{{pickKorm}}"><span class="row" style="gap:10px"><span class="h3">Kormanik Challenge</span><span class="tag dk">UATX only</span></span><span class="d">Finish the term "very right wing" (dial at 80+) and earn an A from conservatives. Unranked.</span></button></sc-if>
         <button class="opt" type="button" onClick="{{pickLeader}}"><span class="row" style="gap:10px"><span class="h3">Supreme Leader</span><span class="tag dk">Beta · invite only</span></span><span class="d">Found your own country, pick five policies and a constitution, and climb the world rankings before Ronald Bump comes for you.</span></button>
       </div>
       <sc-if value="{{hasBetaMsg}}" hint-placeholder-val="{{false}}"><div class="alert y">{{betaMsg}}</div></sc-if>
@@ -381,6 +382,13 @@
             <div style="font-size:13.5px;color:#d3deee;margin-top:4px">{{rankText}}</div>
           </div>
         </div>
+        <sc-if value="{{hasKormRes}}" hint-placeholder-val="{{false}}">
+        <div class="card" style="gap:8px;border:1px solid #ffd166">
+          <div class="eyebrow gold">{{kormTitle}}</div>
+          <sc-for list="{{kormLines}}" as="k" hint-placeholder-count="3"><div class="small {{k.cls}}">{{k.t}}</div></sc-for>
+          <div style="font-size:13.5px;color:#d3deee">{{kormQuote}}</div>
+        </div>
+        </sc-if>
         <div class="grid2">
           <div class="card" style="gap:6px">
             <div class="eyebrow" style="color:#8fc0f2">CONSERVATIVES GIVE YOU</div>

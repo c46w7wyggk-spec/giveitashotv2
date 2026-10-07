@@ -33,3 +33,9 @@ The public Supabase URL and publishable key are in `.env.production` (safe to sh
 Handles must match `[A-Za-z0-9_]{3,16}`, are unique case-insensitively, cannot be changed, and are checked against `banned_terms`
 with leetspeak normalization. Add words with `insert into banned_terms(term) values ('word');`.
 Submissions: 1 per 20 s and 40 per rolling day per user; one Daily Executive score per user per UTC date.
+
+## Updates for installed copies
+Each build writes `/version.json`. The app checks it on open, on focus and every 10 minutes; if it changed, a toast offers **Update**, which clears caches and reloads. Service worker cache name lives in `public/sw.js` (`VERSION`).
+
+## Kormanik Challenge
+UATX-only mode (sign in with `@student.uaustin.org`). Win: finish the term with the needle at 80+ and an A from conservatives. Unranked; nothing is posted. See `test/korm-sim.mjs`.

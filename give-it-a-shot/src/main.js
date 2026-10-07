@@ -2,6 +2,7 @@ import './style.css';
 import template from './template.html?raw';
 import { mount } from './runtime.js';
 import { App } from './ui.js';
+import { watchForUpdates } from './update.js';
 
 const root = document.getElementById('app');
 let view;
@@ -41,4 +42,5 @@ window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (app.st
 // PWA: offline-capable shell (production only, so dev and tests are unaffected)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+  watchForUpdates();
 }

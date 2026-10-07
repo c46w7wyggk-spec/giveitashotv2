@@ -20,7 +20,7 @@ await p.locator('#lapp .grid2 .opt').first().click(); await p.getByRole('button'
 await p.getByRole('button', { name: /Read today|Go to my desk|Go to the desk/ }).first().click(); await shot('5-desk');
 for (let step = 0; step < 4; step++) {
   const ev = p.locator('#lapp .page .grid2 .opt'); if (await p.getByText('YOUR MOVE').count()) { await ev.first().click(); await p.waitForTimeout(300); }
-  if (await p.getByText('Take one action today').count()) { await p.locator('#lapp .arow').nth(8).click(); await shot('6-action'); await p.getByRole('button', { name: /^Do it$/ }).click().catch(() => {}); await shot('7-after-action'); await p.getByRole('button', { name: /End the day/ }).click(); await shot('8-brief'); break; }
+  if (await p.getByText('Take one action today').count()) { await p.locator('#lapp .arow').nth(0).click(); await shot('6-action'); await p.getByRole('button', { name: /^Do it$/ }).click().catch(() => {}); await shot('7-after-action'); await p.getByRole('button', { name: /End the day/ }).click(); await shot('8-brief'); break; }
 }
 await p.getByRole('button', { name: /Start day/ }).click().catch(() => {}); await shot('9-day2');
 await p.getByRole('button', { name: 'World', exact: true }).click(); await shot('10-world');

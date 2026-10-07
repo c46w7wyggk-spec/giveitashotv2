@@ -15,6 +15,9 @@ const lsGet = (k) => { try { return window.localStorage.getItem(k); } catch (e) 
 const lsSet = (k, v) => { try { window.localStorage.setItem(k, v); } catch (e) { /* storage may be blocked */ } };
 const lsDel = (k) => { try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ } };
 
+const isUatxUser = (u, profile) => !!((u && /@(student\.)?uaustin\.org$/i.test(u.email || '')) || (profile && profile.tag === 'UATX'));
+// The Kormanik Challenge: finish the term very right wing AND earn an A from conservatives.
+export const KORM = { needle: 80, band: 'A' };
 export class App extends Engine {
   constructor(rerender) {
     super();
@@ -46,7 +49,7 @@ export class App extends Engine {
   }
   async onGameEnd(g) {
     this.setState({ rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '' });
-    if (!api.configured) return;
+    if (!api.configured || g.mode === 'korm') return;
     try {
       const rows = await api.topScores(g.mode === 'daily' ? { mode: 'daily', date: g.dd, limit: 100 } : { mode: 'free', limit: 100 });
       if (this.state.g === g || this.state.g.phase === 'end') this.setState({ rankBoard: rows });
@@ -160,7 +163,7 @@ export class App extends Engine {
   }
   async doShare() {
     const s = this._share; if (!s || !s.score) return;
-    const label = s.mode === 'daily' ? 'Daily Executive · ' + s.dd : 'Free Play · 14 days in office';
+    const label = s.mode === 'daily' ? 'Daily Executive · ' + s.dd : s.mode === 'korm' ? 'Kormanik Challenge' + (s.kwin ? ' · COMPLETED' : '') : 'Free Play · 14 days in office';
     const site = window.location.host || 'give-it-a-shot';
     try {
       const r = await shareCard({ title: s.title, score: s.score, cons: s.cons, lib: s.lib, role: s.role, needle: s.needle, label: label, site: site },
@@ -178,10 +181,14 @@ export class App extends Engine {
       pickFree: () => { if ((st.mode || 'free') !== 'free') this.setState({ mode: 'free', g: this.makeGame('free', g.title) }); },
       pickLeader: () => this.tryLeader(),
       hasBetaMsg: !!st.betaMsg, betaMsg: st.betaMsg || '',
+      showKorm: isUatxUser(st.user, st.profile) || !!st.kormForce,
+      pickKorm: () => { if ((st.mode || 'free') !== 'korm') this.setState({ mode: 'korm', g: this.makeGame('korm', g.title) }); },
+      modeKormCls: (st.mode || 'free') === 'korm' ? 'sel' : '',
+      isKormMode: (st.mode || 'free') === 'korm',
       pickDaily: () => { if (!daily) this.setState({ mode: 'daily', g: this.makeGame('daily', g.title) }); },
-      modeFreeCls: daily ? '' : 'sel', modeDailyCls: daily ? 'sel' : '',
+      modeFreeCls: (st.mode || 'free') === 'free' ? 'sel' : '', modeDailyCls: daily ? 'sel' : '',
       dailyLine: 'Same seed for everyone on ' + utcDate() + '. One scored run a day.' + (played ? ' You already played today.' : '') + sk,
-      beginLabel: daily ? 'Begin today\'s Daily Executive' : 'Begin Day 1',
+      beginLabel: daily ? 'Begin today\'s Daily Executive' : (st.mode === 'korm' ? 'Take the Challenge' : 'Begin Day 1'),
     };
   }
   accountVals(g, sc) {
@@ -190,7 +197,7 @@ export class App extends Engine {
     const daily = g.mode === 'daily';
     const playedToday = daily && !!(st.streak && st.streak.played_today) && !posted;
     const signedUp = !!(user && profile);
-    const canPost = !!sc && !playedToday;
+    const canPost = !!sc && !playedToday && g.mode !== 'korm';
     const ready = signedUp && canPost && !posted;
     const step = st.authStep;
     const email = (st.authEmail || '').trim();
@@ -223,7 +230,7 @@ export class App extends Engine {
       submitLabel: st.posting ? 'Posting...' : 'Post score',
       submitCls: st.posting ? 'off' : 'gold',
       showPosted: posted, lbMsg: st.lbMsg || '',
-      lbErr: st.lbErr || (playedToday ? 'You already posted today\'s Daily Executive. Come back tomorrow for a new seed.' : '') || (!api.configured ? 'Offline preview: the online board is not configured.' : ''),
+      lbErr: st.lbErr || (playedToday ? 'You already posted today\'s Daily Executive. Come back tomorrow for a new seed.' : '') || (g.mode === 'korm' ? '' : !api.configured ? 'Offline preview: the online board is not configured.' : ''),
       share: () => this.doShare(), shareLabel: st.shareMsg || 'Share your result',
       hasAuth: !!st.authOpen, closeAuth: () => this.setState({ authOpen: false }),
       authTitle: titles[step] || '', authText: texts[step] || '',
@@ -502,7 +509,7 @@ export class App extends Engine {
     const board = st.board || [];
     const lbRows = board.map((e) => ({ rank: String(e.rank), name: e.handle + (e.tag ? ' [' + e.tag + ']' : ''), score: String(e.score), c: e.cons_letter || '-', l: e.lib_letter || '-', cls: e.is_me ? 'me' : '' }));
     const sortedRows = (st.rankBoard || []).slice();
-    let sc = null, gC = null, gL = null, scoreRows = [], scoreText = '', rankText = '', celebrate = false, confetti = [], celebrateLine = '', scoreExplain = '';
+    let kormRes = null, sc = null, gC = null, gL = null, scoreRows = [], scoreText = '', rankText = '', celebrate = false, confetti = [], celebrateLine = '', scoreExplain = '';
     if (phase === 'end') {
       sc = this.scoreCard(g);
       const gc = this.grade(sc.cons), gl = this.grade(sc.lib);
@@ -520,8 +527,10 @@ export class App extends Engine {
       scoreRows = rowDef.map((r) => ({ label: r[0], value: 'Now → where it is headed: ' + r[1], weight: r[3], pts: Math.round(r[2]) + '/100', barStyle: 'height:100%;border-radius:4px;width:' + Math.round(r[2]) + '%;background:' + (r[2] >= 66 ? '#5fd08b' : r[2] >= 40 ? '#ffd166' : '#ff7b72') }));
       scoreText = String(sc.score);
       scoreExplain = 'Each meter counts 40% for where the country stands now and 60% for where it is headed once everything you did fully lands (the legacy projection). Score = 200 plus 16 points for every point your weighted average (0-100) sits above 35, plus 50 for finishing the term and 40 for surviving an impeachment. Scandal above 20 costs 0.8 points each' + (sc.pen ? ' (−' + sc.pen + ' for you)' : '') + '. Being removed, overthrown or fleeing cuts the total by 40%. Grades use the same meters with each side\'s own priorities.';
+      const kormWin = g.mode === 'korm' && !g.over && this.needle(g) >= KORM.needle && gc.band === KORM.band;
+      kormRes = g.mode === 'korm' ? { win: kormWin, needleOk: this.needle(g) >= KORM.needle, gradeOk: gc.band === KORM.band, finished: !g.over, nd: Math.round(this.needle(g)), gl: gc.letter } : null;
       const better = sortedRows.filter((e) => e.score > sc.score).length;
-      rankText = !st.rankBoard ? (api.configured ? '' : 'Offline preview: the online board is not configured.') : sortedRows.length ? 'This score would rank #' + (better + 1) + ' of ' + (sortedRows.length + 1) + (g.mode === 'daily' ? ' on today\'s Daily board.' : ' on the all-time board.') : 'First score on the board. Lonely at the top.';
+      rankText = g.mode === 'korm' ? 'Challenge run: unranked, nothing is posted.' : !st.rankBoard ? (api.configured ? '' : 'Offline preview: the online board is not configured.') : sortedRows.length ? 'This score would rank #' + (better + 1) + ' of ' + (sortedRows.length + 1) + (g.mode === 'daily' ? ' on today\'s Daily board.' : ' on the all-time board.') : 'First score on the board. Lonely at the top.';
       celebrate = !g.over && m.a >= 40;
       celebrateLine = celebrate ? 'You made it through all 14 days.' : (g.over ? 'The confetti is mostly shredded paper.' : 'You survived, but nobody is throwing a parade.');
       const pal = celebrate ? ['#ffd166', '#5fd08b', '#8fc0f2', '#ff7b72', '#f4a874', '#eef1f6'] : ['#8794a8', '#5b6b82', '#a9b9d0', '#c0392b'];
@@ -587,7 +596,7 @@ export class App extends Engine {
     const coach = this.coachVals(g, phase);
 
     return {
-      _share: { title: endTitle, score: sc ? sc.score : 0, cons: gC ? gC.letter : '', lib: gL ? gL.letter : '', role: g.title, needle: this.needle(g), mode: g.mode, dd: g.dd },
+      _share: { title: endTitle, score: sc ? sc.score : 0, cons: gC ? gC.letter : '', lib: gL ? gL.letter : '', role: g.title, needle: this.needle(g), mode: g.mode, dd: g.dd, kwin: !!(kormRes && kormRes.win) },
       dayLabel: title ? 'READY' : 'DAY ' + Math.min(14, g.day) + ' / 14',
       dots: dots, stats: stats,
       capText: Math.floor(g.cap) + ' / 8', capPips: capPips, congText: String(Math.round(g.cong)), congBar: congBar, scandText: String(Math.round(g.scand)), scandBar: scandBar,
@@ -630,6 +639,14 @@ export class App extends Engine {
       again: () => this.setState({ tab: 'map', pstory: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '', g: this.makeGame(st.mode || 'free', g.title) }),
       hasStory: !!storyN, storyOutlet: storyN ? storyN.o : '', storyHead: storyN ? storyN.h : '', storyParas, closeStory: () => this.setState({ pstory: null }),
       pressList, noPress: pressList.length === 0, ...oped,
+      hasKormRes: !!kormRes, kormWin: !!(kormRes && kormRes.win), kormLose: !!(kormRes && !kormRes.win),
+      kormTitle: kormRes ? (kormRes.win ? 'KORMANIK CHALLENGE: COMPLETE' : 'KORMANIK CHALLENGE: NOT YET') : '',
+      kormLines: kormRes ? [
+        { ok: kormRes.needleOk, cls: kormRes.needleOk ? 'kok' : 'kno', t: 'Very right wing: country at ' + kormRes.nd + ' on the dial (need ' + KORM.needle + ')' },
+        { ok: kormRes.gradeOk, cls: kormRes.gradeOk ? 'kok' : 'kno', t: 'An A from conservatives: you got ' + kormRes.gl },
+        { ok: kormRes.finished, cls: kormRes.finished ? 'kok' : 'kno', t: kormRes.finished ? 'Finished the term in one piece' : 'Did not finish the term' },
+      ] : [],
+      kormQuote: kormRes ? (kormRes.win ? '"He is very right." Tell Kormanik he was right all along.' : kormRes.needleOk ? 'Far enough right, but conservatives want results too: budget, prices, economy.' : 'Not right-wing enough yet. Sign the free-market memos and veto the planned-economy ones.') : '',
       scoreText, rankText, gC: gC || {}, gL: gL || {}, scoreRows, scoreExplain, confetti, hasConfetti: confetti.length > 0 && tab === 'desk', celebrateLine,
       ...this.accountVals(g, sc),
       ...this.boardVals(lbRows),
