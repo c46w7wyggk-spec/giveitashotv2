@@ -2,7 +2,7 @@
 import { createRequire } from 'node:module';
 const { chromium } = createRequire('/opt/npm-tools/node_modules/')('playwright');
 const b = await chromium.launch(); let bad = 0;
-for (const w of [320, 360, 390, 430, 768]) {
+for (const w of [320, 360, 390, 430, 600, 768, 900, 1100, 1440]) {
   const ctx = await b.newContext({ viewport: { width: w, height: 800 }, isMobile: true, hasTouch: true });
   const p = await ctx.newPage(); const errs = [];
   p.on('pageerror', (e) => errs.push(e.message));
@@ -11,7 +11,7 @@ for (const w of [320, 360, 390, 430, 768]) {
   const check = async (label) => {
     await p.waitForTimeout(250);
     const r = await p.evaluate((w) => {
-      const out = []; const root = document.querySelector('#lapp:not([hidden])') || document.querySelector('#app');
+      const out = []; const root = (document.getElementById('viewport').dataset.mode === 'leader' ? document.querySelector('#lapp') : document.querySelector('#app'));
       if (document.documentElement.scrollWidth > w + 1) out.push('page scrollWidth ' + document.documentElement.scrollWidth);
       root.querySelectorAll('*').forEach((el) => { const r = el.getBoundingClientRect(); if (r.width && el.closest('svg') === null && (r.right > w + 1 || r.left < -1) && getComputedStyle(el).position !== 'fixed') { let sc = false; for (let a = el.parentElement; a && a !== root; a = a.parentElement) { const o = getComputedStyle(a).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') { sc = true; break; } } if (!sc && out.length < 4) out.push((el.className || el.tagName) + ' ' + Math.round(r.left) + '..' + Math.round(r.right)); } });
       return out;
@@ -33,6 +33,13 @@ for (const w of [320, 360, 390, 430, 768]) {
   if (await p.getByText('YOUR MOVE').count()) { await p.locator('#lapp .page .grid2 .opt').first().click(); await check('lead-desk'); }
   for (const c of ['Security', 'Dirty', 'Abroad']) { await p.getByRole('button', { name: c, exact: true }).click().catch(() => {}); await check('lead-' + c); }
   await p.getByRole('button', { name: 'World', exact: true }).click(); await check('lead-world');
+  await p.evaluate(() => window.__leaderExit()); await p.waitForTimeout(200);
+  await p.evaluate(() => window.__showLeader()); await p.waitForTimeout(400);
+  const vis = await p.evaluate(() => [getComputedStyle(document.getElementById('app')).display, getComputedStyle(document.getElementById('lapp')).display]);
+  if (vis[0] !== 'none' || vis[1] === 'none') { bad++; console.log(w, 'round-trip visibility wrong', vis); }
+  await p.evaluate(() => window.__leaderExit()); await p.getByRole('button', { name: /Supreme Leader/ }).first().click().catch(() => {}); await p.waitForTimeout(500);
+  const vis2 = await p.evaluate(() => [getComputedStyle(document.getElementById('app')).display, getComputedStyle(document.getElementById('lapp')).display]);
+  console.log(w, 'after menu->button:', vis2.join('/'));
   if (errs.length) { bad++; console.log(w, 'JS errors', errs); }
   await ctx.close();
 }

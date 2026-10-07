@@ -32,10 +32,10 @@ window.__showLeader = async () => {
     });
     leader = lapp; window.__leader = lapp;
   }
-  document.getElementById('app').hidden = true; lroot.hidden = false;
+  document.getElementById('viewport').dataset.mode = 'leader';
   leader.setState({});
 };
-window.__leaderExit = () => { document.getElementById('lapp').hidden = true; document.getElementById('app').hidden = false; };
+window.__leaderExit = () => { document.getElementById('viewport').dataset.mode = 'president'; };
 app.init();
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (app.state.authOpen) app.setState({ authOpen: false }); else if (app.state.pstory != null) app.setState({ pstory: null }); } });
 
