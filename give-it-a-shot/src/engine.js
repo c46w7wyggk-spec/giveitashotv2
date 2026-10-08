@@ -1,7 +1,8 @@
 // Give It A Shot — deterministic game engine. Shared by the browser and the submit-score edge function.
 // Same seed + same action log => same game, same score. Bump ENGINE_VERSION on ANY change that alters outcomes.
 import { XA } from './xactions.js';
-export const ENGINE_VERSION = 3;
+import { POL2, BASE_TOPIC, BASE_SYS, BASE_KILL } from './policies.js';
+export const ENGINE_VERSION = 4;
 export const MIN_DAYS = 3, MAX_DAYS = 28;
 
 export class Engine {
@@ -264,6 +265,7 @@ export class Engine {
       rtw: ['Right-to-Work Goes National; Union Halls Hold Candlelight Vigils', 'Worker Choice Spreads Nationwide; Union Dues Become Optional']
     };
     XA.forEach((x) => { HL[x.id] = x.hlx; });
+    POL2.forEach((x) => { HL[x.id] = x.hlx; });
     const EVHL = {
       hurricane: ['{st} Underwater, Insurers Suddenly Remember Fine Print', 'Hurricane Hits {st}: Everyone Becomes a Meteorologist', '{st} Braces as Storm Rewrites the Coastline'],
       quake: ['{st} Shakes, Startups Blame Disruption', 'Earthquake Rattles {st}; Zoning Board Calls It "Unscheduled Demolition"', 'The Ground Is Moving in {st}, and So Are Property Values'],
@@ -309,13 +311,19 @@ export class Engine {
       ssx: ['ssbenefit', 'payrollcap'], ssp: ['ssbenefit'], nopayrollcap: ['payrollcap'],
       jobg: ['jobguar'], job20: ['jobguar'],
       norw: ['rtw'], rtw: ['rtw'], nopubunion: ['pubunion'], nounions: ['pubunion', 'allunions', 'rtw'],
-      tar25: ['tariffs'], trade: ['tariffs'], tariff40: ['tariffs'], freetrade: ['tariffs'],
+      tar25: ['tariffs'], trade: ['tariffs'], tariff40: ['tariffs'],
       frack: ['fossil'], parksoil: ['fossil'], drillall: ['fossil'],
       zone: ['zoning'], nozoning: ['zoning'],
       lic: ['licensing'], nolicense: ['licensing'],
-      wealth: ['wealthtax'], carbon: ['carbon']
+      wealth: ['wealthtax'], carbon: ['carbon'], college: ['tuition'], otoptout: ['otrule'], freetrade: ['tariffs', 'bordercarb']
     };
-    this._D = { KEYS, POL, XA, SLOT, DIS_OPTS, EV, FAC, ST, TITLES, HL, EVHL, FACHL, OUT, PUNDL, PUNDR, SUPQ, OPPQ, ECON, PUND, QUIPS };
+    // Systems a bill needs (SYS) and systems it abolishes (KILL): a bill and an action that clash this way can never both be law.
+    const SYS = Object.assign({}, BASE_SYS), KILL = Object.assign({}, BASE_KILL);
+    POL.forEach((x) => { x.tp = BASE_TOPIC[x.id]; });
+    XA.forEach((x) => { x.tp = BASE_TOPIC[x.id]; });
+    POL2.forEach((x) => { if (x.slot) SLOT[x.id] = x.slot; if (x.sys) SYS[x.id] = x.sys; if (x.kill) KILL[x.id] = x.kill; });
+    const ALLPOL = POL.concat(POL2);
+    this._D = { KEYS, POL: ALLPOL, XA, SLOT, SYS, KILL, DIS_OPTS, EV, FAC, ST, TITLES, HL, EVHL, FACHL, OUT, PUNDL, PUNDR, SUPQ, OPPQ, ECON, PUND, QUIPS };
     return this._D;
   }
 
@@ -340,7 +348,7 @@ export class Engine {
     // memos per day: long terms get fewer so the bill pool lasts (standard: 3 up to 14 days; core: 2, then 1 past 18 days)
     const mpd = lvl === 1 ? this.clamp(Math.round(28 / days), 1, 2) : this.clamp(Math.round(36 / days), 1, 3);
     const g = { rs: seed | 0, day: 1, days: days, lvl: lvl, mpd: mpd, phase: 'title', title: 'President', memos: [], moot: [], pols: [], evs: [], hits: [], vet: {}, sched: {}, inc: [], carry: [], flash: [], news: [], todayPol: [], over: false, ok: '', bond: false, riot: false, ds: null, ds0: null, mi: 0,
-      cap: 5, cong: 50, scand: 0, imp: null, trials: 0, lastTrial: -9, trialDay: 0, rev: 0, revDay: -9, surv: false, shield: 0, xToday: false, xpend: null, xdone: [], press: [], sidc: 0, evlog: [], crlog: [], ser: [], nv: 0 };
+      cap: 5, cong: 50, scand: 0, imp: null, trials: 0, lastTrial: -9, trialDay: 0, rev: 0, revDay: -9, surv: false, shield: 0, xToday: false, xpend: null, xdone: [], seen: {}, tp: [], fulog: [], press: [], sidc: 0, evlog: [], crlog: [], ser: [], nv: 0 };
     // Schedule random events on days 2..days-1: about 3 per 7 days, always a disaster and a war first (14 days = 6 events).
     const slots = []; for (let d = 2; d <= days - 1; d++) slots.push(d);
     const n = Math.min(10, slots.length, Math.max(1, Math.round(days * 3 / 7)));
@@ -354,42 +362,109 @@ export class Engine {
     return g;
   }
 
-  // ---------- policy slots ----------
+  // ---------- policy slots, systems and the tree ----------
   slotsOf(id) { return this.data().SLOT[id] || []; }
-  // slot -> id of the policy that currently holds it (enacted, queued as an executive action, or signed today)
+  sysOf(id) { return this.data().SYS[id] || []; }
+  killOf(id) { return this.data().KILL[id] || []; }
+  // Claim keys a law holds: its slots, 'S:x' for each system it needs, 'K:x' for each system it abolishes.
+  claimKeys(id) { return this.slotsOf(id).concat(this.sysOf(id).map((s) => 'S:' + s), this.killOf(id).map((s) => 'K:' + s)); }
+  // True when two different bills or actions can never both be law (same lever, or one abolishes what the other needs).
+  clash(a, b) {
+    if (a === b) return false;
+    const sb = this.slotsOf(b);
+    if (this.slotsOf(a).some((s) => sb.indexOf(s) >= 0)) return true;
+    return this.killOf(a).some((s) => this.sysOf(b).indexOf(s) >= 0) || this.killOf(b).some((s) => this.sysOf(a).indexOf(s) >= 0);
+  }
+  // claim key -> id of the policy that holds it (enacted, queued as an executive action, or signed today)
   taken(g) {
     const t = {};
-    g.pols.forEach((p) => { if (!p.rep) this.slotsOf(p.id).forEach((s) => { t[s] = p.id; }); });
-    if (g.xpend) this.slotsOf(g.xpend).forEach((s) => { t[s] = g.xpend; });
-    g.memos.forEach((m) => { if (m.dec === 'sign') this.slotsOf(m.id).forEach((s) => { t[s] = m.id; }); });
+    const add = (id) => { this.claimKeys(id).forEach((k) => { t[k] = id; }); };
+    g.pols.forEach((p) => { if (!p.rep) add(p.id); });
+    if (g.xpend) add(g.xpend);
+    g.memos.forEach((m) => { if (m.dec === 'sign') add(m.id); });
     return t;
   }
   // id of the enacted policy that blocks `id`, or null when it is free to use
   blocker(g, id, taken) {
     const t = taken || this.taken(g);
-    for (const s of this.slotsOf(id)) if (t[s] && t[s] !== id) return t[s];
+    const need = this.slotsOf(id).concat(this.sysOf(id).map((s) => 'K:' + s), this.killOf(id).map((s) => 'S:' + s));
+    for (const k of need) if (t[k] && t[k] !== id) return t[k];
     return null;
   }
+  inEffect(g, id) { return g.pols.some((p) => p.id === id && !p.rep); }
+  // One req token. Returns proof { k: 's' signed | 'x' executive action | 'v' vetoed | 'n' not in effect, id, d } or null.
+  condMet(g, tok, dl) {
+    const c = tok.charAt(0);
+    if (c === '!') { const id = tok.slice(1); return this.inEffect(g, id) || g.xpend === id ? null : { k: 'n', id: id, d: 0 }; }
+    if (c === '~') { const id = tok.slice(1); const d = g.vet[id]; return d != null && g.day - d >= dl ? { k: 'v', id: id, d: d } : null; }
+    const e = g.pols.find((p) => p.id === tok && !p.rep);
+    return e && g.day - e.d >= dl ? { k: e.x ? 'x' : 's', id: tok, d: e.d } : null;
+  }
+  // All of a bill’s req conditions (an inner array means any one of them). Returns the proofs, or null when it is not yet time.
+  reqMet(g, p) {
+    const dl = p.dl || 1; const why = [];
+    for (const c of p.req || []) {
+      let hit = null;
+      for (const o of Array.isArray(c) ? c : [c]) { const r = this.condMet(g, o, dl); if (r && (!hit || (r.k !== 'n' && r.d > hit.d))) hit = r; }
+      if (!hit) return null;
+      why.push(hit);
+    }
+    return why;
+  }
+  // Repeal a law, and every law that only made sense because of it (its plain, non-optional req).
+  repeal(g, p) {
+    p.rep = true; const gone = [p.id], lapsed = [];
+    for (let more = true; more;) {
+      more = false;
+      g.pols.forEach((q) => {
+        if (q.rep) return;
+        const def = this.pol(q.id);
+        if ((def.req || []).some((c) => typeof c === 'string' && gone.indexOf(c) >= 0)) { q.rep = true; gone.push(q.id); lapsed.push(q.id); more = true; }
+      });
+    }
+    lapsed.forEach((id) => { this.push(g, '"' + this.pol(id).t + '" lapses with it', 'It only made sense alongside "' + this.pol(p.id).t + '", so it goes too.'); });
+    return lapsed;
+  }
 
+  // Deals the morning memos. A bill is never dealt twice in a game. Follow-up bills (ones with a req) appear once the decision they
+  // depend on has been made; the rest of the desk is filled from bills with no prerequisites, balancing planned and market bills
+  // and avoiding the same topic on the same or a recent day.
   deal(g) {
     const D = this.data();
-    const used = {}; g.pols.forEach((p) => { used[p.id] = true; });
+    g.seen = g.seen || {}; g.tp = g.tp || []; g.fulog = g.fulog || [];
     const taken = this.taken(g);
-    const free = (p) => !used[p.id] && !this.blocker(g, p.id, taken);
+    const used = {}; g.pols.forEach((p) => { used[p.id] = true; });
     const want = g.mpd == null ? 3 : g.mpd;
-    let pool = D.POL.filter((p) => free(p) && !(g.vet[p.id] != null && g.day - g.vet[p.id] < 3));
-    if (pool.length < want) pool = D.POL.filter(free);
-    const chosen = [];
-    const take = (flt) => {
-      const ok = (p) => chosen.indexOf(p) < 0 && !this.blocker(g, p.id, taken);
-      let a = pool.filter((p) => flt(p) && ok(p));
-      if (!a.length) a = pool.filter(ok);
-      if (a.length) { const c = this.pick(g, a); chosen.push(c); this.slotsOf(c.id).forEach((s) => { taken[s] = c.id; }); }
+    const kids = [], roots = [];
+    D.POL.forEach((p) => {
+      if (g.seen[p.id] || used[p.id] || this.blocker(g, p.id, taken)) return;
+      if (p.req && p.req.length) { const w = this.reqMet(g, p); if (w) kids.push({ p: p, w: w }); } else roots.push({ p: p, w: null });
+    });
+    const chosen = [], why = {}, today = {}, recent = g.tp.slice(-6);
+    const ok = (p) => chosen.indexOf(p) < 0 && !this.blocker(g, p.id, taken);
+    const add = (c) => { chosen.push(c.p); this.claimKeys(c.p.id).forEach((k) => { taken[k] = c.p.id; }); today[c.p.tp] = true; if (c.w) why[c.p.id] = c.w; };
+    const take = (list, flt) => {
+      const a = list.filter((c) => ok(c.p) && flt(c.p));
+      if (!a.length) return false;
+      const t1 = a.filter((c) => !today[c.p.tp] && recent.indexOf(c.p.tp) < 0);
+      const t2 = t1.length ? t1 : a.filter((c) => !today[c.p.tp]);
+      add(this.pick(g, t2.length ? t2 : a)); return true;
     };
-    // one planned-leaning and one market-leaning bill when there is room, then anything
-    const rules = want >= 3 ? [(p) => p.lean < 0, (p) => p.lean > 0, () => true] : want === 2 ? [(p) => p.lean < 0, (p) => p.lean > 0] : [() => true];
-    rules.forEach(take);
-    g.memos = this.shuffle(g, chosen).map((p) => ({ id: p.id, dec: null }));
+    const maxKids = want >= 3 ? 2 : 1;
+    for (let i = 0; i < maxKids && i < want; i++) if (!take(kids, () => true)) break;
+    while (chosen.length < want) {
+      const bal = chosen.reduce((s, p) => s + Math.sign(p.lean), 0);
+      const flt = bal > 0 ? (p) => p.lean < 0 : bal < 0 ? (p) => p.lean > 0 : () => true;
+      if (!take(roots, flt) && !take(roots, () => true) && !take(kids, () => true)) break;
+    }
+    g.memos = this.shuffle(g, chosen).map((p) => {
+      g.seen[p.id] = true; g.tp.push(p.tp);
+      const m = { id: p.id, dec: null };
+      const w = (why[p.id] || []).filter((x) => x.k !== 'n').sort((a, b) => b.d - a.d)[0];
+      if (w) { m.sk = w.k; m.sid = w.id; g.fulog.push({ d: g.day, id: p.id, sk: w.k, sid: w.id }); }
+      return m;
+    });
+    if (g.tp.length > 24) g.tp = g.tp.slice(-24);
     g.moot = [];
     g.mi = 0;
   }
@@ -579,7 +654,7 @@ export class Engine {
         else { g.over = true; g.ok = 'coup'; this.push(g, 'The guard changes sides; you are overthrown', 'Soldiers lowered their weapons and raised a very different flag.'); }
       } else if (i === 1) {
         const last = g.pols.slice().reverse().find((q) => !q.rep);
-        if (last) { last.rep = true; this.push(g, 'You repeal "' + this.pol(last.id).t + '" and open talks', 'The crowd goes home, slowly, still holding its signs.'); }
+        if (last) { this.repeal(g, last); this.push(g, 'You repeal "' + this.pol(last.id).t + '" and open talks', 'The crowd goes home, slowly, still holding its signs.'); }
         else this.push(g, 'You open talks with the crowd', 'It is not clear who is in charge of the crowd.');
         this.addEv(g, [0, 0, 0, 0.8, 4, -28], 0.2); g.cong = this.clamp(g.cong - 4, 0, 100);
       } else if (i === 2) {
@@ -605,7 +680,7 @@ export class Engine {
       const p = cur.pol ? g.pols.find((x) => x.id === cur.pol && !x.rep) : null;
       let ended = false;
       if (i === 0) {
-        if (p) { p.rep = true; this.addEv(g, [0, 0, 0, 0, 3, -20], 0.2); this.push(g, 'You repealed "' + this.pol(p.id).t + '". The crowds go home, the policy goes with them.'); }
+        if (p) { this.repeal(g, p); this.addEv(g, [0, 0, 0, 0, 3, -20], 0.2); this.push(g, 'You repealed "' + this.pol(p.id).t + '". The crowds go home, the policy goes with them.'); }
         else { this.addEv(g, [0, 0, 0, 0.8, 2, -15], 0.2); this.push(g, 'An emergency relief package calms the crowds. The deficit notices.'); }
         ended = true;
       } else if (i === 1) {
@@ -765,9 +840,9 @@ export function applyAction(eng, g, a) {
     if (eng.blocker(g, x.id)) throw new Error('executive action conflicts with an enacted policy');
     g.cap -= x.cost; g.xToday = true; g.xpend = x.id;
     // The action settles its lever: any memo still waiting on the desk that touches it is withdrawn.
-    const mine = eng.slotsOf(x.id); g.moot = g.moot || [];
+    g.moot = g.moot || [];
     g.memos = g.memos.filter((m, i) => {
-      if (i < g.mi || !eng.slotsOf(m.id).some((sl) => mine.indexOf(sl) >= 0)) return true;
+      if (i < g.mi || !eng.clash(m.id, x.id)) return true;
       g.moot.push({ id: m.id, by: x.id }); return false;
     });
   } else if (a >= '0' && a <= '3' && a.length === 1) {
@@ -801,7 +876,7 @@ export function digest(eng, g) {
   return {
     days: g.days, lvl: g.lvl, day: g.day, over: !!g.over, ok: g.ok || '', surv: !!g.surv,
     signed: g.pols.filter((p) => !p.x).map((p) => p.id), repealed: g.pols.filter((p) => p.rep).map((p) => p.id),
-    vetoed: Object.keys(g.vet), nv: g.nv, xa: g.xdone.slice(), moot: (g.moot || []).map((q) => q.id + '>' + q.by),
+    vetoed: Object.keys(g.vet), nv: g.nv, xa: g.xdone.slice(), moot: (g.moot || []).map((q) => q.id + '>' + q.by), fu: (g.fulog || []).map((f) => f.d + ':' + f.id + ':' + f.sk + ':' + f.sid),
     ev: g.evlog.map((e) => e.d + ':' + e.id), cr: g.crlog.map((c) => c.d + ':' + c.fac + (c.pol ? ':' + c.pol : '')),
     trials: g.trials, rev: g.rev, scand: r1(g.scand), cong: r1(g.cong), cap: g.cap,
     ser: g.ser, sub: Object.fromEntries(Object.entries(sc.sub).map(([k, v]) => [k, Math.round(v)])), nd: Math.round(sc.nd),

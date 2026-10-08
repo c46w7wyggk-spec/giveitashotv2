@@ -60,6 +60,7 @@ export const setReveal = (id, on) => rpc('teacher_set_reveal', { p_id: id, p_rev
 export const sendFeedback = (f) => rpc('teacher_submit_feedback', { p_worked: f.worked, p_confused: f.confused, p_change: f.change, p_use_again: f.useAgain, p_would_pay: f.wouldPay, p_classroom: f.classroom || null });
 export const track = (event) => rpc('teacher_track', { p_event: event }).catch(() => {});
 export const adminRoles = () => rpc('admin_list_roles');
+export const adminClassrooms = () => rpc('admin_list_classrooms');
 export const adminFind = (q) => rpc('admin_find_users', { p_query: q });
 export const adminGrant = (uid, role) => rpc('admin_grant_role', { p_user: uid, p_role: role });
 export const adminRevoke = (uid, role) => rpc('admin_revoke_role', { p_user: uid, p_role: role });

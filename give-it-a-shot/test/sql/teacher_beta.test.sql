@@ -384,6 +384,19 @@ do $$ declare n int; d int; bad int; begin
   perform t.ok('3000 codes, ' || d || ' distinct');
 end $$;
 
+-- 13b. admin overview of all classrooms (read-only, counts only)
+do $$ declare r jsonb; n int; begin
+  select count(*) into n from public.teacher_classrooms;
+  perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  perform t.fails('a teacher cannot list all classrooms', 'select public.admin_list_classrooms()', 'not_authorized');
+  perform t.back();
+  perform t.as_user('d0000000-0000-0000-0000-00000000000d');
+  r := public.admin_list_classrooms();
+  perform t.eq('admin sees every classroom', jsonb_array_length(r), n);
+  perform t.eq('overview carries counts but no student data', (select count(*) from jsonb_array_elements(r) e where e ? 'members' or e ? 'students' or e ? 'display_name'), 0::bigint);
+  perform t.back();
+end $$;
+
 -- 14. every public function that browsers can reach is on the intended allow-list
 do $$ declare names text; begin
   select string_agg(p.proname, ',' order by p.proname) into names
@@ -391,7 +404,7 @@ do $$ declare names text; begin
    where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')
      and (p.proname like 'teacher\_%' or p.proname like 'admin\_%' or p.proname like '\_%' or p.proname in ('rl_hit','rl_peek','gen_join_code','classroom_join','student_context','student_record_result','student_leave','classroom_session_stats','grant_role_by_email','revoke_role_by_email','purge_archived_classrooms','user_has_capability'));
   perform t.eq('authenticated-executable function allow-list',
-    names, 'admin_find_users,admin_grant_role,admin_list_roles,admin_revoke_role,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
+    names, 'admin_find_users,admin_grant_role,admin_list_classrooms,admin_list_roles,admin_revoke_role,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
   select string_agg(p.proname, ',') into names from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') and p.proname ~ '^(teacher|admin|classroom|student|rl|grant|revoke|purge|gen|_)';
   perform t.eq('anon can execute none of the new functions', names, null);

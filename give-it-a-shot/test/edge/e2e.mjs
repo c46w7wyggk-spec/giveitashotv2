@@ -25,7 +25,7 @@ const seed = Number(psql(`select seed from public.classroom_sessions where id='$
 
 // CORS / health
 const pre = await fetch(BASE, { method: 'OPTIONS' }); ok('OPTIONS preflight ok', pre.status === 200);
-const hc = await (await fetch(BASE)).json(); ok('GET self-test returns engine hash', hc.engine_version === 3 && /^[0-9a-f]{64}$/.test(hc.sha256));
+const hc = await (await fetch(BASE)).json(); ok('GET self-test returns engine hash', hc.engine_version === 4 && /^[0-9a-f]{64}$/.test(hc.sha256));
 
 // join (normalises what a student types)
 const students = [];
@@ -69,7 +69,7 @@ r = await post({ action: 'submit', token: students[0].token, log: log0, score: 9
 ok('submit accepted', r.status === 200 && r.body.ok, JSON.stringify(r));
 ok('score is the server-replayed score, not 999999', r.body.result.score === expected.sc.score && r.body.result.score !== 999999, JSON.stringify(r.body));
 const stored = JSON.parse(psql(`select to_jsonb(r) from public.classroom_results r limit 1`));
-ok('stored metrics match the engine replay', stored.score === expected.sc.score && Math.abs(Number(stored.approval) - Math.round(expected.sc.m.a * 100) / 100) < 0.01 && stored.engine_version === 3, JSON.stringify(stored));
+ok('stored metrics match the engine replay', stored.score === expected.sc.score && Math.abs(Number(stored.approval) - Math.round(expected.sc.m.a * 100) / 100) < 0.01 && stored.engine_version === 4, JSON.stringify(stored));
 r = await post({ action: 'submit', token: students[0].token, log: log0 }); ok('replayed submit => 409 already_submitted', r.status === 409 && r.body.error === 'already_submitted');
 r = await post({ action: 'state', token: students[0].token }); ok('state shows completed + own result + digest', r.body.completed === true && r.body.my_result.score === expected.sc.score && r.body.my_result.digest?.days === 7 && r.body.my_result.digest?.lvl === 1, JSON.stringify(r.body.my_result).slice(0, 300));
 ok('stored digest has decisions, and the raw log is not in it', Array.isArray(stored.digest?.signed) && stored.digest.ser.length >= 1 && !JSON.stringify(stored.digest).includes(log0));

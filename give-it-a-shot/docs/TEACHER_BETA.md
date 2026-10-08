@@ -170,3 +170,12 @@ The suites use a small stand-in for Supabase's roles/`auth` schema and forward t
 - **Teacher accounts:** a dedicated sign-up flow and teacher profile table replacing "sign in then get granted".
 - **LMS integrations:** LTI 1.3 launch creates/joins a classroom by LMS course id and returns scores through grade passback; the anonymous-participant model maps to LMS-provided pseudonymous ids.
 - **Student accounts (optional):** `classroom_members.user_id` already exists and is null in the beta.
+
+
+## Update: policy tree, Classrooms hub, admin overview (engine v4)
+
+- **Policy tree.** The desk draws from 191 bills. About a third are follow-ups that only appear after a specific decision (a bill you signed or vetoed, or an executive action); the memo shows a "Because you signed ..." note. No bill appears twice in a game. Bills that change the same lever, or that abolish something another bill needs (for example the income tax), can never both become law. Repealing a law also repeals follow-ups that depended on it.
+- **AP setting** no longer shows "Leans planned / free market" on memos or executive actions (a topic tag is shown instead). Core keeps the lean label.
+- **Teacher dashboard.** Each classroom is now a large card with join code, student count, and buttons for the live session or "Set up a session". A "Classrooms" link is in the top navigation.
+- **Admin overview.** Admins see a read-only list of every classroom (owner, student count, sessions) on the Admin page. Names and results stay private to the owning teacher. This needs migration `20261008020000_teacher_beta_v3.sql`.
+- **Deploy order:** run the v3 migration, deploy both edge functions (engine v4), deploy the site. Sessions in progress at engine v3 should be restarted.

@@ -37,7 +37,7 @@ function shell(inner, opts = {}) {
   const authed = gate === 'ok' && me;
   const who = authed ? esc(me.handle ? '@' + me.handle : 'Signed in') : '';
   return '<div class="t-wrap' + (opts.narrow ? ' narrow' : '') + '"><header class="t-top"><a class="t-brand" href="/teacher" data-nav><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="#eef1f6"></path></svg><div><div class="t-brand-t">GIVE IT A SHOT</div><div class="t-brand-s">For teachers <span class="t-pill">BETA</span></div></div></a>' +
-    (authed ? '<nav class="t-navs" aria-label="Teacher">' + nav('dashboard', '/teacher', 'Dashboard') + nav('resources', '/teacher/resources', 'Guide') + nav('feedback', '/teacher/feedback', 'Feedback') + (me.is_admin ? nav('admin', '/teacher/admin', 'Admin') : '') + '</nav>' +
+    (authed ? '<nav class="t-navs" aria-label="Teacher">' + nav('dashboard', '/teacher', 'Dashboard') + nav('classrooms', '/teacher/classrooms', 'Classrooms') + nav('resources', '/teacher/resources', 'Guide') + nav('feedback', '/teacher/feedback', 'Feedback') + (me.is_admin ? nav('admin', '/teacher/admin', 'Admin') : '') + '</nav>' +
       '<div class="t-who"><span class="t-note">' + who + '</span><button class="t-btn ghost sm" data-act="signout">Sign out</button></div>' : '') +
     '</header><main id="t-main" tabindex="-1">' + inner + '</main><footer class="t-foot">' +
     (authed ? '<button class="t-btn ghost sm" data-act="feedback">Give Feedback</button> ' : '') +
@@ -94,10 +94,12 @@ function landing() {
 
 function classroomCard(c) {
   const sess = c.active_session;
-  return '<article class="t-card row"><div class="grow"><h3 class="t-h3"><a href="/teacher/classrooms/' + esc(c.id) + '" data-nav>' + esc(c.name) + '</a>' + (c.archived_at ? ' <span class="t-chip">archived</span>' : '') + '</h3>' +
-    '<p class="t-note">' + c.member_count + ' student' + (c.member_count === 1 ? '' : 's') + ' joined' + (sess ? ' · session running: ' + esc(sess.title) + ' (' + sess.completed + ' finished)' : '') + '</p></div>' +
-    (c.join_code ? '<div class="t-code sm" aria-label="Join code">' + esc(c.join_code) + '</div>' : '') +
-    '<a class="t-btn' + (sess ? ' gold' : '') + '" href="/teacher/' + (sess ? 'sessions/' + esc(sess.id) : 'classrooms/' + esc(c.id)) + '" data-nav>' + (sess ? 'Open session' : 'Open') + '</a></article>';
+  const link = window.location.origin.replace(/^https?:\/\//, '') + '/classroom';
+  return '<article class="t-card"><div class="row" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><div class="grow" style="flex:1 1 220px"><div class="t-eyebrow">' + (c.archived_at ? 'ARCHIVED CLASSROOM' : sess ? 'CLASSROOM · SESSION RUNNING' : 'CLASSROOM') + '</div><h3 class="t-h3"><a href="/teacher/classrooms/' + esc(c.id) + '" data-nav>' + esc(c.name) + '</a></h3>' +
+    '<p class="t-note">' + c.member_count + ' student' + (c.member_count === 1 ? '' : 's') + ' joined' + (sess ? ' · ' + esc(sess.title) + ' (' + sess.completed + ' finished)' : '') + '</p></div>' +
+    (c.join_code ? '<div><div class="t-code sm" aria-label="Join code">' + esc(c.join_code) + '</div><p class="t-note" style="text-align:center;margin:4px 0 0">at ' + esc(link) + '</p></div>' : (c.archived_at ? '' : '<p class="t-note">Joining is off</p>')) + '</div>' +
+    '<div class="t-actions"><a class="t-btn' + (sess ? ' gold' : '') + '" href="/teacher/' + (sess ? 'sessions/' + esc(sess.id) : 'classrooms/' + esc(c.id)) + '" data-nav>' + (sess ? 'Open the live session' : 'Open classroom') + '</a>' +
+    (!sess && !c.archived_at ? '<a class="t-btn ghost" href="/teacher/classrooms/' + esc(c.id) + '#start" data-nav>Set up a session</a>' : '') + '</div></article>';
 }
 async function pDashboard(all) {
   const d = await T.dashboard();
@@ -105,7 +107,8 @@ async function pDashboard(all) {
   const list = all ? d.classrooms : open;
   return shell('<div class="t-title"><h1 class="t-h1">' + (all ? 'All classrooms' : 'Your classrooms') + '</h1><span class="t-pill big">Teacher Beta · invite only</span></div>' +
     '<form class="t-card row" data-form="create" novalidate><div class="grow"><label class="t-label" for="new-name">New classroom</label><input id="new-name" class="t-input" name="name" maxlength="80" placeholder="e.g. Period 3 Civics" autocomplete="off"><div class="t-err" id="create-err" role="alert"></div></div><button class="t-btn gold" type="submit">Create classroom</button></form>' +
-    (list.length ? list.map(classroomCard).join('') : '<div class="t-card t-empty"><h3 class="t-h3">No classrooms yet</h3><p>Create your first classroom above. You will get a join code to share with students right away.</p></div>') +
+    (!all && open.length ? '<p class="t-note">' + open.length + ' open classroom' + (open.length === 1 ? '' : 's') + ' · ' + open.reduce((n, c) => n + c.member_count, 0) + ' students joined in total · students enter their code at <b>' + esc(window.location.origin.replace(/^https?:\/\//, '')) + '/classroom</b></p>' : '') +
+    (list.length ? list.map(classroomCard).join('') : '<div class="t-card t-empty"><h3 class="t-h3">No classrooms yet</h3><p>Create your first classroom above. You will get a join code to share with students right away.</p>' + (me && me.is_admin ? '<p class="t-note">You are an admin: classrooms made by other teachers are listed under <a href="/teacher/admin" data-nav>Admin</a>. Each teacher only ever sees their own.</p>' : '') + '</div>') +
     (!all && archived.length ? '<p class="t-note"><a href="/teacher/classrooms" data-nav>' + archived.length + ' archived classroom' + (archived.length === 1 ? '' : 's') + '</a></p>' : '') +
     '<h2 class="t-h2">Recent sessions</h2>' + (d.recent_sessions.length ? '<div class="t-card flush"><ul class="t-list">' + d.recent_sessions.map((s) => '<li><a href="/teacher/sessions/' + esc(s.id) + '" data-nav><b>' + esc(s.title) + '</b></a><span class="t-note">' + esc(s.classroom_name) + ' · ' + esc(when(s.started_at)) + ' · ' + s.completed + ' finished</span><span class="t-chip ' + (s.status === 'active' ? 'live' : '') + '">' + esc(s.status === 'active' ? 'running' : 'ended') + '</span></li>').join('') + '</ul></div>' : '<div class="t-card t-empty"><p>No sessions yet.</p></div>'));
 }
@@ -123,7 +126,7 @@ async function pClassroom(id) {
       '<p class="t-alert">Joining is turned off. Make a code when you are ready for students to join.</p><div class="t-actions"><label class="t-note" for="ttl">Valid for</label><select id="ttl" class="t-input sm"><option value="1">1 hour</option><option value="24" selected>24 hours</option><option value="168">7 days</option></select><button class="t-btn gold" data-act="newcode" data-id="' + esc(c.id) + '">Make a join code</button></div>';
   const sessionPanel = c.archived_at ? '' : live ?
     '<section class="t-card"><div class="t-eyebrow">CURRENT SESSION</div><h2 class="t-h2">' + esc(live.title) + ' <span class="t-chip live">running</span></h2><p>' + live.completed + ' of ' + d.members.length + ' students finished.</p><a class="t-btn gold" href="/teacher/sessions/' + esc(live.id) + '" data-nav>Open session dashboard</a></section>' :
-    '<form class="t-card" data-form="start" data-id="' + esc(c.id) + '" novalidate><div class="t-eyebrow">SET UP A SESSION</div><h2 class="t-h2">Run the simulation with your class</h2><p class="t-note">Everyone plays the same country and the same events, so outcomes are directly comparable. This opens a waiting room; nothing starts until you press <b>Start simulation</b>.</p>' +
+    '<form id="start" class="t-card" data-form="start" data-id="' + esc(c.id) + '" novalidate><div class="t-eyebrow">SET UP A SESSION</div><h2 class="t-h2">Run the simulation with your class</h2><p class="t-note">Everyone plays the same country and the same events, so outcomes are directly comparable. This opens a waiting room; nothing starts until you press <b>Start simulation</b>.</p>' +
       '<label class="t-label" for="s-title">Session title</label><input id="s-title" class="t-input" name="title" maxlength="80" value="Class simulation">' +
       '<label class="t-label" for="s-days">How many days should the simulation last?</label>' +
       '<div class="t-slider"><input id="s-days" name="days" type="range" min="3" max="28" step="1" value="' + ui.days + '" aria-describedby="s-days-out"><output id="s-days-out" class="t-sout" for="s-days">' + esc(daysOut(ui.days)) + '</output></div>' +
@@ -266,12 +269,13 @@ async function pFeedback() {
 
 async function pAdmin() {
   if (!me.is_admin) throw new T.TError('not_authorized');
-  const roles = await T.adminRoles();
+  const [roles, allCls] = await Promise.all([T.adminRoles(), T.adminClassrooms()]);
   const found = ui.found || [];
   const rolesList = '<ul class="t-list">' + roles.map((r) => '<li><span><b>' + esc(r.handle ? '@' + r.handle : r.email) + '</b> <span class="t-note">' + esc(r.email) + '</span></span><span class="t-chip">' + esc(r.role) + '</span><button class="t-btn ghost sm" data-act="revokerole" data-uid="' + esc(r.user_id) + '" data-role="' + esc(r.role) + '" data-who="' + esc(r.handle || r.email) + '">Revoke</button></li>').join('') + '</ul>';
   return shell('<div class="t-title"><h1 class="t-h1">Beta access</h1><span class="t-pill big">Admin</span></div>' +
     '<form class="t-card row" data-form="find" novalidate><div class="grow"><label class="t-label" for="a-q">Find a user by exact email or handle prefix</label><input id="a-q" class="t-input" name="q" autocomplete="off" value="' + esc(ui.findQ || '') + '"><div class="t-err" id="find-err" role="alert"></div></div><button class="t-btn" type="submit">Search</button></form>' +
     (ui.findQ ? '<section class="t-card flush">' + (found.length ? '<ul class="t-list">' + found.map((u) => '<li><span><b>' + esc(u.handle ? '@' + u.handle : '(no handle yet)') + '</b> <span class="t-note">' + esc(u.email) + '</span></span><span>' + u.roles.map((r) => '<span class="t-chip">' + esc(r) + '</span>').join(' ') + '</span><span class="t-actions"><button class="t-btn sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_beta">Grant teacher_beta</button><button class="t-btn ghost sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_admin">Grant teacher_admin</button></span></li>').join('') + '</ul>' : '<p class="t-empty pad">No match. The person must have signed in to the game at least once.</p>') + '</section>' : '') +
+    '<h2 class="t-h2">All classrooms (read only)</h2><section class="t-card flush">' + (allCls.length ? '<ul class="t-list">' + allCls.map((c) => '<li><span><b>' + esc(c.name) + '</b>' + (c.archived_at ? ' <span class="t-chip">archived</span>' : '') + (c.active_session ? ' <span class="t-chip live">session running</span>' : '') + '<br><span class="t-note">' + esc(c.owner_handle ? '@' + c.owner_handle : c.owner_email || 'unknown teacher') + ' · ' + c.member_count + ' student' + (c.member_count === 1 ? '' : 's') + ' · ' + c.session_count + ' session' + (c.session_count === 1 ? '' : 's') + ' · created ' + esc(when(c.created_at)) + '</span></span></li>').join('') + '</ul>' : '<p class="t-empty pad">No classrooms yet.</p>') + '</section><p class="t-note">Counts only. Student names and results stay private to the teacher who owns each classroom.</p>' +
     '<h2 class="t-h2">Currently authorized</h2><section class="t-card flush">' + (roles.length ? rolesList : '<p class="t-empty pad">No one yet.</p>') + '</section><p class="t-note">Revoking takes effect immediately: the next request that person makes is refused.</p>');
 }
 
@@ -307,7 +311,7 @@ async function draw(seq, quiet) {
       case 'admin': html = await pAdmin(); break;
     }
     if (seq === loadSeq) {
-      paint(html, quiet); if (!quiet) root.scrollTop = 0;
+      paint(html, quiet); if (!quiet) { root.scrollTop = 0; if (window.location.hash === '#start') { const f = document.getElementById('start'); if (f && f.scrollIntoView) f.scrollIntoView(); } }
       if (route.name === 'session' && route.active === false) { clearInterval(poll); poll = null; }
       armTicker(seq);
     }

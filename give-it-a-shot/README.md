@@ -9,6 +9,7 @@ same deterministic engine and computes the score itself. Nobody can post a numbe
 
 ## Layout
 - `src/engine.js` shared deterministic engine (also used for server replay). Bump `ENGINE_VERSION` if outcomes change.
+- `src/policies.js` + `src/policies/*.js`: the desk-bill catalog (191 bills with the originals). Bills form a tree: a bill's `req` says which earlier decision (signed, vetoed, or executive action) makes it appear; no bill is ever dealt twice. `src/policies/p.js` documents every field. `npm run check-catalog` validates shape, text, slots, systems and reachability. After changing any policy, run `npm run make-server-engine` and redeploy both edge functions.
 - `src/template.html`, `src/runtime.js`, `src/ui.js` the UI (template + tiny render runtime + game/account logic)
 - `src/api.js` Supabase calls, `src/share.js` result-card image
 - `supabase/migrations` schema, RLS, moderation, leaderboards, streaks
@@ -20,7 +21,7 @@ same deterministic engine and computes the score itself. Nobody can post a numbe
 - One memo decision each day, then optionally one Executive Action (`src/xactions.js`, 40 unilateral moves, each with a "Real world" line). They cost political capital and some carry scandal or Congress costs.
 - Impeachment needs low approval and low Congress support, gives a warning night, then a multi-day trial the player can fight (rally, deals, bribe, leak). Dirty wins can set up revolution.
 - Supreme Leader mode (`src/leader.js`, `leaderdata.js`, `leaderui.js`, `leader.html`): 20 days, random map, 5 of 20 policies, a constitution or none, five rival powers (Ronald Bump escalates from a warning to sanctions, an ultimatum, then a raid or invasion), extortion, bribes and silencing. Score is world rank plus survival. Deterministic and replayable (`runLog(seed, log)`); server verification and its own leaderboard are not wired yet.
-- `ENGINE_VERSION = 2`; v1 scores are hidden from the leaderboard by migration.
+- `ENGINE_VERSION = 4`; scores from older engine versions are not comparable and are hidden from the leaderboard.
 
 ## Local dev
 ```

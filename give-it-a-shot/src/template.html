@@ -246,6 +246,7 @@
               <div class="memo" style="{{memoCardAnim}}">
                 <sc-if value="{{leaving}}" hint-placeholder-val="{{false}}"><div class="stamp {{stampCls}}">{{stampText}}</div></sc-if>
                 <div><span class="tag {{memoLeanCls}}">{{memoLeanLabel}}</span></div>
+                <sc-if value="{{hasWhy}}" hint-placeholder-val="{{false}}"><div class="why">{{whyText}}</div></sc-if>
                 <div class="t">{{memoTitle}}</div>
                 <div class="lead" style="font-size:16px">{{memoText}}</div>
                 <div>

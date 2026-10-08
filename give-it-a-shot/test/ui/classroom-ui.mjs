@@ -116,6 +116,9 @@ const code = (await tp.locator('.t-code').innerText()).replace(/\s/g, '');
 ok('classroom created; 6-char join code shown; name rendered as text (no HTML injection)', /^[A-HJKMNP-Z2-9]{6}$/.test(code) && (await tp.locator('h1.t-h1').innerText()) === 'Period 3 <b>Civics</b>', code);
 const classUrl = tp.url();
 await shot(tp, 'teacher-classroom');
+await tp.goto(APP + '/teacher'); await tp.waitForSelector('article.t-card a[href*="/teacher/classrooms/"]').catch(async () => { await shot(tp, 'dash-fail'); console.log('BODY:', (await tp.locator('body').innerText()).slice(0, 400)); throw new Error('dashboard missing classroom'); });
+ok('teacher dashboard lists the new classroom with a link, join code and student count', /Period 3/.test(await tp.locator('#t-main').innerText()) && (await tp.locator('#t-main .t-code.sm').count()) === 1 && /0 students joined/.test(await text(tp)));
+await shot(tp, 'teacher-dashboard-live'); await tp.goto(classUrl); await tp.waitForSelector('.t-code');
 
 // ------------------------------------------------------------ student joins
 const sp = await newPage(browser, null, { width: 390, height: 844 });
@@ -211,7 +214,7 @@ ok('end screen shows a written summary with questions', /YOUR WRITTEN SUMMARY/.t
 ok('end screen wording uses 7 days, not 14', /YOUR 7 DAYS ARE UP|YOUR TERM ENDED EARLY/.test(await sp.locator('#app').innerText()) && !/\b14 days\b|Fourteen/.test(await sp.locator('#app').innerText()));
 ok('end screen: class message shown, leaderboard/post card hidden', !(await sp.evaluate(() => /PUT IT ON THE LEADERBOARD|Play again with a new seed|Share your result/.test(document.getElementById('app').innerText))));
 const row = JSON.parse(await sql(`select to_jsonb(r) - 'log' from public.classroom_results r`));
-ok('result stored by the server for this member', row.engine_version === 3 && row.digest && row.digest.days === 7 && typeof row.score === 'number' && row.completion_status);
+ok('result stored by the server for this member', row.engine_version === 4 && row.digest && row.digest.days === 7 && typeof row.score === 'number' && row.completion_status);
 await shot(sp, 'student-endscreen');
 await sp.click('text=Back to your classroom');
 await sp.waitForFunction(() => /Your result was sent to your teacher/.test(document.getElementById('tapp').innerText) && document.getElementById('viewport').dataset.mode === 'teacher');

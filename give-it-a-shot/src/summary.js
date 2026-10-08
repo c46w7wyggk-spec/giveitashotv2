@@ -79,6 +79,11 @@ export function buildSummary(eng, d, meta) {
 
   // --- 4. events and crises
   const evs = (d.ev || []).map((e) => { const [day, id] = e.split(':'); const E = D.EV[id]; return E ? { day: +day, t: E.title.replace(' {st}', '').replace('{st}', '').trim() } : null; }).filter(Boolean);
+  const fus = (d.fu || []).map((f) => { const [, id, sk, sid] = f.split(':'); return pol(id) && pol(sid) ? { c: pol(id).t, sk: sk, p: pol(sid).t } : null; }).filter(Boolean);
+  if (fus.length) {
+    const ex = fus.slice(0, 3).map((o) => q(o.c) + ' came up because ' + (o.sk === 'v' ? 'you vetoed ' : o.sk === 'x' ? 'of your executive action ' : 'you signed ') + q(o.p));
+    out.paras.push('Your choices shaped what landed on your desk next: ' + plural(fus.length, 'follow-up bill') + ' appeared as a result. For example, ' + list(ex) + '. In real government, one law often creates the need for the next.');
+  }
   const crs = (d.cr || []).map((c) => { const [day, fac, pid] = c.split(':'); const F = D.FAC[fac]; return F ? { day: +day, t: F.name, p: pid && pol(pid) ? pol(pid).t : '' } : null; }).filter(Boolean);
   if (evs.length || crs.length) {
     let t = '';

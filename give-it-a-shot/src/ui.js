@@ -400,6 +400,10 @@ export class App extends Engine {
     const mm = phase === 'desk' ? g.memos[g.mi] : null;
     const p = mm ? this.pol(mm.id) : null;
     const planned = p ? p.lean < 0 : false;
+    // Standard (AP) hides which way a bill leans so you have to judge it yourself; Core keeps the label as a learning aid.
+    const hideLean = g.lvl === 0;
+    const ptitle = (id) => { const q = this.pol(id); return q ? q.t : id; };
+    const whyText = mm && mm.sid ? (mm.sk === 'v' ? 'Because you vetoed \u201C' : mm.sk === 'x' ? 'Because of your executive action: \u201C' : 'Because you signed \u201C') + ptitle(mm.sid) + '\u201D' : '';
     const memosDone = phase === 'desk' && !mm;
     const memoNo = phase === 'desk' ? Math.min(g.mi + 1, Math.max(1, g.memos.length)) : 1;
     const memoDots = g.memos.map((x, i) => ({ cls: x.dec === 'sign' ? 's' : x.dec === 'veto' ? 'v' : i === g.mi ? 'now' : '' }));
@@ -426,8 +430,8 @@ export class App extends Engine {
     const takenNow = this.taken(g);
     const blockTitle = (id) => { const b = this.blocker(g, id, takenNow); return b ? this.pol(b).t : ''; };
     const xcats = XC.map((c) => ({ label: c[1], cls: c[0] === xc ? 'on' : '', pick: () => this.setState({ xcat: c[0], xsel: null }) }));
-    const TAGS = { tax: ['Taxes', 'nt'], labor: ['Labor', 'nt'], housing: ['Markets', 'nt'], trade: ['Trade', 'nt'], power: ['Dark', 'dk'] };
-    const xlean = (x) => (x.cat === 'power' ? ['Power play', 'dk'] : x.lean < 0 ? ['Leans planned', 'pl'] : x.lean > 0 ? ['Leans market', 'fm'] : ['Neutral', 'nt']);
+    const TAGS = { tax: ['Taxes', 'nt'], labor: ['Labor', 'nt'], housing: ['Housing', 'nt'], trade: ['Trade', 'nt'], power: ['Power play', 'dk'] };
+    const xlean = (x) => hideLean ? (TAGS[x.cat] || ['Action', 'nt']) : (x.cat === 'power' ? ['Power play', 'dk'] : x.lean < 0 ? ['Leans planned', 'pl'] : x.lean > 0 ? ['Leans market', 'fm'] : ['Neutral', 'nt']);
     const xlist = D.XA.map((x, i) => ({ x, i })).filter((o) => o.x.cat === xc).map((o) => {
       const done = g.xdone.indexOf(o.x.id) >= 0 || g.xpend === o.x.id;
       const afford = g.cap >= o.x.cost && !g.xToday;
@@ -445,8 +449,8 @@ export class App extends Engine {
       const reason = done ? 'Already done' : blkT ? 'Blocked by a policy' : g.xToday ? 'One action per day' : g.cap < xs.cost ? 'Need ' + xs.cost + ' capital' : '';
       const meta = [{ t: 'Costs ' + xs.cost + ' political capital' }];
       if (blkT) meta.unshift({ t: 'Blocked: it conflicts with \u201C' + blkT + '\u201D. Repeal that policy first.' });
-      else if (this.slotsOf(xs.id).length) {
-        const wd = g.memos.filter((m, i) => i >= g.mi && this.slotsOf(m.id).some((sl) => this.slotsOf(xs.id).indexOf(sl) >= 0));
+      else {
+        const wd = g.memos.filter((m, i) => i >= g.mi && this.clash(m.id, xs.id));
         if (wd.length) meta.push({ t: 'Would withdraw ' + wd.length + ' memo' + (wd.length === 1 ? '' : 's') + ' on your desk about the same issue' });
       }
       meta.push({ t: 'Congress ' + (xs.cong >= 0 ? '+' : '−') + Math.abs(xs.cong) });
@@ -692,14 +696,15 @@ export class App extends Engine {
       hasMemo: !!mm, memosDone: memosDone, doneTitle: doneTitle, doneText: doneText,
       memoNo: String(memoNo), memoTotal: String(g.memos.length), memoDots: memoDots, todayDone: todayDone, hasToday: todayDone.length > 0,
       memoTitle: p ? p.t : '', memoText: p ? p.m : '',
-      memoLeanLabel: planned ? 'Leans planned' : 'Leans free market', memoLeanCls: planned ? 'pl' : 'fm',
+      memoLeanLabel: hideLean ? (p ? p.tp : '') : planned ? 'Leans planned' : 'Leans free market', memoLeanCls: hideLean ? 'nt' : planned ? 'pl' : 'fm',
+      hasWhy: !!whyText, whyText: whyText,
       memoChips: p ? chips(this.scaled(g, p.f)).map((c) => Object.assign(c, { big: true })) : [],
       congNote: 'Congress support ' + Math.round(g.cong) + ' ' + (g.cong >= 50 ? 'helps' : 'trims') + ' the effect.',
       memoCardAnim: leaving ? 'animation:out' + (leaving === 'sign' ? 'Sign' : 'Veto') + ' .38s ease-in forwards;' : 'animation:in' + ap + ' .45s ease-out both;',
       leaving: !!leaving, stampText: leaving === 'sign' ? 'SIGNED' : 'VETOED', stampCls: leaving === 'sign' ? 's' : 'v',
       memoUnc: p ? (p.sd < 0.4 ? 'low' : p.sd < 0.7 ? 'medium' : 'high') : '',
       memoReal: p ? p.real : '', memoPro: p ? p.pro : '', memoCon: p ? p.con : '',
-      canMean: isClass, showMean, memoMean: p ? (MEAN[p.id] || '') : '', meanLabel: showMean ? 'Hide the explanation' : 'What does this mean?', toggleMean: () => this.setState({ mean: !showMean }),
+      canMean: isClass, showMean, memoMean: p ? (p.mean || MEAN[p.id] || '') : '', meanLabel: showMean ? 'Hide the explanation' : 'What does this mean?', toggleMean: () => this.setState({ mean: !showMean }),
       hasMoot: !!mootText && phase === 'desk', mootText,
       showEv: showEv, evLabel: showEv ? 'Hide the evidence' : 'See the evidence', toggleEv: () => this.setState({ ev: !showEv }),
       sign: decide('sign'), veto: decide('veto'),
