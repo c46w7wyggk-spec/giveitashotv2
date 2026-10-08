@@ -91,6 +91,8 @@ ok('default game is 14 days, standard', (() => { const g = new Engine().newGame(
 }
 // 7. standard level still has the impeachment path
 { let t = 0; for (let s = 1; s <= 200; s++) t += playGame(s * 53, s, { days: 14, lvl: 0 }).g.trials; ok('standard level still produces impeachment trials', t > 0); }
+{ let xa = 0; for (let s = 1; s <= 100; s++) xa += playGame(s * 59, s, { days: 14, lvl: 1, aggressive: true }).g.xdone.length; ok('core has no executive actions', xa === 0); }
+ok('core rejects every executive action', (() => { const eng = new Engine(); const g = begin(eng, 5, 'President', 14, 1); g.cap = 8; try { applyAction(eng, g, xi('nocorptax')); return false; } catch (e) { return /core mode/.test(e.message); } })());
 
 console.log(fails ? fails + ' FAILED' : 'rules OK', '(dealt', dealt, 'memos, withdrew', withdrawn, ')');
 process.exit(fails ? 1 : 0);

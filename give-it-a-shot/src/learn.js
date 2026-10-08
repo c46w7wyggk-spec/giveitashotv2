@@ -101,11 +101,11 @@ export function helpSections(o) {
   S.push({ h: 'How a day works', p: [
     '1. Look at the map and the six meters at the top to see how the country is doing.',
     '2. On your Desk, read each memo (a proposed policy). Tap Sign it to make it law or Veto to reject it.',
-    core ? '3. You may also use one executive action per day (see below).' : '3. You may also use one executive action per day (see below), but only if you have enough political capital.',
-    '4. Press End the day. Overnight, your laws start to work, news breaks, and sometimes a crisis hits. Then the next day begins.',
+    core ? null : '3. You may also use one executive action per day (see below), but only if you have enough political capital.',
+    (core ? '3' : '4') + '. Press End the day. Overnight, your laws start to work, news breaks, and sometimes a crisis hits. Then the next day begins.',
   ] });
   S.push({ h: 'The six meters', p: [
-    'Economy (GDP growth): how fast the whole economy is growing, as a percent. Higher is better. Negative means a recession.',
+    'Economy (GDP growth): how fast the whole economy is growing, as a percent. It starts at a normal 2%. Higher is better. Negative means a recession.',
     'Unemployment: the percent of people who want a job but cannot find one. Lower is better. Around 4% is healthy.',
     'Inflation: how fast prices are rising. Too high hurts families; too low or negative is a warning sign. About 2% is the usual goal.',
     'Deficit: how much more the government spends than it collects, as a percent of the economy. Lower is better. A big deficit adds to the national debt.',
@@ -114,8 +114,8 @@ export function helpSections(o) {
     'The small ▲ or ▼ under each number shows how much it changed since the start of the day. Green is good news, red is bad news.',
   ] });
   S.push({ h: 'Your political standing', p: [
-    'Capital: your political muscle, shown as gold pips (up to 8). You spend it on executive actions and you earn 1 back each morning.',
-    'Congress: how much lawmakers support you, from 0 to 100. When it is high, your laws work at full strength. When it is low, Congress waters them down. Signing bills builds goodwill; vetoing and bold unilateral moves cost it.',
+    core ? null : 'Capital: your political muscle, shown as gold pips (up to 8). You spend it on executive actions and you earn 1 back each morning.',
+    'Congress: how much lawmakers support you, from 0 to 100. When it is high, your laws work at full strength. When it is low, Congress waters them down. Signing bills builds goodwill; vetoing' + (core ? ' costs' : ' and bold unilateral moves cost') + ' it.',
     core ? 'Scandal is not part of this version, so you can focus on the policy trade-offs.' : 'Scandal: how much trouble you are in with reporters and investigators, from 0 to 100. Dirty moves (like hush money or audits of critics) raise it, and it slowly fades if you stay clean. High scandal lowers your score and, combined with a low Congress, can get you impeached.',
   ] });
   S.push({ h: 'Memos (policies)', p: [
@@ -123,7 +123,7 @@ export function helpSections(o) {
     'The coloured chips show what the policy is expected to do to each meter. Effects build up over about three days, so you will not see the full result at once.',
     'Policies that cover the same issue cannot both be law. For example, once you raise the minimum wage, a bill to abolish it will stop showing up, and the other way around. If you want to switch, you have to repeal the first one (some crises let you do this).',
   ] });
-  S.push({ h: 'Executive actions', p: [
+  if (!core) S.push({ h: 'Executive actions', p: [
     'An executive action is a decision the President makes alone, without waiting for Congress. They are bolder than memos and their effects can be bigger.',
     'Each one costs political capital, so you cannot spam them. You can use only one per day, and each one makes Congress a little less happy.',
     'An executive action settles its issue. If you abolish the income tax, bills about income tax disappear from your desk. If a law you signed already covers an issue, the action that conflicts with it is blocked until you repeal that law.',
@@ -141,22 +141,24 @@ export function helpSections(o) {
     'The dial shows whether your policies lean toward a planned economy (government runs more) or a free market (private choices run more). Neither side is "right": it just shows what you chose.',
     'Your score blends where each meter is now (40%) with where it is heading once all your policies fully take effect (60%). You also get two letter grades: one from a conservative point of view and one from a liberal point of view, because they care about different things.',
   ] });
+  S.forEach((s) => { s.p = s.p.filter((t) => t != null); });
   return S;
 }
 
 // ---------------------------------------------------------------- first-play walkthrough
 // Each step: { where: 'map'|'desk'|'press', kicker, text, btn }
 export function tutorialSteps(o) {
-  const core = o.lvl === 1; const days = o.days || 14; const n = core ? 6 : 7;
+  const core = o.lvl === 1; const days = o.days || 14; const n = core ? 5 : 7;
   const K = (i, t) => i + ' OF ' + n + ' · ' + t;
   const steps = [
-    { where: 'map', k: 'WELCOME', text: 'You are the President for ' + daysWord(days) + ' (about ' + minutesFor(days) + '). Each day: check the map and meters, decide on memos, maybe take one executive action, then end the day. At the end you are graded on how the country is doing.', btn: 'Next' },
+    { where: 'map', k: 'WELCOME', text: 'You are the President for ' + daysWord(days) + ' (about ' + minutesFor(days) + '). Each day: check the map and meters, decide on memos, ' + (core ? '' : 'maybe take one executive action, ') + 'then end the day. At the end you are graded on how the country is doing.', btn: 'Next' },
     { where: 'map', k: 'THE SIX METERS', text: 'The row at the top tracks the country. Economy is growth, Unemployment is people without jobs, Inflation is rising prices, Deficit is overspending, Approval is how much people like you, and Unrest is how angry the country is. The small ▲/▼ shows today\'s change: green is good, red is bad.', btn: 'Next' },
-    { where: 'map', k: 'YOUR STANDING', text: core ? 'Below the meters: Capital (gold pips) is what you spend on executive actions, and you earn 1 more each morning. Congress is how much lawmakers support you. High support makes your laws stronger, low support waters them down.' : 'Below the meters: Capital (gold pips) is what you spend on executive actions, and you earn 1 more each morning. Congress is how much lawmakers support you: high makes your laws stronger. Scandal is how much trouble you are in with the press: dirty moves raise it, and high scandal plus an angry Congress can get you impeached.', btn: 'Go to my Desk' },
+    { where: 'map', k: 'YOUR STANDING', text: core ? 'Below the meters: Congress is how much lawmakers support you. High support makes your laws stronger, low support waters them down.' : 'Below the meters: Capital (gold pips) is what you spend on executive actions, and you earn 1 more each morning. Congress is how much lawmakers support you: high makes your laws stronger. Scandal is how much trouble you are in with the press: dirty moves raise it, and high scandal plus an angry Congress can get you impeached.', btn: 'Go to my Desk' },
     { where: 'desk', k: 'MEMOS', text: 'Memos are proposed laws. Sign to enact, veto to reject. No bill comes up twice, and some only appear because of what you decided earlier: a note on the memo tells you why. The chips show the expected effect on each meter over about three days. Not sure what a policy is? Tap "What does this mean?", and "See the evidence" shows real data and both sides. Policies on the same issue cannot both pass, and once one is law the rival bills stop appearing.', btn: 'Next' },
     { where: 'desk', k: 'EXECUTIVE ACTIONS', text: 'The panel next to your memos holds unilateral moves, like abolishing a tax. They cost capital, you can do one a day, and they make Congress a bit less happy. They also settle the issue: abolish the income tax and income-tax memos stop showing up. ' + (core ? 'Pick the ones that fit your goals.' : '"Power plays" are very strong but add scandal and can leak.'), btn: 'Next' },
     { where: 'press', k: 'THE PRESS AND SURPRISES', text: 'After you end the day, read the headlines and the left and right op-eds here to see how each side reacts. ' + (core ? 'Disasters and surprises can strike, so keep an eye on the meters.' : 'Disasters, wars and angry groups can force a crisis. If Congress and scandal both turn on you, an impeachment trial begins and you can fight it.') + ' The Help button (?) at the top has all of this any time.', btn: 'Got it, back to work' },
   ];
+  if (core) steps.splice(steps.findIndex((x) => x.k === 'EXECUTIVE ACTIONS'), 1);
   // the optional 7th step in standard mode explains the score
   if (!core) steps.splice(5, 0, { where: 'desk', k: 'THE DIAL AND SCORE', text: 'The dial shows whether your choices lean toward a planned economy or a free market. Neither is "right": it is just a record. Your score is based on how all six meters finish, including where they are headed once your policies fully work.', btn: 'Next' });
   return steps.map((s, i) => ({ where: s.where, kicker: K(i + 1, s.k), text: s.text, btn: s.btn }));

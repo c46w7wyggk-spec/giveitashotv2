@@ -422,7 +422,7 @@ export class App extends Engine {
     const mootNames = (g.moot || []).filter((q) => q.by === g.xpend || g.xdone.indexOf(q.by) >= 0).map((q) => this.pol(q.id).t);
     const mootText = mootNames.length ? 'Your executive action settled this issue, so ' + (mootNames.length === 1 ? 'a memo was' : mootNames.length + ' memos were') + ' withdrawn from your desk: ' + mootNames.map((n) => '\u201C' + n + '\u201D').join(', ') + '.' : '';
     const doneText = g.xpend ? 'Tonight: "' + this.pol(g.xpend).t + '". When you are ready, end the day and see what the night brings.'
-      : g.xToday ? 'You have already used today\'s executive action.' : 'Take an executive action if you dare (one per day), or end the day and see what the night brings.';
+      : core ? 'End the day and see what the night brings.' : g.xToday ? 'You have already used today\'s executive action.' : 'Take an executive action if you dare (one per day), or end the day and see what the night brings.';
 
     // ---------- executive actions ----------
     const XC = core ? XCATS.filter((c) => c[0] !== 'power') : XCATS;
@@ -489,7 +489,7 @@ export class App extends Engine {
           { label: 'Concede to the demands', desc: 'Repeal your latest policy and open talks. The crowd goes home.', f: [0, 0, 0, 0.8, 4, -28] },
           { label: 'Flee the country', desc: 'Leave by helicopter before dawn. The term ends now, with a 40% score cut.' },
           { label: 'Buy off the leaders', desc: 'About 70 in 100 to work. Adds 20 scandal. If it fails, the crowd grows.', f: [0, 0, 0.4, 1.5, 0, -22], cost: 3, off: g.cap < 3 }
-        ].map(mk);
+        ].slice(0, core ? 3 : 4).map(mk);
         incBanner = 'color:#ff9d96'; incShake = true;
       } else {
         const F = D.FAC[cur.fac];
@@ -553,8 +553,8 @@ export class App extends Engine {
       else if (m.u >= 70) { endTitle = 'Besieged Executive'; endLine = 'You finished the term, but the capital looks like a movie set. Get a helicopter ready.'; }
       else if (g.scand >= 60) { endTitle = 'Teflon President'; endLine = 'Nothing stuck, mostly because nobody could find a pen that works. The ledger will be an interesting read.'; }
       else if (m.a < 30) { endTitle = 'Beloved by No One'; endLine = 'Few people love you. Fewer people like you. The data is not very kind.'; }
-      else if (nn < 35) { if (m.g > -1 && m.a >= 45) { endTitle = 'Comrade Commissioner of Mostly Working'; endLine = 'A heavily planned economy that, against the odds, held together for ' + spanWord(days) + '.'; } else { endTitle = 'Five-Year Plan, ' + NUMW[days] + '-Day Collapse'; endLine = 'The plan was ambitious. The spreadsheet was not.'; } }
-      else if (nn > 65) { if (m.g > 0 && m.a >= 45) { endTitle = 'Invisible-Hand Emperor'; endLine = 'The market did the work. You got the credit and the photo ops.'; } else { endTitle = 'Laissez-Faire, Laissez-Fall'; endLine = 'The market was left to its own devices. Its devices were not great.'; } }
+      else if (nn < 35) { if (m.g > 1 && m.a >= 45) { endTitle = 'Comrade Commissioner of Mostly Working'; endLine = 'A heavily planned economy that, against the odds, held together for ' + spanWord(days) + '.'; } else { endTitle = 'Five-Year Plan, ' + NUMW[days] + '-Day Collapse'; endLine = 'The plan was ambitious. The spreadsheet was not.'; } }
+      else if (nn > 65) { if (m.g > 2 && m.a >= 45) { endTitle = 'Invisible-Hand Emperor'; endLine = 'The market did the work. You got the credit and the photo ops.'; } else { endTitle = 'Laissez-Faire, Laissez-Fall'; endLine = 'The market was left to its own devices. Its devices were not great.'; } }
       else if (m.a >= 55 && m.u < 35) { endTitle = 'The Pragmatist'; endLine = 'A bit of everything, a lot of trade-offs. Everyone is mildly annoyed, which is the economist\'s definition of balance.'; }
       else { endTitle = 'Muddling Through'; endLine = 'Nobody is thrilled and the economy survived. That is a presidency.'; }
       if (g.surv && !g.over) endLine += ' You also survived an impeachment trial.';
@@ -588,7 +588,7 @@ export class App extends Engine {
         ['Calm', 'unrest ' + Math.round(m.u) + ' → ' + Math.round(pj.u), sc.sub.calm, '10%']];
       scoreRows = rowDef.map((r) => ({ label: r[0], value: 'Now → where it is headed: ' + r[1], weight: r[3], pts: Math.round(r[2]) + '/100', barStyle: 'height:100%;border-radius:4px;width:' + Math.round(r[2]) + '%;background:' + (r[2] >= 66 ? '#5fd08b' : r[2] >= 40 ? '#ffd166' : '#ff7b72') }));
       scoreText = String(sc.score);
-      scoreExplain = 'Each meter counts 40% for where the country stands now and 60% for where it is headed once everything you did fully lands (the legacy projection). Score = 200 plus 16 points for every point your weighted average (0-100) sits above 35, plus 50 for finishing the term and 40 for surviving an impeachment. Scandal above 20 costs 0.8 points each' + (sc.pen ? ' (−' + sc.pen + ' for you)' : '') + '. Being removed, overthrown or fleeing cuts the total by 40%. Grades use the same meters with each side\'s own priorities.';
+      scoreExplain = 'Each meter counts 40% for where the country stands now and 60% for where it is headed once everything you did fully lands (the legacy projection). Score = 200 plus 16 points for every point your weighted average (0-100) sits above 35, plus 50 for finishing the term and 40 for surviving an impeachment trial you were at real risk of losing. Scandal above 20 costs 0.8 points each' + (sc.pen ? ' (−' + sc.pen + ' for you)' : '') + '. Being removed, overthrown or fleeing cuts the total by 40%. Grades use the same meters with each side\'s own priorities.';
       const kormWin = g.mode === 'korm' && !g.over && this.needle(g) >= KORM.needle && gc.band === KORM.band;
       kormRes = g.mode === 'korm' ? { win: kormWin, needleOk: this.needle(g) >= KORM.needle, gradeOk: gc.band === KORM.band, finished: !g.over, nd: Math.round(this.needle(g)), gl: gc.letter } : null;
       const better = sortedRows.filter((e) => e.score > sc.score).length;
@@ -670,7 +670,7 @@ export class App extends Engine {
     return {
       _share: { title: endTitle, score: sc ? sc.score : 0, cons: gC ? gC.letter : '', lib: gL ? gL.letter : '', role: g.title, needle: this.needle(g), mode: g.mode, dd: g.dd, kwin: !!(kormRes && kormRes.win) },
       dayLabel: title ? 'READY' : 'DAY ' + Math.min(days, g.day) + ' / ' + days, dotsCls: days > 16 ? 'many' : '', termDays: String(days),
-      showScand: !core,
+      showScand: !core, showCap: !core, showX: !core,
       dots: dots, stats: stats,
       capText: Math.floor(g.cap) + ' / 8', capPips: capPips, congText: String(Math.round(g.cong)), congBar: congBar, scandText: String(Math.round(g.scand)), scandBar: scandBar,
       needleWord: needleWord, needleSub: (nd >= 50 ? '+' : '−') + Math.abs(Math.round(nd - 50)), needleLeft: 'left:' + nd.toFixed(1) + '%',

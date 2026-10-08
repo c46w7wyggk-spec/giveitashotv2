@@ -133,7 +133,7 @@ async function pClassroom(id) {
       '<div class="t-note">Each simulated day takes a student about 1 to 2 minutes. Students&rsquo; instructions, tutorial and help screens update to match.</div>' +
       '<fieldset class="t-diff"><legend class="t-label">Difficulty</legend>' +
       '<label class="t-opt"><input type="radio" name="difficulty" value="0"' + (ui.diff === 0 ? ' checked' : '') + '><span><b>AP / Advanced</b><br><span class="t-note">The full simulation: about three memos a day, power plays, scandal, impeachment and revolutions.</span></span></label>' +
-      '<label class="t-opt"><input type="radio" name="difficulty" value="1"' + (ui.diff === 1 ? ' checked' : '') + '><span><b>Core (simplified)</b><br><span class="t-note">For regular high school classes: fewer memos a day, no power plays, no scandal or impeachment, and plain-language help on every policy.</span></span></label></fieldset>' +
+      '<label class="t-opt"><input type="radio" name="difficulty" value="1"' + (ui.diff === 1 ? ' checked' : '') + '><span><b>Core (simplified)</b><br><span class="t-note">For regular high school classes: fewer memos a day, no executive actions or political capital, no scandal or impeachment, and plain-language help on every policy.</span></span></label></fieldset>' +
       '<label class="t-label" for="s-ins">Instructions for students (optional)</label><textarea id="s-ins" class="t-input" name="instructions" rows="3" maxlength="600" placeholder="e.g. Play through once. Do not talk until everyone is finished."></textarea><div class="t-err" id="start-err" role="alert"></div><button class="t-btn gold lg" type="submit">Open the waiting room</button></form>';
   return shell('<p class="t-crumb"><a href="/teacher" data-nav>Dashboard</a> / ' + esc(c.name) + '</p><div class="t-title"><h1 class="t-h1">' + esc(c.name) + '</h1>' + (c.archived_at ? '<span class="t-chip">archived</span>' : '<span class="t-chip live">open</span>') + '</div>' +
     '<section class="t-card"><div class="t-eyebrow">JOIN CODE</div>' + codePanel + '</section>' + sessionPanel +
@@ -182,6 +182,19 @@ async function pSession(id) {
   const phase = !active ? 'ended' : !s.starts_at ? 'lobby' : left > 0 ? 'countdown' : 'running';
   route.active = active; route.phase = phase; route.starts = s.starts_at;
   const allDone = n > 0 && done >= n;
+  // the join code lives on the classroom; fetch it at most every 30s so students can read it off the projected screen
+  if (active && (!ui.jc || ui.jc.cid !== d.classroom.id || Date.now() - ui.jc.at > 30000)) {
+    try { const g = await T.getClassroom(d.classroom.id); ui.jc = { cid: d.classroom.id, at: Date.now(), code: g.classroom.join_code, exp: g.classroom.join_code_expires_at }; } catch (e) { /* the code panel is optional */ }
+  }
+  const jc = active && ui.jc && ui.jc.cid === d.classroom.id ? ui.jc : null;
+  const jcLive = !!(jc && jc.code && new Date(jc.exp) > new Date());
+  const joinHost = esc(window.location.host + '/classroom');
+  const classLink = '/teacher/classrooms/' + esc(d.classroom.id);
+  const joinPanel = !jc ? '' : jcLive
+    ? '<div class="t-join"><div class="t-code" aria-label="Join code ' + esc(jc.code.split('').join(' ')) + '">' + codeSpaced(jc.code) + '</div><p class="t-note">Students go to <b>' + joinHost + '</b> and enter this code.</p></div>'
+    : '<p class="t-alert">Joining is turned off, so students cannot get in. <a href="' + classLink + '" data-nav>Make a join code</a> on the classroom page.</p>';
+  const joinLine = !jc || phase !== 'running' ? '' : jcLive
+    ? '<p class="t-note t-joinline">Joining late? Go to <b>' + joinHost + '</b> and enter <b class="t-code-inline">' + codeSpaced(jc.code) + '</b></p>' : '';
   // decision digests (for the written summaries) are fetched once per new result, not on every poll
   if (done > 0 && (!ui.dg || ui.dg.sid !== id || ui.dg.n !== done)) {
     try { const g = await T.digests(id); ui.dg = { sid: id, n: done, days: g.days, rows: g.rows }; } catch (e) { /* summaries are optional */ }
@@ -191,7 +204,7 @@ async function pSession(id) {
   ui._classSum = classSum;
   const meta = s.difficulty === 1 ? 'Core (simplified)' : 'AP / Advanced';
   const openKey = Object.keys(ui.sumOpen).filter((k) => ui.sumOpen[k]).sort().join(',');
-  const key = [phase, done, s.reveal_results, openKey, dgRows.length].join('|');
+  const key = [phase, done, s.reveal_results, openKey, dgRows.length, jc ? (jcLive ? jc.code : 'off') : ''].join('|');
   const sumCards = dgRows.map((r) => {
     let sm = null; try { sm = r.digest ? buildSummary(ENG, r.digest, { score: r.score, cons: r.cons_letter, lib: r.lib_letter }) : null; } catch (e) { sm = null; }
     ui['_sum_' + r.member_id] = sm ? plainSum(sm, r.display_name) : '';
@@ -204,16 +217,16 @@ async function pSession(id) {
 
   let control = '';
   if (phase === 'lobby') {
-    control = '<section class="t-card t-launch"><div class="t-eyebrow">WAITING ROOM</div><h2 class="t-h2" data-live="lobbycount">' + n + ' student' + (n === 1 ? '' : 's') + ' ready</h2>' +
+    control = '<section class="t-card t-launch"><div class="t-eyebrow">WAITING ROOM</div><h2 class="t-h2" data-live="lobbycount">' + n + ' student' + (n === 1 ? '' : 's') + ' ready</h2>' + joinPanel +
       '<p class="t-note">' + esc(meta) + ' · ' + esc(daysOut(s.days)) + '. Students see the waiting room now. When you press Start, a 5-second countdown appears on every screen and the game begins for everyone at the same moment. Students who join after that start right away.</p>' +
       '<div class="t-actions"><button class="t-btn gold lg" data-act="startsim" data-id="' + esc(s.id) + '"' + (n ? '' : ' disabled') + '>Start simulation</button>' + (n ? '' : '<span class="t-note">Waiting for at least one student to join.</span>') + '</div></section>';
   } else if (phase === 'countdown') {
     const c = Math.max(0, Math.ceil(left));
-    control = '<section class="t-card t-launch t-countdown"><div class="t-eyebrow">STARTING</div><div class="t-count" role="timer" data-live="cd">' + c + '</div><p class="t-note">The game starts on every student screen when this reaches zero.</p></section>';
+    control = '<section class="t-card t-launch t-countdown"><div class="t-eyebrow">STARTING</div><div class="t-count" role="timer" data-live="cd">' + c + '</div><p class="t-note">The game starts on every student screen when this reaches zero.</p>' + joinPanel + '</section>';
   }
   return shell('<span hidden data-pagekey="' + esc(key) + '"></span><p class="t-crumb"><a href="/teacher" data-nav>Dashboard</a> / <a href="/teacher/classrooms/' + esc(d.classroom.id) + '" data-nav>' + esc(d.classroom.name) + '</a> / ' + esc(s.title) + '</p>' +
     '<div class="t-title"><h1 class="t-h1">' + esc(s.title) + '</h1><span class="t-chip ' + (active ? 'live' : '') + '">' + (phase === 'ended' ? 'ended' : phase === 'lobby' ? 'waiting room' : phase === 'countdown' ? 'starting' : 'running') + '</span></div>' +
-    '<p class="t-note">' + esc(meta) + ' · ' + esc(daysOut(s.days)) + '</p>' + control +
+    '<p class="t-note">' + esc(meta) + ' · ' + esc(daysOut(s.days)) + '</p>' + joinLine + control +
     '<section class="t-card"><div class="t-eyebrow">' + (phase === 'lobby' || phase === 'countdown' ? 'WHO IS HERE' : 'LIVE LEADERBOARD') + '</div><h2 class="t-h2" data-live="head">' + (phase === 'lobby' || phase === 'countdown' ? n + ' joined' : done + ' of ' + n + ' finished') + '</h2>' +
     (phase === 'lobby' || phase === 'countdown' ? '' : '<div class="t-meter" role="progressbar" aria-valuemin="0" aria-valuemax="' + n + '" aria-valuenow="' + done + '" data-live="meter"><i style="width:' + pct(done, n) + '%"></i></div>') +
     '<div data-live="board">' + boardHtml(parts, s.days, phase) + '</div>' +
@@ -244,7 +257,7 @@ function pResources() {
   return shell('<div class="t-title"><h1 class="t-h1">Teacher guide</h1></div>' +
     sec('What is Give It A Shot?', '<p>An economic-policy simulation you can run for 3 to 28 days. Each day the student, as President, signs or vetoes memos and may take bold executive actions, while approval, Congress, scandal and the economy respond. The game is a deliberately simplified parody; it is a starting point for discussion, not a forecast of what real policies do.</p><p>Designed for classroom discussions involving civics, economics, public policy, political institutions, and tradeoffs.</p>') +
     sec('How long does a session take?', '<p>Each simulated day takes a student roughly 1 to 2 minutes, so a 14-day term is about 14 to 28 minutes and a 7-day term is about 7 to 14 minutes. These are our estimates, not measured figures: please tell us how long it took in your class. The slider on the session form shows the estimate for the length you pick. For a 45 to 50 minute period, 7 to 10 days leaves room for setup and a debrief.</p>') +
-    sec('Difficulty levels', ul(['<b>AP / Advanced:</b> the full simulation. About three memos a day (for a 14-day term), power plays, scandal, impeachment trials and revolutions.', '<b>Core (simplified):</b> for regular high school classes. One or two memos a day, no power plays, no scandal or impeachment. Students focus on the policy trade-offs, with plain-language explanations on every policy.', 'Students can tap <b>What does this mean?</b> on any policy or executive action for a plain-English explanation, and <b>See the evidence</b> for the real-world research. The tutorial and Help screen update to match the length and difficulty you choose.'])) +
+    sec('Difficulty levels', ul(['<b>AP / Advanced:</b> the full simulation. About three memos a day (for a 14-day term), power plays, scandal, impeachment trials and revolutions.', '<b>Core (simplified):</b> for regular high school classes. One or two memos a day, no executive actions or political capital, no scandal or impeachment. Students focus on the policy trade-offs, with plain-language explanations on every policy.', 'Students can tap <b>What does this mean?</b> on any policy or executive action for a plain-English explanation, and <b>See the evidence</b> for the real-world research. The tutorial and Help screen update to match the length and difficulty you choose.'])) +
     sec('Suggested lesson structure', ul(['<b>5 min:</b> Warm-up question; tell students the goal is long-term prosperity, not winning an argument.', '<b>3 min:</b> Students go to <b>' + esc(window.location.host) + '/classroom</b> and enter the code and their name. Press <b>Start simulation</b> when most have joined: a 5-second countdown starts the game for everyone at once.', '<b>10 to 25 min:</b> Students play. Everyone gets the same country and starting events. Watch the live leaderboard.', '<b>10 to 15 min:</b> End the session, read the class summary together, and use two or three discussion prompts.', '<b>2 min:</b> Exit ticket.'])) +
     sec('Learning objectives', ul(['Identify tradeoffs between growth, inflation, unemployment and the deficit.', 'Explain how political incentives (approval, Congress, scandal) can pull against economically optimal choices.', 'Compare different decisions made in identical circumstances and reason about why outcomes differed.', 'Evaluate the assumptions a simulation makes about the real world.'])) +
     sec('Discussion questions', PROMPTS.map((g) => '<h3 class="t-h3">' + esc(g.title) + '</h3>' + ul(g.items.map(esc))).join('')) +

@@ -83,7 +83,7 @@ No other new variables. The browser already uses the public URL + publishable ke
 1. **Migration.** Dashboard → SQL Editor → paste `supabase/migrations/20261008000000_teacher_beta.sql` → Run. (Use this rather than `supabase db push`: your live project has migration versions the repo does not.) Then open **Advisors → Security** and confirm no new warnings you do not understand.
 2. **Edge function.** `supabase functions deploy classroom --project-ref gaurlsgdfwasrapvlmyd --no-verify-jwt`. `--no-verify-jwt` is required: students have no JWT; the function authenticates them by token.
 3. **Secret.** `supabase secrets set IP_HASH_SALT=$(openssl rand -hex 16) --project-ref gaurlsgdfwasrapvlmyd`.
-4. **Check the deploy.** `curl https://gaurlsgdfwasrapvlmyd.supabase.co/functions/v1/classroom` should return `{"engine_version":2,"sha256":...}` with the **same sha256** as `.../functions/v1/submit-score`. If you ever change the engine: `npm run make-server-engine` and redeploy **both** functions.
+4. **Check the deploy.** `curl https://gaurlsgdfwasrapvlmyd.supabase.co/functions/v1/classroom` should return `{"engine_version":5,"sha256":...}` with the **same sha256** as `.../functions/v1/submit-score`. If you ever change the engine: `npm run make-server-engine` and redeploy **both** functions.
 5. **Email limits.** Teachers sign in by magic link. Supabase's built-in email sender is heavily rate-limited; for more than a couple of teachers, configure custom SMTP (Auth → SMTP Settings) before the pilot.
 6. **Turn it on:** `update public.feature_flags set enabled = true where key = 'TEACHER_BETA_ENABLED';`
 

@@ -2,8 +2,9 @@
 // Same seed + same action log => same game, same score. Bump ENGINE_VERSION on ANY change that alters outcomes.
 import { XA } from './xactions.js';
 import { POL2, BASE_TOPIC, BASE_SYS, BASE_KILL } from './policies.js';
-export const ENGINE_VERSION = 4;
+export const ENGINE_VERSION = 5;
 export const MIN_DAYS = 3, MAX_DAYS = 28;
+export const BASE_GROWTH = 2; // trend GDP growth (%) when nothing is done
 
 export class Engine {
   data() {
@@ -92,7 +93,7 @@ export class Engine {
         real: 'Studies link housing constraints in high-productivity metros to lower national growth (magnitudes are debated); Auckland\'s upzoning slowed rent growth relative to similar cities.',
         pro: 'More housing, lower rents, and mobility to better jobs.', con: 'Neighborhood character, traffic and strain on local services.',
         hl: 'Californication approves one apartment, then holds a hearing about its shadow.' },
-      { id: 'lic', t: 'Cut occupational licensing requirements', m: 'Hair braiders, florists and interior designers may work without a license.', lean: 1, f: [0.3, -0.3, -0.1, 0, 1, 0], sd: 0.6, ang: null, who: ['UT', 'NV', 'AZ'], wd: 1,
+      { id: 'lic', t: 'Cut occupational licensing requirements', m: 'Hair braiders, florists and interior designers may work without a license.', lean: 1, f: [0.3, -0.3, -0.1, 0, 0, 1], sd: 0.6, ang: null, who: ['UT', 'NV', 'AZ'], wd: 1,
         real: 'About one in five US workers needs a license; research finds licensing raises pay for those licensed but limits entry and mobility.',
         pro: 'Opens jobs to newcomers and lowers prices.', con: 'Some licenses protect safety, and quality can slip.',
         hl: 'Utah-pia abolishes the hair-braiding license. Barbers form a rock band.' },
@@ -108,11 +109,11 @@ export class Engine {
         real: 'Longevity gains have been uneven by income, so a higher age cuts lifetime benefits more for lower earners.',
         pro: 'Improves solvency without raising taxes.', con: 'Hardest on manual workers who cannot work longer.',
         hl: 'Kentuckyard roofers ask whether 69 is a joke. It is not.' },
-      { id: 'permit', t: 'Fast-track permits for nuclear and transmission lines', m: 'Cut review times from a decade to two years.', lean: 1, f: [0.4, -0.1, -0.2, 0, 1, 0], sd: 0.6, ang: null, who: ['GA', 'VA', 'TX'], wd: 2,
+      { id: 'permit', t: 'Fast-track permits for nuclear and transmission lines', m: 'Cut review times from a decade to two years.', lean: 1, f: [0.4, -0.1, -0.2, 0, 0, 1], sd: 0.6, ang: null, who: ['GA', 'VA', 'TX'], wd: 2,
         real: 'US nuclear and transmission projects take far longer and cost more than abroad; reform has bipartisan backing but disputed safeguards.',
         pro: 'Cheaper, cleaner power and faster building.', con: 'Fewer environmental reviews and less local input.',
         hl: 'Georgia-ish builds a reactor in seven years. Record!' },
-      { id: 'regs', t: 'Adopt a one-in, two-out rule for federal regulations', m: 'Every new rule must repeal two old ones.', lean: 1, f: [0.3, -0.1, 0, 0, 0, 0], sd: 0.8, ang: null, who: ['TX', 'UT', 'ID'], wd: 1,
+      { id: 'regs', t: 'Adopt a one-in, two-out rule for federal regulations', m: 'Every new rule must repeal two old ones.', lean: 1, f: [0.3, -0.1, 0, 0, -1, 0], sd: 0.8, ang: null, who: ['TX', 'UT', 'ID'], wd: 1,
         real: 'Agency analyses find most major rules\' benefits exceed their costs in aggregate, but quality varies; counting rules is not the same as measuring them.',
         pro: 'Forces the government to prune old rules.', con: 'Counts rules rather than costs; may block good ones.',
         hl: 'Bureaucrats respond with one 4,000-page rule replacing two 2,000-page rules.' },
@@ -167,7 +168,7 @@ export class Engine {
         opts: [
           { label: 'Release the Strategic Petroleum Reserve', desc: 'Dump oil on the market to cool prices. Works fast, refills expensively.', f: [0.1, 0, -0.7, 0.1, 2, 0], sd: 0.4, res: 'Pump prices dip. The reserve now has echoes.' },
           { label: 'Cap gasoline prices', desc: 'Declare a ceiling. Reality may decline to obey.', f: [-0.5, 0.1, -1.0, 0, 3, 4], sd: 0.6, res: 'The price is capped. The gasoline is, sadly, also capped.' },
-          { label: 'Fast-track domestic drilling permits', desc: 'Slower, but real supply. Environmental groups will be furious.', f: [0.2, -0.1, -0.4, 0, 1, 1], sd: 0.5, res: 'Rigs come back online by spring. Spring is a long way away.' },
+          { label: 'Fast-track domestic drilling permits', desc: 'Slower, but real supply. Environmental groups will be furious.', f: [0.2, -0.1, -0.4, 0, 1, 1], sd: 0.5, perm: 1, res: 'Rigs come back online by spring. Spring is a long way away.' },
           { label: 'Do nothing', desc: 'Let the market clear. Voters feel every cent.', f: [-0.4, 0.1, 0.4, 0, -3, 3], sd: 0.4, res: 'The market clears. Your approval rating does too.' }
         ], hl: 'War abroad sends oil soaring' },
       war_ally: { kind: 'War abroad', title: 'Ally invaded: Congress waits on you', text: 'A friendly democracy is under attack. Phones ring. Every phone is a lobbyist.', st: ['VA', 'AK', 'GA'], icon: 'flame', base: [-0.2, 0, 0.4, 0, 0, 1], real: 'Wars raise defense spending and commodity prices, and sanctions can reshape trade for years.',
@@ -196,14 +197,14 @@ export class Engine {
         ], hl: 'Markets crash, bank wobbles' },
       cyber: { kind: 'Security', title: 'Cyberattack hits the power grid', text: 'Lights flicker and servers panic, and somewhere a hacker is eating a Hot Pocket.', st: ['TX', 'GA', 'VA'], icon: 'flame', base: [-0.6, 0.1, 0.2, 0, -2, 2], real: 'The 2021 Colonial Pipeline hack triggered panic buying across the Southeast.',
         opts: [
-          { label: 'Mandate federal security standards', desc: 'Make utilities harden their systems on a deadline.', f: [0.2, 0, 0, 0.3, 2, 0], sd: 0.4, res: 'Utilities grumble, patch, and send a very large invoice.' },
+          { label: 'Mandate federal security standards', desc: 'Make utilities harden their systems on a deadline.', f: [0.2, 0, 0, 0.3, 2, 0], sd: 0.4, perm: 1, res: 'Utilities grumble, patch, and send a very large invoice.' },
           { label: 'Quietly pay the ransom', desc: 'Fast fix, bad precedent.', f: [0.3, 0, 0, 0, -1, 0], sd: 0.5, res: 'The lights come back. So do the hackers.' },
           { label: 'Let utilities sort it out', desc: 'Hands off. Voters notice the dark.', f: [-0.6, 0, 0, 0, -3, 2], sd: 0.4, res: 'Utilities sort it out. Eventually.' }
         ], hl: 'Grid hack darkens cities' },
       bond: { kind: 'Financial shock', title: 'Bond markets revolt', text: 'Investors dump Treasuries and demand a premium. The word "unsustainable" is trending.', st: ['NY', 'VA', 'MA'], icon: 'storm', base: [-1.0, 0.2, 0.5, 1.0, -2, 2], real: 'In 2022, UK gilt yields spiked after unfunded tax cuts, forcing a policy reversal and a prime minister\'s resignation.',
         opts: [
-          { label: 'Announce credible spending cuts', desc: 'Reassure investors by shrinking the deficit.', f: [-0.5, 0.3, 0, -1.5, -4, 3], sd: 0.4, res: 'Yields settle. Constituents do not.' },
-          { label: 'Raise taxes', desc: 'Close the gap with revenue.', f: [-0.6, 0.2, 0, -1.3, -3, 2], sd: 0.4, res: 'Yields calm. Accountants thrive.' },
+          { label: 'Announce credible spending cuts', desc: 'Reassure investors by shrinking the deficit for good.', f: [-0.5, 0.3, 0, -1.5, -4, 3], sd: 0.4, perm: 1, res: 'Yields settle. Constituents do not.' },
+          { label: 'Raise taxes', desc: 'Close the gap with permanent new revenue.', f: [-0.6, 0.2, 0, -1.3, -3, 2], sd: 0.4, perm: 1, res: 'Yields calm. Accountants thrive.' },
           { label: 'Ask the central bank to print', desc: 'Make the deficit someone else\'s problem. Inflation takes the bill.', f: [0.2, 0, 1.5, -0.3, -1, 1], sd: 0.5, res: 'Yields drop. Groceries do the opposite.' }
         ], hl: 'Bond markets revolt' }
     };
@@ -339,7 +340,7 @@ export class Engine {
   clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   pol(id) { const D = this.data(); return D.POL.find((p) => p.id === id) || D.XA.find((p) => p.id === id); }
 
-  // days: 3-28. lvl: 0 = standard (AP), 1 = core (plain language, no scandal or impeachment, fewer memos).
+  // days: 3-28. lvl: 0 = standard (AP), 1 = core (plain language, fewer memos, no executive actions, capital, scandal or impeachment).
   newGame(seed, days, lvl) {
     const D = this.data();
     days = days == null ? 14 : days; lvl = lvl == null ? 0 : lvl;
@@ -470,7 +471,8 @@ export class Engine {
   }
 
   // ---------- model ----------
-  nights(g, d) { return (g.day - d) + ((g.phase === 'brief' || g.phase === 'end') ? 1 : 0); }
+  // Once the day is ended (incident, trial, brief and end screens), today's laws and shocks have had their first night.
+  nights(g, d) { return (g.day - d) + (g.phase === 'desk' || g.phase === 'title' ? 0 : 1); }
   M(g, ex) {
     const X = ex || 0;
     const R = this.role(g);
@@ -481,20 +483,22 @@ export class Engine {
       const r = (1 - Math.pow(0.5, n)) * p.s;
       for (let k = 0; k < 6; k++) ps[k] += p.f[k] * r;
     });
+    // Shocks fade. The player's crisis responses fade too, but a fifth of each lingers (l: scarring, debt, memories),
+    // so the choice still shows in the legacy projection; structural responses (p) build up like laws.
     g.evs.forEach((e) => {
       const n = this.nights(g, e.d) + X; if (n <= 0) return;
-      const r = Math.pow(0.7, n - 1);
+      const r = e.p ? 1 - Math.pow(0.5, n) : e.l ? 0.2 + 0.8 * Math.pow(0.7, n - 1) : Math.pow(0.7, n - 1);
       for (let k = 0; k < 6; k++) es[k] += e.f[k] * r;
     });
     const sum = [0, 1, 2, 3, 4, 5].map((k) => ps[k] * R.pf * (k === 0 ? R.gf : k === 3 ? R.df : 1) + es[k] * R.evm);
     const jobless = Math.max(2.0, 4.3 + sum[1]);
     const infl = Math.max(-1, 3.0 + sum[2]);
-    const gdp0 = sum[0];
-    const deficit0 = 5.8 + sum[3] - 0.25 * gdp0;
-    const appr = this.clamp(48 + R.ab + sum[4] - 2.2 * R.ja * (jobless - 4.3) - 2.0 * (infl - 3.0) + 1.0 * gdp0 - 0.4 * Math.max(0, deficit0 - 12) - 0.06 * g.scand, 3, 92);
+    const gdp0 = BASE_GROWTH + sum[0];
+    const deficit0 = 5.8 + sum[3] - 0.25 * (gdp0 - BASE_GROWTH);
+    const appr = this.clamp(48 + R.ab + sum[4] - 2.2 * R.ja * (jobless - 4.3) - 2.0 * (infl - 3.0) + 1.0 * (gdp0 - BASE_GROWTH) - 0.4 * Math.max(0, deficit0 - 12) - 0.06 * g.scand, 3, 92);
     const unrest = this.clamp(15 + R.ub + sum[5] + 0.45 * Math.max(0, 45 - appr), 0, 100);
     const gdp = gdp0 - 0.02 * Math.max(0, unrest - 40);
-    return { g: gdp, j: jobless, i: infl, d: 5.8 + sum[3] - 0.25 * gdp, a: appr, u: unrest };
+    return { g: gdp, j: jobless, i: infl, d: 5.8 + sum[3] - 0.25 * (gdp - BASE_GROWTH), a: appr, u: unrest };
   }
   role() { return { pf: 1, gf: 1, df: 1, sdm: 0.75, evm: 1, ab: 0, ub: 0, ja: 1, nego: 0.10, back: 0.5, cap: 1.3, over: 95, angm: {} }; }
   congMult(g) { return 0.85 + 0.003 * g.cong; }
@@ -508,9 +512,11 @@ export class Engine {
     });
     return this.clamp(v, 0, 100);
   }
-  addEv(g, f, sd) {
+  // kind: undefined = a shock that fades, 'l' = a response that leaves a lasting fifth, 'p' = a permanent change
+  addEv(g, f, sd, kind) {
     const r = f.map((x) => x * (1 + (this.rn(g) * 2 - 1) * (sd || 0)));
-    g.evs.push({ d: g.day, f: r });
+    const e = { d: g.day, f: r }; if (kind) e[kind] = 1;
+    g.evs.push(e);
   }
 
   // ---------- stories (headlines + satirical blurbs) ----------
@@ -660,6 +666,7 @@ export class Engine {
       } else if (i === 2) {
         g.over = true; g.ok = 'fled'; this.push(g, 'The President flees the country by helicopter', 'The helicopter left at dawn. The nation noticed by lunch.');
       } else if (i === 3) {
+        if (g.lvl === 1) throw new Error('no payoffs in core mode');
         if (g.cap < 3) throw new Error('not enough capital');
         g.cap -= 3; g.scand = this.clamp(g.scand + 20, 0, 100);
         if (this.rn(g) < 0.7) { this.addEv(g, [0, 0, 0.4, 1.5, 0, -22], 0.2); this.push(g, 'Envelopes reach the movement leaders; the barricades come down', 'Several leaders discovered the merits of compromise, and a new boat.'); }
@@ -672,7 +679,7 @@ export class Engine {
     }
     if (cur.k === 'event') {
       const o = D.EV[cur.id].opts[i];
-      this.addEv(g, o.f, o.sd);
+      this.addEv(g, o.f, o.sd, o.perm ? 'p' : 'l');
       this.push(g, o.res, D.EV[cur.id].text.replace('{st}', D.ST[cur.st][0]) + ' ' + o.desc);
     } else {
       const F = D.FAC[cur.fac];
@@ -680,29 +687,29 @@ export class Engine {
       const p = cur.pol ? g.pols.find((x) => x.id === cur.pol && !x.rep) : null;
       let ended = false;
       if (i === 0) {
-        if (p) { this.repeal(g, p); this.addEv(g, [0, 0, 0, 0, 3, -20], 0.2); this.push(g, 'You repealed "' + this.pol(p.id).t + '". The crowds go home, the policy goes with them.'); }
-        else { this.addEv(g, [0, 0, 0, 0.8, 2, -15], 0.2); this.push(g, 'An emergency relief package calms the crowds. The deficit notices.'); }
+        if (p) { this.repeal(g, p); this.addEv(g, [0, 0, 0, 0, 3, -20], 0.2, 'l'); this.push(g, 'You repealed "' + this.pol(p.id).t + '". The crowds go home, the policy goes with them.'); }
+        else { this.addEv(g, [0, 0, 0, 0.8, 2, -15], 0.2, 'l'); this.push(g, 'An emergency relief package calms the crowds. The deficit notices.'); }
         ended = true;
       } else if (i === 1) {
         const chance = this.odds(m, cur, this.role(g));
         if (this.rn(g) < chance) {
           if (p) p.s = Math.min(p.s, 0.6);
-          this.addEv(g, [0, 0, 0, 0.3, 2, -12], 0.2);
+          this.addEv(g, [0, 0, 0, 0.3, 2, -12], 0.2, 'l');
           this.push(g, 'Talks succeed. ' + (p ? 'The policy stays at about 60% strength; both sides claim victory.' : 'Both sides agree to disagree quietly.'));
           ended = true;
-        } else { this.addEv(g, [0, 0, 0, 0, 0, 4], 0.2); this.push(g, 'Talks collapse after a heated lunch. The ' + F.name.toLowerCase() + ' continues.'); }
+        } else { this.addEv(g, [0, 0, 0, 0, 0, 4], 0.2, 'l'); this.push(g, 'Talks collapse after a heated lunch. The ' + F.name.toLowerCase() + ' continues.'); }
       } else if (i === 2) {
-        this.addEv(g, [0, 0, 0, 0, -7 * this.role(g).cap, -18], 0.2);
-        if (this.rn(g) < this.role(g).back) { this.addEv(g, [0, 0, 0, 0, -4, 15], 0.2); this.push(g, 'The crackdown backfires. Footage goes viral and the crowd grows.'); }
+        this.addEv(g, [0, 0, 0, 0, -7 * this.role(g).cap, -18], 0.2, 'l');
+        if (this.rn(g) < this.role(g).back) { this.addEv(g, [0, 0, 0, 0, -4, 15], 0.2, 'l'); this.push(g, 'The crackdown backfires. Footage goes viral and the crowd grows.'); }
         else { this.push(g, 'The National Guard restores order. Approval takes a hit.'); ended = true; }
       } else {
-        this.addEv(g, [-0.8, 0, 0, 0, -2, 5], 0.2);
+        this.addEv(g, [-0.8, 0, 0, 0, -2, 5], 0.2, 'l');
         if (this.rn(g) < 0.5) { this.push(g, 'The ' + F.name.toLowerCase() + ' fizzles out on its own. Mostly.'); ended = true; }
         else this.push(g, 'Waiting does not help. The ' + F.name.toLowerCase() + ' drags on.');
       }
       if (!ended) {
         const esc = cur.esc + 1;
-        if (esc >= 3) { this.addEv(g, [-2, 0.5, 0, 0.5, -6, 10], 0.2); this.push(g, 'After three days the unrest burns itself out, leaving a lot of damage.'); }
+        if (esc >= 3) { this.addEv(g, [-2, 0.5, 0, 0.5, -6, 10], 0.2, 'l'); this.push(g, 'After three days the unrest burns itself out, leaving a lot of damage.'); }
         else g.carry.push({ k: 'crisis', fac: cur.fac, pol: cur.pol, st: cur.st, esc: esc });
       }
     }
@@ -726,6 +733,7 @@ export class Engine {
       if (!g.imp && g.lvl !== 1 && g.trials < 2 && g.day >= 3 && g.day - g.lastTrial > 4 && m.a < 28 && g.cong < 25) {
         g.trials += 1;
         g.imp = { st: 'warn', w: g.day, r: 0, conv: this.clamp(Math.round(38 + (30 - g.cong) * 0.9 + (32 - m.a) * 0.6 + g.scand * 0.25 - g.shield), 22, 78) };
+        g.imp.c0 = g.imp.conv;
         this.push(g, 'House drafts articles of impeachment', 'Committee chairs say the vote is coming. You have a day or two to change the math, one way or another.');
       } else if (g.imp && g.imp.st === 'trial' && g.trialDay !== g.day) { g.phase = 'trial'; return; }
     }
@@ -735,7 +743,9 @@ export class Engine {
     const imp = g.imp;
     if (imp.conv >= 67) { imp.done = true; g.over = true; g.ok = 'impeach'; this.push(g, 'Senate convicts: the presidency is over', 'The vote cleared the threshold by a margin both parties are privately calling "tidy."'); }
     else {
-      g.surv = true; g.lastTrial = g.day; g.imp = null;
+      // The survival bonus is only for beating a trial that could really have been lost.
+      if (imp.c0 == null || imp.c0 >= 55) g.surv = true;
+      g.lastTrial = g.day; g.imp = null;
       this.addEv(g, [0, 0, 0, 0, 3, 0], 0.2);
       if (g.scand > 45) { this.addEv(g, [-0.4, 0, 0, 0, -4, g.scand * 0.15], 0.2); this.push(g, 'Acquitted, but the streets do not believe it', 'The Senate cleared you. The crowds outside have read the leaks and have a different verdict in mind.'); }
       else this.push(g, 'Senate acquits: you keep the job', 'The vote fell short of conviction. Commentators on both sides declare themselves vindicated.');
@@ -753,7 +763,7 @@ export class Engine {
     } else if (i === 1) {
       const last = g.pols.slice().reverse().find((q) => !q.rep && !q.x);
       g.cong = this.clamp(g.cong + 6, 0, 100);
-      if (last) { last.s = Math.min(last.s, 0.5); d -= 10; this.push(g, 'You water down "' + this.pol(last.id).t + '" to win votes', 'Both sides claim the compromise; the policy is now about half strength.'); }
+      if (last) { last.s = Math.min(last.s, 0.5); d -= 6; this.push(g, 'You water down "' + this.pol(last.id).t + '" to win votes', 'Both sides claim the compromise; the policy is now about half strength.'); }
       else { this.addEv(g, [0, 0, 0, 0.6, 1, 0], 0.2); d -= 6; this.push(g, 'Pork-barrel projects appear in swing states', 'Nobody wrote down what was promised. Everybody remembers.'); }
     } else if (i === 2) {
       pay(2); g.scand = this.clamp(g.scand + 12, 0, 100);
@@ -786,7 +796,7 @@ export class Engine {
   scoreCard(g) {
     const m = this.M(g), pj = this.M(g, 10), nd = this.needle(g), cl = (v) => this.clamp(v, 0, 100);
     const mb = {}; ['g', 'j', 'i', 'd', 'a', 'u'].forEach((k) => { mb[k] = 0.4 * m[k] + 0.6 * pj[k]; });
-    const sub = { econ: cl(50 + 10 * mb.g), jobs: cl(50 - 15 * (mb.j - 4.3)), prices: cl(100 - 18 * Math.abs(mb.i - 2)), budget: cl(100 - 7 * (mb.d - 1)), appr: cl(mb.a), calm: cl(100 - 1.25 * mb.u) };
+    const sub = { econ: cl(50 + 10 * (mb.g - BASE_GROWTH)), jobs: cl(50 - 15 * (mb.j - 4.3)), prices: cl(100 - 18 * Math.abs(mb.i - 2)), budget: cl(100 - 7 * (mb.d - 1)), appr: cl(mb.a), calm: cl(100 - 1.25 * mb.u) };
     const obj = 0.25 * sub.econ + 0.20 * sub.jobs + 0.15 * sub.prices + 0.15 * sub.budget + 0.15 * sub.appr + 0.10 * sub.calm;
     const pen = Math.round(0.8 * Math.max(0, g.scand - 20));
     const bonus = g.surv && !g.over ? 40 : 0;
@@ -836,7 +846,7 @@ export function applyAction(eng, g, a) {
   } else if (a.length === 2 && a[0] === 'x') {
     const D = eng.data(); const x = D.XA[XIDX.indexOf(a[1])];
     if (g.phase !== 'desk' || !x || g.xToday || g.cap < x.cost || g.xdone.indexOf(x.id) >= 0) throw new Error('bad executive action');
-    if (g.lvl === 1 && x.cat === 'power') throw new Error('power plays are off in core mode');
+    if (g.lvl === 1) throw new Error('executive actions are off in core mode');
     if (eng.blocker(g, x.id)) throw new Error('executive action conflicts with an enacted policy');
     g.cap -= x.cost; g.xToday = true; g.xpend = x.id;
     // The action settles its lever: any memo still waiting on the desk that touches it is withdrawn.

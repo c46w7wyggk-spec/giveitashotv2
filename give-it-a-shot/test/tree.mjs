@@ -39,7 +39,7 @@ for (let seed = 1; seed <= 60; seed++) for (const lvl of [0, 1]) for (const days
     if (g.phase === 'desk') {
       if (g.mi < g.memos.length) a = rnd() < 0.6 ? 's' : 'v';
       else {
-        const o = D.XA.map((x, i) => ({ x, i })).filter((q) => !g.xToday && g.cap >= q.x.cost && g.xdone.indexOf(q.x.id) < 0 && !eng.blocker(g, q.x.id) && !(g.lvl === 1 && q.x.cat === 'power'));
+        const o = D.XA.map((x, i) => ({ x, i })).filter((q) => !g.xToday && g.cap >= q.x.cost && g.xdone.indexOf(q.x.id) < 0 && !eng.blocker(g, q.x.id) && g.lvl !== 1);
         a = o.length && rnd() < 0.5 ? 'x' + XIDX[o[Math.floor(rnd() * o.length)].i] : 'e';
       }
     } else if (g.phase === 'incident') { const c = g.inc[0]; let i = Math.floor(rnd() * (c.k === 'event' ? D.EV[c.id].opts.length : 4)); if (c.k === 'revolt' && i === 3 && g.cap < 3) i = 0; a = String(i); }

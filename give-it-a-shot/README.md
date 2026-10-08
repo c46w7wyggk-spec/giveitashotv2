@@ -17,11 +17,11 @@ same deterministic engine and computes the score itself. Nobody can post a numbe
 - `test/` replay tests (`npm test`) and Playwright run-throughs (`test/v2smoke.mjs`, `test/v2screens.mjs`, `test/pwa.mjs`; need `npm run build && npx vite preview --port 4173`)
 
 ## v2 rules (President)
-- Goal is long-term prosperity: meters blend 40% now and 60% projected ten nights ahead, plus bonuses for finishing and surviving, minus a scandal penalty.
-- One memo decision each day, then optionally one Executive Action (`src/xactions.js`, 40 unilateral moves, each with a "Real world" line). They cost political capital and some carry scandal or Congress costs.
+- Goal is long-term prosperity: meters blend 40% now and 60% projected ten nights ahead, plus bonuses for finishing and for surviving an impeachment trial that could have been lost (conviction count 55+ when it opened), minus a scandal penalty. The economy starts at 2% trend growth. Event shocks fade; the player's crisis responses fade but leave a lasting fifth, and a few structural responses (bond-market cuts or taxes, grid standards, drilling permits) are permanent.
+- One to three memo decisions each day (fewer on long terms), then optionally one Executive Action (`src/xactions.js`, 40 unilateral moves, each with a "Real world" line). They cost political capital and some carry scandal or Congress costs.
 - Impeachment needs low approval and low Congress support, gives a warning night, then a multi-day trial the player can fight (rally, deals, bribe, leak). Dirty wins can set up revolution.
 - Supreme Leader mode (`src/leader.js`, `leaderdata.js`, `leaderui.js`, `leader.html`): 20 days, random map, 5 of 20 policies, a constitution or none, five rival powers (Ronald Bump escalates from a warning to sanctions, an ultimatum, then a raid or invasion), extortion, bribes and silencing. Score is world rank plus survival. Deterministic and replayable (`runLog(seed, log)`); server verification and its own leaderboard are not wired yet.
-- `ENGINE_VERSION = 4`; scores from older engine versions are not comparable and are hidden from the leaderboard.
+- `ENGINE_VERSION = 5`; scores from older engine versions are not comparable and are hidden from the leaderboard.
 
 ## Local dev
 ```

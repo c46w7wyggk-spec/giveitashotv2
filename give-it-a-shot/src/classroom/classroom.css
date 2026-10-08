@@ -55,6 +55,8 @@ textarea.t-input{resize:vertical}
 .t-link{background:none;border:0;color:var(--blue);text-decoration:underline;font:inherit;cursor:pointer;padding:4px}
 .t-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:6px}
 .t-code{font-family:var(--mono);font-weight:700;font-size:clamp(38px,9vw,64px);letter-spacing:.12em;text-align:center;padding:14px;border-radius:12px;background:var(--card);border:2px dashed var(--line2);color:var(--gold)}
+.t-join{margin:14px 0 6px}.t-join .t-note{text-align:center;margin:8px 0 0;font-size:17px}
+.t-code-inline{font-family:var(--mono);color:var(--gold);letter-spacing:.12em;font-size:1.15em}
 .t-code.sm{font-size:19px;padding:6px 12px;letter-spacing:.14em;border-width:1px}
 .t-chip{display:inline-block;padding:2px 9px;border-radius:99px;background:#24405f;font-size:12px;font-weight:700;color:var(--soft)}
 .t-chip.live{background:#12301f;color:#7be0a3}
