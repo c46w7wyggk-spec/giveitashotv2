@@ -14,7 +14,7 @@ const RETURN_KEY = 'gias_after_login';
 const CONTACT = import.meta.env.VITE_TEACHER_CONTACT_EMAIL || '';
 let root, me = null, meFor = null, gate = 'loading', route = null, poll = null, lastHtml = '', lastKey = '', loadSeq = 0, ticker = null;
 const ENG = new Engine();
-const ui = { sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, showIndiv: false, sent: false, sending: false, signinErr: '', email: '' };
+const ui = { sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, showIndiv: false, sending: false, signinErr: '', email: '', mode: null, notice: null, unconfirmed: false, meta: {} };
 
 const daysOut = (d) => d + ' day' + (d === 1 ? '' : 's') + ' · about ' + minutesFor(d);
 
@@ -60,38 +60,94 @@ const loading = () => paint(shell('<div class="t-card"><p class="t-note" role="s
 const errCard = (e) => '<div class="t-card"><h1 class="t-h1">Something went wrong</h1><p role="alert">' + esc(e.message || 'Try again.') + '</p><button class="t-btn" data-act="reload">Try again</button> <a class="t-btn ghost" href="/teacher" data-nav>Dashboard</a></div>';
 
 // ------------------------------------------------------------------ gate
+const RECOVERY_KEY = 'gias_pw_recovery', AUTH_ERR_KEY = 'gias_auth_err', ACCOUNT_KEY = 'gias_teacher_account';
+// localStorage ('l') / sessionStorage ('s'); even touching them can throw when storage is blocked
+const store = (which, k, v) => {
+  try { const s = which === 'l' ? window.localStorage : window.sessionStorage; if (v === undefined) return s.getItem(k); if (v === null) s.removeItem(k); else s.setItem(k, v); } catch (e) { /* storage blocked */ }
+  return null;
+};
 async function ensureGate() {
   if (!api.configured) { gate = 'offline'; return false; }
   const user = await api.getUser();
   if (!user) { me = null; meFor = null; gate = 'signin'; return false; }
-  ui.email = user.email || ui.email;
+  ui.email = user.email || ui.email; ui.meta = user.user_metadata || {};
+  store('l', ACCOUNT_KEY, '1');
+  // Opened a password-reset link: set the new password before anything else.
+  if (store('s', RECOVERY_KEY)) { gate = 'recovery'; return false; }
   if (!me || meFor !== user.id) {
     try { me = await T.me(); meFor = user.id; }
     catch (e) { if (e.code === 'not_authenticated') { gate = 'signin'; return false; } gate = 'error'; ui.gateErr = e.message; return false; }
   }
   if (!me.enabled) { gate = 'disabled'; return false; }
-  if (!me.authorized) { gate = 'denied'; return false; }
+  if (!me.authorized) {
+    // Accounts created on /teacher carry the access request in their sign-up details; file it once, on the first signed-in visit.
+    if (!me.applied && ui.meta.teacher_signup && ui.meta.name && ui.meta.school) {
+      try { await T.apply({ name: ui.meta.name, school: ui.meta.school, note: ui.meta.note }); me.applied = true; } catch (e) { /* they can fill in the form instead */ }
+    }
+    gate = 'denied'; return false;
+  }
   gate = 'ok'; return true;
+}
+const field = (id, label, attrs, hint) => '<label class="t-label" for="' + id + '">' + label + '</label><input id="' + id + '" class="t-input" ' + attrs + '>' + (hint ? '<p class="t-note">' + hint + '</p>' : '');
+const errBox = () => '<div class="t-err" role="alert">' + esc(ui.signinErr) + '</div>';
+const busy = () => (ui.sending ? 'disabled' : '');
+const emailField = () => field('t-email', 'Email', 'name="email" type="email" autocomplete="email" inputmode="email" value="' + esc(ui.email) + '" ' + busy());
+const requestFields = (v) => field('t-name', 'Your name', 'name="name" maxlength="80" autocomplete="name" value="' + esc(v.name || '') + '" ' + busy()) +
+  field('t-school', 'School', 'name="school" maxlength="120" autocomplete="organization" value="' + esc(v.school || '') + '" ' + busy()) +
+  '<label class="t-label" for="t-note">How would you use it? (optional)</label><textarea id="t-note" class="t-input" name="note" rows="2" maxlength="500" ' + busy() + '>' + esc(v.note || '') + '</textarea>';
+const modeLink = (m, label) => '<button type="button" class="t-link" data-act="mode" data-m="' + m + '">' + label + '</button>';
+
+function hero() {
+  const steps = [['Create a classroom', 'Takes a few seconds. You get a short join code.'], ['Students join', 'They enter the code and their name at giveitashot.online/classroom. No accounts, no emails.'], ['Run a session', 'Pick the length (3 to 28 days) and the difficulty, then press Start: a 5-second countdown begins and the game starts for everyone at once. Watch a live leaderboard while they play.'], ['Discuss', 'Read the written summaries for each student and the whole class, then use the discussion prompts.']];
+  return '<section class="t-card"><div class="t-eyebrow">PRIVATE TEACHER BETA</div><h1 class="t-h1">Give It A Shot for the classroom</h1><p class="t-lead">A short economic-policy simulation where every student runs the same country and the class compares what happened. Designed for classroom discussions involving civics, economics, public policy, political institutions, and tradeoffs.</p>' +
+    '<ol class="t-steps">' + steps.map((s) => '<li><b>' + esc(s[0]) + '.</b> ' + esc(s[1]) + '</li>').join('') + '</ol>' +
+    '<p>Create a free teacher account below. The beta is small, so each account is turned on by hand: we review new accounts and let you know by email.' + (CONTACT ? ' Questions? Email <a href="mailto:' + esc(CONTACT) + '">' + esc(CONTACT) + '</a>.' : '') + '</p>' +
+    '<div class="t-actions"><button type="button" class="t-btn gold" data-act="mode" data-m="signup">Create account</button><button type="button" class="t-btn" data-act="mode" data-m="signin">Sign in</button><a class="t-btn ghost" href="/classroom" data-nav-out>I am a student</a></div></section>';
+}
+function authCard() {
+  const m = ui.mode || (store('l', ACCOUNT_KEY) ? 'signin' : 'signup');
+  const tabs = '<div class="t-actions" role="tablist"><button type="button" role="tab" aria-selected="' + (m === 'signup') + '" class="t-btn ' + (m === 'signup' ? 'gold' : 'ghost') + '" data-act="mode" data-m="signup">Create account</button><button type="button" role="tab" aria-selected="' + (m !== 'signup') + '" class="t-btn ' + (m !== 'signup' ? 'gold' : 'ghost') + '" data-act="mode" data-m="signin">Sign in</button></div>';
+  if (ui.notice) {
+    const n = { confirm: ['Check your email', 'We sent a confirmation link to <b>' + esc(ui.email) + '</b>. Open it to finish creating your account. It can take a minute and may land in spam.', '<button type="button" class="t-btn ghost" data-act="resendconfirm">Resend the email</button>'],
+      reset: ['Check your email', 'If there is an account for <b>' + esc(ui.email) + '</b>, we sent a link to set a new password. Open it in this browser.', ''],
+      link: ['Check your email', 'We sent a sign-in link to <b>' + esc(ui.email) + '</b>. Open it in this browser. It can take a minute and may land in spam.', ''] }[ui.notice];
+    return '<section class="t-card" id="t-auth"><h2 class="t-h2">' + n[0] + '</h2><p>' + n[1] + '</p>' + errBox() + '<div class="t-actions">' + n[2] + '<button type="button" class="t-btn ghost" data-act="mode" data-m="signin">Back to sign in</button></div></section>';
+  }
+  let body;
+  if (m === 'signup') body = '<form data-form="signup" novalidate><h2 class="t-h2">Create a teacher account</h2>' + requestFields(ui.req || {}) + emailField() +
+    field('t-pass', 'Password', 'name="password" type="password" autocomplete="new-password" minlength="8" ' + busy(), 'At least 8 characters.') + errBox() +
+    '<button class="t-btn gold lg" type="submit" ' + busy() + '>' + (ui.sending ? 'Creating account...' : 'Create account') + '</button><p class="t-note">We email you once to confirm the address. Then we review the account and turn on access.</p></form>';
+  else if (m === 'forgot') body = '<form data-form="forgot" novalidate><h2 class="t-h2">Reset your password</h2><p>Enter your email and we will send a link to set a new password. This also works if you have only ever signed in with an email link.</p>' + emailField() + errBox() +
+    '<button class="t-btn gold lg" type="submit" ' + busy() + '>' + (ui.sending ? 'Sending...' : 'Email me a reset link') + '</button><p>' + modeLink('signin', 'Back to sign in') + '</p></form>';
+  else if (m === 'magic') body = '<form data-form="signin" novalidate><h2 class="t-h2">Sign in with an email link</h2><p>We email you a one-time link instead of using a password.</p>' + emailField() + errBox() +
+    '<button class="t-btn gold lg" type="submit" ' + busy() + '>' + (ui.sending ? 'Sending...' : 'Email me a sign-in link') + '</button><p>' + modeLink('signin', 'Sign in with a password instead') + '</p></form>';
+  else body = '<form data-form="password" novalidate><h2 class="t-h2">Sign in</h2>' + emailField() +
+    field('t-pass', 'Password', 'name="password" type="password" autocomplete="current-password" ' + busy()) + errBox() +
+    (ui.unconfirmed ? '<p><button type="button" class="t-btn ghost sm" data-act="resendconfirm">Resend the confirmation email</button></p>' : '') +
+    '<button class="t-btn gold lg" type="submit" ' + busy() + '>' + (ui.sending ? 'Signing in...' : 'Sign in') + '</button><p>' + modeLink('forgot', 'Forgot password?') + ' · ' + modeLink('magic', 'Email me a sign-in link instead') + '</p></form>';
+  return '<section class="t-card" id="t-auth">' + tabs + body + '</section>';
 }
 function gateView() {
   if (gate === 'offline') return shell('<div class="t-card"><h1 class="t-h1">Unavailable</h1><p>The online service is not configured.</p></div>', { narrow: true });
   if (gate === 'disabled') return shell('<div class="t-card"><h1 class="t-h1">Teacher Beta is currently unavailable</h1><p>Please check back later.</p><a class="t-btn ghost" href="/" data-nav-out>Back to the game</a></div>', { narrow: true });
   if (gate === 'error') return shell(errCard({ message: ui.gateErr }), { narrow: true });
-  if (gate === 'denied') return shell('<div class="t-card"><h1 class="t-h1">Not on the Teacher Beta list</h1><p>' + esc(ui.email || 'This account') + ' has not been given access. The beta is invite-only: ask the person who invited you to enable your account.</p><button class="t-btn ghost" data-act="signout">Sign in with a different email</button> <a class="t-btn ghost" href="/" data-nav-out>Back to the game</a></div>', { narrow: true });
-  return shell('<form class="t-card" data-form="signin" novalidate><div class="t-eyebrow">TEACHER BETA · INVITE ONLY</div><h1 class="t-h1">' + (ui.sent ? 'Check your email' : 'Sign in') + '</h1>' +
-    (ui.sent ? '<p>We sent a sign-in link to <b>' + esc(ui.email) + '</b>. Open it in this browser. It can take a minute and may land in spam.</p><button type="button" class="t-btn ghost" data-act="resend">Use a different email</button>' :
-      '<p>Use the email address your invitation was sent to. We email you a one-time link; there is no password.</p><label class="t-label" for="t-email">Email</label><input id="t-email" name="email" class="t-input" type="email" autocomplete="email" inputmode="email" value="' + esc(ui.email) + '" ' + (ui.sending ? 'disabled' : '') + '><div class="t-err" role="alert">' + esc(ui.signinErr) + '</div><button class="t-btn gold lg" type="submit" ' + (ui.sending ? 'disabled' : '') + '>' + (ui.sending ? 'Sending...' : 'Email me a sign-in link') + '</button>') + '</form>', { narrow: true });
+  if (gate === 'recovery') return shell('<form class="t-card" data-form="newpw" novalidate><h1 class="t-h1">Set a new password</h1><p>For <b>' + esc(ui.email) + '</b>.</p>' +
+    field('t-pass', 'New password', 'name="password" type="password" autocomplete="new-password" minlength="8" ' + busy(), 'At least 8 characters.') +
+    field('t-pass2', 'Type it again', 'name="password2" type="password" autocomplete="new-password" ' + busy()) + errBox() +
+    '<button class="t-btn gold lg" type="submit" ' + busy() + '>Save password</button></form>', { narrow: true });
+  if (gate === 'denied') {
+    const out = '<div class="t-actions"><button class="t-btn ghost" data-act="signout">Sign out</button> <a class="t-btn ghost" href="/" data-nav-out>Back to the game</a></div>';
+    if (me && me.applied) return shell('<div class="t-card"><div class="t-eyebrow">TEACHER BETA</div><h1 class="t-h1">You’re on the waitlist</h1><p>Your account <b>' + esc(ui.email) + '</b> is set up and your request is in. The beta is small, so each teacher is turned on by hand. We will email you when your access is ready; then just sign in here again.</p>' +
+      (CONTACT ? '<p class="t-note">Questions? Email <a href="mailto:' + esc(CONTACT) + '">' + esc(CONTACT) + '</a>.</p>' : '') + out + '</div>', { narrow: true });
+    return shell('<form class="t-card" data-form="apply" novalidate><div class="t-eyebrow">TEACHER BETA</div><h1 class="t-h1">Request Teacher Beta access</h1><p>You are signed in as <b>' + esc(ui.email) + '</b>. Tell us a little about yourself and we will review your request.</p>' +
+      requestFields({ name: ui.meta && ui.meta.name, school: ui.meta && ui.meta.school }) + errBox() + '<button class="t-btn gold lg" type="submit" ' + busy() + '>Request access</button></form>' +
+      '<div class="t-card">' + out + '</div>', { narrow: true });
+  }
+  const flash = store('s', AUTH_ERR_KEY);
+  if (flash) { store('s', AUTH_ERR_KEY, null); ui.mode = 'signin'; ui.notice = null; ui.signinErr = /expired|invalid/i.test(flash) ? 'That email link has expired or was already used. Sign in, or request a new link.' : flash; }
+  return shell(hero() + authCard(), { narrow: true });
 }
-
 // ------------------------------------------------------------------ pages
-function landing() {
-  const steps = [['Create a classroom', 'Takes a few seconds. You get a short join code.'], ['Students join', 'They enter the code and their name at giveitashot.online/classroom. No accounts, no emails.'], ['Run a session', 'Pick the length (3 to 28 days) and the difficulty, then press Start: a 5-second countdown begins and the game starts for everyone at once. Watch a live leaderboard while they play.'], ['Discuss', 'Read the written summaries for each student and the whole class, then use the discussion prompts.']];
-  return shell('<section class="t-card"><div class="t-eyebrow">PRIVATE TEACHER BETA</div><h1 class="t-h1">Give It A Shot for the classroom</h1><p class="t-lead">A short economic-policy simulation where every student runs the same country and the class compares what happened. Designed for classroom discussions involving civics, economics, public policy, political institutions, and tradeoffs.</p>' +
-    '<ol class="t-steps">' + steps.map((s) => '<li><b>' + esc(s[0]) + '.</b> ' + esc(s[1]) + '</li>').join('') + '</ol>' +
-    '<p>The Teacher Beta is invite-only while we test it with a small number of teachers.' + (CONTACT ? ' To ask for access, email <a href="mailto:' + esc(CONTACT) + '">' + esc(CONTACT) + '</a>.' : '') + '</p>' +
-    '<div class="t-actions"><a class="t-btn gold" href="/teacher" data-nav>Teacher sign in</a><a class="t-btn ghost" href="/classroom" data-nav-out>I am a student</a></div></section>', { narrow: true });
-}
-
 function classroomCard(c) {
   const sess = c.active_session;
   const link = window.location.origin.replace(/^https?:\/\//, '') + '/classroom';
@@ -282,12 +338,16 @@ async function pFeedback() {
 
 async function pAdmin() {
   if (!me.is_admin) throw new T.TError('not_authorized');
-  const [roles, allCls] = await Promise.all([T.adminRoles(), T.adminClassrooms()]);
+  const [roles, allCls, pending] = await Promise.all([T.adminRoles(), T.adminClassrooms(), T.adminApplications()]);
   const found = ui.found || [];
   const rolesList = '<ul class="t-list">' + roles.map((r) => '<li><span><b>' + esc(r.handle ? '@' + r.handle : r.email) + '</b> <span class="t-note">' + esc(r.email) + '</span></span><span class="t-chip">' + esc(r.role) + '</span><button class="t-btn ghost sm" data-act="revokerole" data-uid="' + esc(r.user_id) + '" data-role="' + esc(r.role) + '" data-who="' + esc(r.handle || r.email) + '">Revoke</button></li>').join('') + '</ul>';
+  const pendingList = '<ul class="t-list">' + pending.map((r) => '<li><span><b>' + esc(r.name) + '</b> · ' + esc(r.school) + (r.confirmed ? '' : ' <span class="t-chip">email not confirmed</span>') + '<br><span class="t-note">' + esc(r.email) + ' · ' + esc(relTime(r.created_at)) + '</span>' +
+    (r.note ? '<br><span class="t-note">\u201c' + esc(r.note) + '\u201d</span>' : '') + '</span><span class="t-actions"><button class="t-btn gold sm" data-act="approve" data-id="' + esc(r.user_id) + '" data-who="' + esc(r.name) + '">Approve</button><button class="t-btn ghost sm" data-act="dismissreq" data-id="' + esc(r.user_id) + '" data-who="' + esc(r.name) + '">Dismiss</button></span></li>').join('') + '</ul>';
   return shell('<div class="t-title"><h1 class="t-h1">Beta access</h1><span class="t-pill big">Admin</span></div>' +
+    '<h2 class="t-h2">Waiting for access' + (pending.length ? ' (' + pending.length + ')' : '') + '</h2><section class="t-card flush">' + (pending.length ? pendingList : '<p class="t-empty pad">No one is waiting.</p>') + '</section>' +
+    '<p class="t-note">Approving turns on teacher_beta right away. No email is sent, so let the teacher know they can sign in.</p>' +
     '<form class="t-card row" data-form="find" novalidate><div class="grow"><label class="t-label" for="a-q">Find a user by exact email or handle prefix</label><input id="a-q" class="t-input" name="q" autocomplete="off" value="' + esc(ui.findQ || '') + '"><div class="t-err" id="find-err" role="alert"></div></div><button class="t-btn" type="submit">Search</button></form>' +
-    (ui.findQ ? '<section class="t-card flush">' + (found.length ? '<ul class="t-list">' + found.map((u) => '<li><span><b>' + esc(u.handle ? '@' + u.handle : '(no handle yet)') + '</b> <span class="t-note">' + esc(u.email) + '</span></span><span>' + u.roles.map((r) => '<span class="t-chip">' + esc(r) + '</span>').join(' ') + '</span><span class="t-actions"><button class="t-btn sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_beta">Grant teacher_beta</button><button class="t-btn ghost sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_admin">Grant teacher_admin</button></span></li>').join('') + '</ul>' : '<p class="t-empty pad">No match. The person must have signed in to the game at least once.</p>') + '</section>' : '') +
+    (ui.findQ ? '<section class="t-card flush">' + (found.length ? '<ul class="t-list">' + found.map((u) => '<li><span><b>' + esc(u.handle ? '@' + u.handle : '(no handle yet)') + '</b> <span class="t-note">' + esc(u.email) + '</span></span><span>' + u.roles.map((r) => '<span class="t-chip">' + esc(r) + '</span>').join(' ') + '</span><span class="t-actions"><button class="t-btn sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_beta">Grant teacher_beta</button><button class="t-btn ghost sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_admin">Grant teacher_admin</button></span></li>').join('') + '</ul>' : '<p class="t-empty pad">No match. The person must have created an account or signed in to the game at least once.</p>') + '</section>' : '') +
     '<h2 class="t-h2">All classrooms (read only)</h2><section class="t-card flush">' + (allCls.length ? '<ul class="t-list">' + allCls.map((c) => '<li><span><b>' + esc(c.name) + '</b>' + (c.archived_at ? ' <span class="t-chip">archived</span>' : '') + (c.active_session ? ' <span class="t-chip live">session running</span>' : '') + '<br><span class="t-note">' + esc(c.owner_handle ? '@' + c.owner_handle : c.owner_email || 'unknown teacher') + ' · ' + c.member_count + ' student' + (c.member_count === 1 ? '' : 's') + ' · ' + c.session_count + ' session' + (c.session_count === 1 ? '' : 's') + ' · created ' + esc(when(c.created_at)) + '</span></span></li>').join('') + '</ul>' : '<p class="t-empty pad">No classrooms yet.</p>') + '</section><p class="t-note">Counts only. Student names and results stay private to the teacher who owns each classroom.</p>' +
     '<h2 class="t-h2">Currently authorized</h2><section class="t-card flush">' + (roles.length ? rolesList : '<p class="t-empty pad">No one yet.</p>') + '</section><p class="t-note">Revoking takes effect immediately: the next request that person makes is refused.</p>');
 }
@@ -297,11 +357,13 @@ async function load() {
   clearInterval(poll); poll = null; lastHtml = '';
   const seq = ++loadSeq;
   route = parse(window.location.pathname);
-  document.title = route.name === 'landing' ? 'Teachers · Give It A Shot' : 'Teacher Beta · Give It A Shot';
-  if (route.name === 'landing') { paint(landing()); return; }
+  // /teachers used to be a separate info page; the signed-out /teacher page now carries that introduction.
+  if (route.name === 'landing') { window.history.replaceState(null, '', '/teacher'); route = parse('/teacher'); }
+  document.title = 'Teacher Beta · Give It A Shot';
   if (route.name === 'notfound') { paint(shell('<div class="t-card"><h1 class="t-h1">Page not found</h1><a class="t-btn" href="/teacher" data-nav>Dashboard</a></div>', { narrow: true })); return; }
   loading();
-  if (!(await ensureGate())) { if (seq === loadSeq) paint(gateView()); return; }
+  // the guide (with the privacy notes) is public; everything else needs an approved account
+  if (!(await ensureGate())) { if (seq === loadSeq) paint(route.name === 'resources' && gate !== 'recovery' ? pResources() : gateView()); return; }
   await draw(seq, false);
   if (seq !== loadSeq) return;
   if (route.name === 'session' || route.name === 'classroom') {
@@ -354,8 +416,15 @@ async function onAct(el) {
   const a = el.dataset.act, id = el.dataset.id;
   try {
     if (a === 'reload') return load();
-    if (a === 'signout') { await api.signOut(); me = null; meFor = null; ui.sent = false; return load(); }
-    if (a === 'resend') { ui.sent = false; return paint(gateView()); }
+    if (a === 'signout') { await api.signOut(); me = null; meFor = null; ui.notice = null; ui.mode = 'signin'; ui.signinErr = ''; store('s', RECOVERY_KEY, null); return load(); }
+    if (a === 'mode') { ui.mode = el.dataset.m; ui.notice = null; ui.signinErr = ''; ui.unconfirmed = false; paint(gateView()); const i = root.querySelector('#t-auth input'); if (i) { i.focus(); i.scrollIntoView({ block: 'center' }); } return; }
+    if (a === 'resendconfirm') {
+      store('l', RETURN_KEY, window.location.pathname);
+      try { await api.resendConfirmation(ui.email); ui.notice = 'confirm'; ui.signinErr = ''; ui.unconfirmed = false; } catch (err) { ui.signinErr = authMessage(err); }
+      return paint(gateView());
+    }
+    if (a === 'approve') { await T.adminGrant(id, 'teacher_beta'); toast('Approved. Let ' + el.dataset.who + ' know they can sign in.'); return refresh(); }
+    if (a === 'dismissreq') { if (!(await confirmDialog({ title: 'Dismiss this request?', body: el.dataset.who + ' stays on the waitlist page and is not told. If they ask again later, the request comes back.', confirm: 'Dismiss' }))) return; await T.adminDismiss(id); toast('Request dismissed.'); return refresh(); }
     if (a === 'feedback') { T.track('teacher_feedback_clicked'); return go('/teacher/feedback'); }
     if (a === 'copycode') return copyText(el.dataset.v);
     if (a === 'copylink') return copyText(el.dataset.v);
@@ -374,19 +443,60 @@ async function onAct(el) {
     if (a === 'revokerole') { if (!(await confirmDialog({ title: 'Revoke access?', body: el.dataset.who + ' will lose ' + el.dataset.role + ' immediately.', confirm: 'Revoke', danger: true }))) return; await T.adminRevoke(el.dataset.uid, el.dataset.role); toast('Access revoked.'); return refresh(); }
   } catch (e) { fail(e); if (['not_authorized', 'not_authenticated', 'teacher_beta_disabled'].includes(e.code)) load(); }
 }
+// Supabase Auth error text -> plain words for teachers
+function authMessage(err) {
+  const m = String((err && err.message) || '');
+  if (/rate limit|too many|seconds/i.test(m)) return 'Too many emails or attempts right now. Wait a few minutes and try again.';
+  if (/invalid login credentials/i.test(m)) return 'Wrong email or password. If you have only ever signed in with an email link, use \u201cForgot password?\u201d to set a password.';
+  if (/not confirmed/i.test(m)) return 'Please confirm your email first: open the link we sent you when you created the account.';
+  if (/already registered/i.test(m)) return 'There is already an account for this email. Sign in, or use \u201cForgot password?\u201d to set a password.';
+  if (/should be different/i.test(m)) return 'Choose a password you have not used for this account before.';
+  if (/password/i.test(m) && /(weak|short|least|characters)/i.test(m)) return 'That password is too weak. Use at least 8 characters with a mix of letters and numbers.';
+  if (/signups? not allowed|signup.*disabled/i.test(m)) return 'New accounts are switched off right now. Please try again later.';
+  return 'Something went wrong. Try again.';
+}
 async function onSubmit(form, e) {
   e.preventDefault();
   const f = new FormData(form), kind = form.dataset.form;
   const setErr = (id, m) => { const x = document.getElementById(id); if (x) x.textContent = m; };
   const btn = form.querySelector('button[type=submit]'); if (btn && btn.disabled) return;
   try {
-    if (kind === 'signin') {
-      const email = String(f.get('email') || '').trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { ui.signinErr = 'Enter a valid email address.'; ui.email = email; return paint(gateView()); }
-      ui.email = email; ui.sending = true; ui.signinErr = ''; paint(gateView());
-      try { window.localStorage.setItem(RETURN_KEY, window.location.pathname); } catch (err) { /* without storage the link lands on the game; they can reopen /teacher */ }
-      try { await api.signInEmail(email); ui.sent = true; } catch (err) { ui.signinErr = /rate limit|too many|seconds/i.test(String(err.message)) ? 'Too many sign-in emails right now. Wait a few minutes and try again.' : 'Could not send the email. Try again.'; }
+    if (['signin', 'password', 'signup', 'forgot'].includes(kind)) {
+      const email = String(f.get('email') || '').trim(), password = String(f.get('password') || '');
+      const req = { name: String(f.get('name') || '').trim(), school: String(f.get('school') || '').trim(), note: String(f.get('note') || '').trim() };
+      ui.email = email; ui.unconfirmed = false; if (kind === 'signup') ui.req = req;
+      const bad = kind === 'signup' && !req.name ? 'Enter your name.' : kind === 'signup' && !req.school ? 'Enter your school.'
+        : !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? 'Enter a valid email address.'
+        : kind === 'signup' && password.length < 8 ? 'Choose a password of at least 8 characters.' : kind === 'password' && !password ? 'Enter your password.' : '';
+      if (bad) { ui.signinErr = bad; return paint(gateView()); }
+      ui.sending = true; ui.signinErr = ''; paint(gateView());
+      if (kind !== 'password') store('l', RETURN_KEY, window.location.pathname);   // email links land on the site root; come back here
+      try {
+        if (kind === 'signin') { await api.signInEmail(email); ui.notice = 'link'; }
+        else if (kind === 'forgot') { await api.sendPasswordReset(email); ui.notice = 'reset'; }
+        else if (kind === 'signup') {
+          const r = await api.signUpTeacher(email, password, req);
+          if (r.exists) { ui.mode = 'signin'; ui.signinErr = 'There is already an account for this email (perhaps from playing the game). Sign in, or use \u201cForgot password?\u201d to set a password.'; }
+          else if (r.session) { ui.sending = false; ui.mode = null; return load(); }
+          else ui.notice = 'confirm';
+        } else { await api.signInPassword(email, password); ui.sending = false; ui.mode = null; return load(); }
+      } catch (err) { ui.signinErr = authMessage(err); if (/not confirmed/i.test(String(err.message))) ui.unconfirmed = true; if (/already registered/i.test(String(err.message))) ui.mode = 'signin'; }
       ui.sending = false; return paint(gateView());
+    }
+    if (kind === 'newpw') {
+      const p1 = String(f.get('password') || ''), p2 = String(f.get('password2') || '');
+      ui.signinErr = p1.length < 8 ? 'Choose a password of at least 8 characters.' : p1 !== p2 ? 'The two passwords do not match.' : '';
+      if (ui.signinErr) return paint(gateView());
+      ui.sending = true; paint(gateView());
+      try { await api.setPassword(p1); store('s', RECOVERY_KEY, null); ui.sending = false; toast('Password saved.'); return load(); }
+      catch (err) { ui.sending = false; ui.signinErr = authMessage(err); return paint(gateView()); }
+    }
+    if (kind === 'apply') {
+      const req = { name: String(f.get('name') || '').trim(), school: String(f.get('school') || '').trim(), note: String(f.get('note') || '').trim() };
+      ui.signinErr = !req.name ? 'Enter your name.' : !req.school ? 'Enter your school.' : '';
+      if (ui.signinErr) return paint(gateView());
+      try { await T.apply(req); me.applied = true; ui.signinErr = ''; } catch (err) { ui.signinErr = err.message; }
+      return paint(gateView());
     }
     if (kind === 'create') {
       const name = String(f.get('name') || '').trim();
@@ -425,7 +535,10 @@ export function mount(el) {
     if (e.target.name === 'difficulty') ui.diff = Number(e.target.value);
   });
   window.addEventListener('popstate', () => { if (document.getElementById('viewport').dataset.mode === 'teacher') load(); });
-  if (api.sb) api.sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT' && gate === 'ok') { me = null; meFor = null; load(); } });
+  if (api.sb) api.sb.auth.onAuthStateChange((ev) => {
+    if (ev === 'SIGNED_OUT' && gate === 'ok') { me = null; meFor = null; load(); }
+    if (ev === 'PASSWORD_RECOVERY' && gate !== 'recovery') { store('s', RECOVERY_KEY, '1'); load(); }
+  });
   ui.fbDone = false;
   load();
 }

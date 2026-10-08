@@ -397,6 +397,50 @@ do $$ declare r jsonb; n int; begin
   perform t.back();
 end $$;
 
+-- 13c. teacher sign-up requests: own request only, admin sees pending ones, approval removes them from the list
+insert into auth.users(id, email, email_confirmed_at) values ('e0000000-0000-0000-0000-00000000000e', 'new.teacher@example.com', null);
+do $$ declare r jsonb; n int; begin
+  perform t.as_anon();
+  perform t.fails('anon cannot apply', $q$select public.teacher_apply('A','B',null)$q$, 'permission denied');
+  perform t.fails('anon cannot read applications', 'select * from public.teacher_applications', 'permission denied');
+  perform t.back();
+  perform t.as_user('c0000000-0000-0000-0000-00000000000c');
+  perform t.eq('not applied yet', (public.teacher_me())->>'applied', 'false');
+  perform t.fails('blank name rejected', $q$select public.teacher_apply('  ','School',null)$q$, 'invalid_input');
+  perform t.fails('long note rejected', format('select public.teacher_apply(%L,%L,%L)', 'Pat', 'School', repeat('x', 501)), 'invalid_input');
+  perform public.teacher_apply('  Pat Lee ', 'Central High', 'AP Gov');
+  perform t.eq('applied after request', (public.teacher_me())->>'applied', 'true');
+  perform t.eq('still not authorized', (public.teacher_me())->>'authorized', 'false');
+  perform public.teacher_apply('Pat Lee', 'Central High School', null);
+  perform t.fails('users cannot read the table directly', 'select * from public.teacher_applications', 'permission denied');
+  perform t.fails('a non-admin cannot list requests', 'select public.admin_list_applications()', 'not_authorized');
+  perform t.fails('a non-admin cannot dismiss', $q$select public.admin_dismiss_application('c0000000-0000-0000-0000-00000000000c')$q$, 'not_authorized');
+  perform t.back();
+  perform t.as_user('e0000000-0000-0000-0000-00000000000e');
+  perform public.teacher_apply('Sam', 'West Middle', 'hi');
+  perform t.back();
+  perform t.as_user('d0000000-0000-0000-0000-00000000000d');
+  r := public.admin_list_applications();
+  perform t.eq('admin sees both pending requests', jsonb_array_length(r), 2);
+  perform t.eq('request is trimmed and updated', (select e->>'name' || '|' || (e->>'school') from jsonb_array_elements(r) e where e->>'email' = 'player@example.com'), 'Pat Lee|Central High School');
+  perform t.eq('re-apply cleared the note', (select e->'note' from jsonb_array_elements(r) e where e->>'email' = 'player@example.com'), 'null'::jsonb);
+  perform t.eq('unconfirmed email is flagged', (select e->>'confirmed' from jsonb_array_elements(r) e where e->>'email' = 'new.teacher@example.com'), 'false');
+  perform public.admin_grant_role('c0000000-0000-0000-0000-00000000000c', 'teacher_beta');
+  perform public.admin_dismiss_application('e0000000-0000-0000-0000-00000000000e');
+  perform t.eq('approved and dismissed requests leave the list', jsonb_array_length(public.admin_list_applications()), 0);
+  perform t.fails('dismissing twice is not_found', $q$select public.admin_dismiss_application('e0000000-0000-0000-0000-00000000000e')$q$, 'not_found');
+  perform t.back();
+  perform t.as_user('e0000000-0000-0000-0000-00000000000e');
+  perform public.teacher_apply('Sam', 'West Middle', null);
+  perform t.back();
+  perform t.as_user('d0000000-0000-0000-0000-00000000000d');
+  perform t.eq('re-applying reopens a dismissed request', jsonb_array_length(public.admin_list_applications()), 1);
+  perform t.back();
+  perform t.as_user('c0000000-0000-0000-0000-00000000000c');
+  perform t.eq('approved applicant is now authorized', (public.teacher_me())->>'authorized', 'true');
+  perform t.back();
+end $$;
+
 -- 14. every public function that browsers can reach is on the intended allow-list
 do $$ declare names text; begin
   select string_agg(p.proname, ',' order by p.proname) into names
@@ -404,7 +448,7 @@ do $$ declare names text; begin
    where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')
      and (p.proname like 'teacher\_%' or p.proname like 'admin\_%' or p.proname like '\_%' or p.proname in ('rl_hit','rl_peek','gen_join_code','classroom_join','student_context','student_record_result','student_leave','classroom_session_stats','grant_role_by_email','revoke_role_by_email','purge_archived_classrooms','user_has_capability'));
   perform t.eq('authenticated-executable function allow-list',
-    names, 'admin_find_users,admin_grant_role,admin_list_classrooms,admin_list_roles,admin_revoke_role,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
+    names, 'admin_dismiss_application,admin_find_users,admin_grant_role,admin_list_applications,admin_list_classrooms,admin_list_roles,admin_revoke_role,teacher_apply,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
   select string_agg(p.proname, ',') into names from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') and p.proname ~ '^(teacher|admin|classroom|student|rl|grant|revoke|purge|gen|_)';
   perform t.eq('anon can execute none of the new functions', names, null);

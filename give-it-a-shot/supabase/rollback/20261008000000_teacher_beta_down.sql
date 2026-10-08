@@ -5,7 +5,12 @@
 -- Cheaper alternative that keeps the data: switch the feature off, nothing is deleted:
 --   update public.feature_flags set enabled = false where key = 'TEACHER_BETA_ENABLED';
 
--- v2 (20261008010000_teacher_beta_v2.sql) objects go first:
+-- teacher sign-up (20261008030000_teacher_signup.sql) and v3 objects go first:
+drop function if exists public.teacher_apply(text, text, text), public.admin_list_applications(), public.admin_dismiss_application(uuid),
+  public.admin_list_classrooms();
+drop table if exists public.teacher_applications;
+
+-- v2 (20261008010000_teacher_beta_v2.sql) objects:
 drop function if exists public.teacher_begin_countdown(uuid, int), public.teacher_session_digests(uuid), public.teacher_remove_member(uuid),
   public.student_record_progress(text, uuid, int, int, numeric, numeric, boolean), public.teacher_start_session(uuid, text, text, int, int) cascade;
 drop table if exists public.classroom_progress;

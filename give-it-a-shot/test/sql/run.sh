@@ -12,4 +12,5 @@ $P -f supabase/migrations/20261005_core_schema_moderation_boards.sql
 $P -f supabase/migrations/20261008000000_teacher_beta.sql
 $P -f supabase/migrations/20261008010000_teacher_beta_v2.sql
 $P -f supabase/migrations/20261008020000_teacher_beta_v3.sql
+$P -f supabase/migrations/20261008030000_teacher_signup.sql
 $P -f test/sql/teacher_beta.test.sql

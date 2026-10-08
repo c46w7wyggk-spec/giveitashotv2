@@ -24,6 +24,7 @@ async function psql(sql, sub) {
 const sql = async (q) => { const r = await psql(q); if (!r.ok) throw new Error(q + ' -> ' + r.message); return r.out; };
 
 let latency = 0, passed = 0;
+const AUTHLOG = [], ACCT = {};   // mock Supabase Auth: requests seen, and password accounts created through /auth/v1/signup
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
 const subOf = (auth) => { try { return JSON.parse(Buffer.from((auth || '').replace(/^Bearer\s+/i, '').split('.')[1], 'base64url').toString()).sub || ''; } catch { return ''; } };
 async function backend(route) {
@@ -43,16 +44,38 @@ async function backend(route) {
     const res = await fetch('http://127.0.0.1:8787', { method: req.method(), headers: { 'content-type': 'application/json' }, body: req.postData() });
     return route.fulfill({ status: res.status, headers: { ...cors, 'content-type': 'application/json' }, body: await res.text() });
   }
-  if (url.pathname.startsWith('/auth/v1/otp')) return route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: '{}' });
-  if (url.pathname.startsWith('/auth/v1/user')) return route.fulfill({ status: 200, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify({ id: subOf(req.headers()['authorization']), email: 'x@example.com' }) });
+  const json = (status, body) => route.fulfill({ status, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const body = () => JSON.parse(req.postData() || '{}');
+  if (url.pathname.startsWith('/auth/v1/')) AUTHLOG.push(url.pathname.slice(9) + url.search);
+  if (url.pathname.startsWith('/auth/v1/otp') || url.pathname.startsWith('/auth/v1/recover') || url.pathname.startsWith('/auth/v1/resend')) return json(200, {});
+  if (url.pathname === '/auth/v1/signup') {
+    // mirrors Supabase with "Confirm email" on: an existing address gets a user with no identities and no email is sent
+    const b = body();
+    if (await sql(`select id from auth.users where lower(email) = lower(${lit(b.email)})`)) return json(200, { id: '00000000-0000-0000-0000-000000000000', email: b.email, aud: 'authenticated', role: 'authenticated', identities: [], user_metadata: {} });
+    const id = await sql(`insert into auth.users(email, email_confirmed_at) values (${lit(b.email)}, null) returning id`);
+    ACCT[b.email] = { id, pw: b.password, meta: b.data || {} };
+    return json(200, { id, email: b.email, aud: 'authenticated', role: 'authenticated', identities: [{ id, provider: 'email' }], user_metadata: b.data || {} });
+  }
+  if (url.pathname === '/auth/v1/token' && url.searchParams.get('grant_type') === 'password') {
+    const b = body(), a = ACCT[b.email];
+    if (!a || a.pw !== b.password) return json(400, { code: 400, error_code: 'invalid_credentials', msg: 'Invalid login credentials' });
+    if ((await sql(`select email_confirmed_at is not null from auth.users where id = '${a.id}'`)) !== 't') return json(400, { code: 400, error_code: 'email_not_confirmed', msg: 'Email not confirmed' });
+    return json(200, sessionFor(a.id, b.email, a.meta));
+  }
+  if (url.pathname.startsWith('/auth/v1/user')) {
+    const id = subOf(req.headers()['authorization']), a = Object.entries(ACCT).find(([, v]) => v.id === id);
+    if (req.method() === 'PUT' && a) a[1].pw = body().password;
+    return json(200, { id, email: a ? a[0] : 'x@example.com', aud: 'authenticated', role: 'authenticated', user_metadata: a ? a[1].meta : {} });
+  }
   return route.fulfill({ status: 404, headers: cors, body: '{}' });
 }
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
-function session(who) {
+function sessionFor(id, email, meta = {}) {
   const exp = Math.floor(Date.now() / 1000) + 3600 * 24;
-  const jwt = [b64({ alg: 'HS256', typ: 'JWT' }), b64({ sub: U[who], email: EMAIL[who], role: 'authenticated', aud: 'authenticated', exp }), 'sig'].join('.');
-  return { access_token: jwt, token_type: 'bearer', expires_in: 86400, expires_at: exp, refresh_token: 'r-' + who, user: { id: U[who], email: EMAIL[who], aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() } };
+  const jwt = [b64({ alg: 'HS256', typ: 'JWT' }), b64({ sub: id, email, role: 'authenticated', aud: 'authenticated', exp }), 'sig'].join('.');
+  return { access_token: jwt, token_type: 'bearer', expires_in: 86400, expires_at: exp, refresh_token: 'r-' + id, user: { id, email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: meta, created_at: new Date().toISOString() } };
 }
+const session = (who) => sessionFor(U[who], EMAIL[who]);
 async function newPage(browser, who, viewport = { width: 1280, height: 800 }) {
   const ctx = await browser.newContext({ viewport });
   await ctx.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
@@ -84,26 +107,96 @@ await p.close();
 
 await sql(`update public.feature_flags set enabled = true`);
 
-// ------------------------------------------------------------ logged-out visitor
+// ------------------------------------------------------------ logged-out visitor: home page, create account, sign in
+const NEW = 'new.teacher@example.com';
 p = await newPage(browser, null);
-await p.goto(APP + '/teachers'); await settled(p);
-ok('/teachers is a public info page', /Teacher sign in/.test(await text(p)) && /invite-only/.test(await text(p)));
-await p.goto(APP + '/teacher'); await p.waitForSelector('form[data-form=signin]');
-ok('logged out: /teacher shows sign-in, no dashboard', /Sign in/.test(await text(p)) && !/Create classroom/.test(await text(p)));
+await p.goto(APP + '/teachers'); await p.waitForSelector('form[data-form=signup]');
+ok('/teachers redirects to /teacher', new URL(p.url()).pathname === '/teacher');
+ok('logged out: home page explains the project, no dashboard', /Give It A Shot for the classroom/.test(await text(p)) && /Create a teacher account/.test(await text(p)) && !/Create classroom/.test(await text(p)));
+await shot(p, 'teacher-home');
+await p.click('form[data-form=signup] button[type=submit]');
+ok('sign-up: name required', /Enter your name/.test(await text(p)));
+await p.fill('#t-name', 'Pat Lee'); await p.fill('#t-school', 'Central High'); await p.fill('#t-note', 'AP Gov, 2 sections'); await p.fill('#t-email', NEW); await p.fill('#t-pass', 'short');
+await p.click('form[data-form=signup] button[type=submit]');
+ok('sign-up: short password rejected, fields kept', /at least 8 characters/.test(await text(p)) && (await p.inputValue('#t-school')) === 'Central High');
+await p.fill('#t-email', EMAIL.P); await p.fill('#t-pass', 'longenough1');
+await p.click('form[data-form=signup] button[type=submit]');
+await p.waitForFunction(() => /already an account/.test(document.getElementById('tapp').innerText));
+ok('sign-up with an existing game account points to sign in / forgot password', /Forgot password/.test(await text(p)) && (await p.locator('form[data-form=password]').count()) === 1);
+await p.click('[data-act=mode][data-m=signup]');
+await p.fill('#t-email', NEW); await p.fill('#t-pass', 'longenough1');
+await p.click('form[data-form=signup] button[type=submit]');
+await p.waitForFunction(() => /confirmation link/.test(document.getElementById('tapp').innerText));
+ok('sign-up: "Check your email" shown, return path remembered', (await p.evaluate(() => localStorage.getItem('gias_after_login'))) === '/teacher' && !!ACCT[NEW] && ACCT[NEW].meta.teacher_signup === true && ACCT[NEW].meta.school === 'Central High');
+await p.click('[data-act=mode][data-m=signin]');
+await p.fill('#t-email', NEW); await p.fill('#t-pass', 'wrong-password');
+await p.click('form[data-form=password] button[type=submit]');
+await p.waitForFunction(() => /Wrong email or password/.test(document.getElementById('tapp').innerText));
+ok('sign-in: wrong password explained', true);
+await p.fill('#t-pass', 'longenough1'); await p.click('form[data-form=password] button[type=submit]');
+await p.waitForSelector('[data-act=resendconfirm]');
+ok('sign-in before confirming: told to confirm, resend offered', /confirm your email first/.test(await text(p)));
+await p.click('[data-act=resendconfirm]'); await p.waitForFunction(() => /confirmation link/.test(document.getElementById('tapp').innerText));
+ok('confirmation email resent', AUTHLOG.some((x) => x.startsWith('resend')));
+await p.click('[data-act=mode][data-m=signin]'); await p.click('[data-act=mode][data-m=forgot]');
+await p.fill('#t-email', NEW); await p.click('form[data-form=forgot] button[type=submit]');
+await p.waitForFunction(() => /set a new password/.test(document.getElementById('tapp').innerText));
+ok('forgot password: reset email requested', AUTHLOG.some((x) => x.startsWith('recover')));
+await p.click('[data-act=mode][data-m=signin]'); await p.click('[data-act=mode][data-m=magic]');
 await p.fill('#t-email', 'not-an-email'); await p.click('form[data-form=signin] button[type=submit]');
-ok('bad email rejected client-side', /valid email/.test(await text(p)));
+ok('email link: bad email rejected client-side', /valid email/.test(await text(p)));
 await p.fill('#t-email', 'someone@example.com'); await p.click('form[data-form=signin] button[type=submit]');
-await p.waitForFunction(() => /Check your email/.test(document.getElementById('tapp').innerText));
-ok('magic link requested, "Check your email" shown, return path remembered', (await p.evaluate(() => localStorage.getItem('gias_after_login'))) === '/teacher');
+await p.waitForFunction(() => /sign-in link/.test(document.getElementById('tapp').innerText));
+ok('email link fallback still works', AUTHLOG.some((x) => x.startsWith('otp')));
+await p.goto(APP + '/teacher/resources'); await settled(p);
+ok('guide and privacy notes are public', /Privacy notes/.test(await text(p)) && (await p.locator('.t-navs').count()) === 0);
 await p.close();
 
-// ------------------------------------------------------------ plain player is refused
+// confirmation link opened on another device: lands on the site root with no saved return path, goes to /teacher
+await sql(`update auth.users set email_confirmed_at = now() where email = '${NEW}'`);
+p = await newPage(browser, null);
+const ns = sessionFor(ACCT[NEW].id, NEW, ACCT[NEW].meta);
+await p.goto(APP + `/#access_token=${ns.access_token}&expires_at=${ns.expires_at}&expires_in=86400&refresh_token=r&token_type=bearer&type=signup`);
+await p.waitForFunction(() => /waitlist/.test((document.getElementById('tapp') || {}).innerText || ''));
+ok('confirm link -> /teacher waitlist, request filed from the sign-up details', new URL(p.url()).pathname === '/teacher' && (await sql(`select name || '|' || school || '|' || note from public.teacher_applications a join auth.users u on u.id = a.user_id where u.email = '${NEW}'`)) === 'Pat Lee|Central High|AP Gov, 2 sections');
+await shot(p, 'teacher-waitlist');
+await p.click('[data-act=signout]'); await p.waitForSelector('form[data-form=password]');
+ok('after sign-out the sign-in form is shown (account remembered on this device)', true);
+await p.fill('#t-email', NEW); await p.fill('#t-pass', 'longenough1'); await p.click('form[data-form=password] button[type=submit]');
+await p.waitForFunction(() => /waitlist/.test(document.getElementById('tapp').innerText));
+ok('password sign-in works after confirming; still on the waitlist', (await sql(`select count(*) from public.teacher_applications`)) === '1');
+await p.close();
+
+// password-reset link -> set a new password
+p = await newPage(browser, null);
+await p.goto(APP + `/#access_token=${ns.access_token}&expires_at=${ns.expires_at}&expires_in=86400&refresh_token=r&token_type=bearer&type=recovery`);
+await p.waitForSelector('form[data-form=newpw]');
+ok('reset link -> "Set a new password" on /teacher', new URL(p.url()).pathname === '/teacher');
+await p.fill('#t-pass', 'brandnew123'); await p.fill('#t-pass2', 'brandnew124'); await p.click('form[data-form=newpw] button[type=submit]');
+ok('mismatched passwords rejected', /do not match/.test(await text(p)));
+await p.fill('#t-pass', 'brandnew123'); await p.fill('#t-pass2', 'brandnew123'); await p.click('form[data-form=newpw] button[type=submit]');
+await p.waitForFunction(() => /waitlist/.test(document.getElementById('tapp').innerText));
+ok('new password saved, then the waitlist', ACCT[NEW].pw === 'brandnew123');
+await p.close();
+
+// expired email link
+p = await newPage(browser, null);
+await p.addInitScript(() => { try { localStorage.setItem('gias_after_login', '/teacher'); } catch (e) {} });
+await p.goto(APP + '/#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired');
+await p.waitForFunction(() => /expired or was already used/.test((document.getElementById('tapp') || {}).innerText || ''));
+ok('expired link -> /teacher with a plain explanation', new URL(p.url()).pathname === '/teacher');
+await p.close();
+
+// ------------------------------------------------------------ signed-in player without access can request it
 p = await newPage(browser, 'P');
-await p.goto(APP + '/teacher'); await settled(p);
-ok('player: Not on the Teacher Beta list', /Not on the Teacher Beta list/.test(await text(p)) && !/Create classroom/.test(await text(p)));
+await p.goto(APP + '/teacher'); await p.waitForSelector('form[data-form=apply]');
+ok('player: asked to request access, no dashboard', /Request Teacher Beta access/.test(await text(p)) && !/Create classroom/.test(await text(p)));
 ok('player: no teacher navigation rendered', (await p.locator('.t-navs').count()) === 0);
 await p.goto(APP + '/teacher/admin'); await settled(p);
-ok('player: /teacher/admin refused', /Not on the Teacher Beta list/.test(await text(p)));
+ok('player: /teacher/admin refused', /Request Teacher Beta access/.test(await text(p)) && !/Beta access</.test(await text(p)));
+await p.fill('#t-name', 'Player One'); await p.fill('#t-school', 'East High'); await p.click('form[data-form=apply] button[type=submit]');
+await p.waitForFunction(() => /waitlist/.test(document.getElementById('tapp').innerText));
+ok('player: request filed', (await sql(`select school from public.teacher_applications where user_id = '${U.P}'`)) === 'East High');
 await p.close();
 
 // ------------------------------------------------------------ teacher creates a classroom
@@ -258,21 +351,34 @@ await bp.close();
 const ap = await newPage(browser, 'D');
 await ap.goto(APP + '/teacher/admin'); await ap.waitForSelector('form[data-form=find]');
 ok('admin sees admin nav and page', /Beta access/.test(await text(ap)) && (await ap.locator('a[href="/teacher/admin"]').count()) === 1);
+ok('admin sees both requests waiting, with school and note', /Waiting for access \(2\)/.test(await text(ap)) && /Central High/.test(await text(ap)) && /AP Gov, 2 sections/.test(await text(ap)));
+await ap.click(`[data-act=approve][data-id="${ACCT[NEW].id}"]`);
+await ap.waitForFunction(() => /Waiting for access \(1\)/.test(document.getElementById('tapp').innerText));
+ok('approve grants teacher_beta and clears the request', (await sql(`select count(*) from public.user_roles where user_id = '${ACCT[NEW].id}' and role = 'teacher_beta' and revoked_at is null`)) === '1');
+await ap.click(`[data-act=dismissreq][data-id="${U.P}"]`); await ap.waitForSelector('dialog[open]'); await ap.click('dialog[open] button[value=ok]');
+await ap.waitForFunction(() => /No one is waiting/.test(document.getElementById('tapp').innerText));
+ok('dismiss removes a request', (await sql(`select dismissed_at is not null from public.teacher_applications where user_id = '${U.P}'`)) === 't');
+const np = await newPage(browser, null);
+await np.goto(APP + '/teacher'); await np.waitForSelector('form[data-form=signup]');
+await np.click('[data-act=mode][data-m=signin]'); await np.fill('#t-email', NEW); await np.fill('#t-pass', 'brandnew123'); await np.click('form[data-form=password] button[type=submit]');
+await np.waitForSelector('form[data-form=create]');
+ok('approved teacher signs in with a password and reaches the dashboard', /Your classrooms/.test(await text(np)));
+await np.close();
 await ap.fill('#a-q', EMAIL.P); await ap.click('form[data-form=find] button[type=submit]');
 await ap.waitForSelector('[data-act=grant]');
 await ap.click('[data-act=grant][data-role=teacher_beta]');
-await ap.waitForFunction(() => /teacher_beta/.test(document.getElementById('tapp').innerText) && document.querySelectorAll('[data-act=revokerole]').length >= 4);
+await ap.waitForFunction(() => /teacher_beta/.test(document.getElementById('tapp').innerText) && document.querySelectorAll('[data-act=revokerole]').length >= 5);   // T, B, D, the approved sign-up, and now P
 ok('admin granted teacher_beta from the UI', (await sql(`select count(*) from public.user_roles where user_id='${U.P}' and role='teacher_beta' and revoked_at is null`)) === '1');
 await shot(ap, 'admin');
 await ap.click(`[data-act=revokerole][data-uid="${U.P}"]`); await ap.waitForSelector('dialog[open]'); await ap.click('dialog[open] button[value=ok]');
-await ap.waitForFunction((n) => document.querySelectorAll('[data-act=revokerole]').length === n, 3);
+await ap.waitForFunction((n) => document.querySelectorAll('[data-act=revokerole]').length === n, 4);
 ok('admin revoked it from the UI', (await sql(`select count(*) from public.user_roles where user_id='${U.P}' and revoked_at is null`)) === '0');
 await ap.close();
 
 // ------------------------------------------------------------ revoked teacher loses access immediately
 await sql(`select public.revoke_role_by_email('${EMAIL.T}','teacher_beta')`);
 await tp.reload(); await settled(tp);
-ok('revoked teacher: refused on next load', /Not on the Teacher Beta list/.test(await text(tp)));
+ok('revoked teacher: refused on next load', /Request Teacher Beta access/.test(await text(tp)) && !/Your classrooms/.test(await text(tp)));
 await sql(`select public.grant_role_by_email('${EMAIL.T}','teacher_beta')`);
 
 // ------------------------------------------------------------ student after teacher closes things

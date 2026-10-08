@@ -9,7 +9,7 @@ Student data and privacy: [`TEACHER_BETA_PRIVACY.md`](TEACHER_BETA_PRIVACY.md).
 | Existing | What the beta does with it |
 |---|---|
 | Vite + vanilla JS, custom template runtime, no router | Teacher/student pages are a separate lazily loaded chunk (`src/classroom/`), mounted into a new `#tapp` root, same pattern as Supreme Leader. Tiny history-API router. The public game's code only gained a few dozen lines (`ui.js`, `main.js`, `template.html`). |
-| Supabase magic-link auth, `profiles` handles | Teachers reuse it unchanged. No handle needed. Students do **not** use it. |
+| Supabase magic-link auth, `profiles` handles | Teachers sign in with email + password on `/teacher` (magic link kept as a fallback); same Supabase users as the game. No handle needed. Students do **not** use it. |
 | `submit-score` edge function replays an action log with a shared deterministic engine | New `classroom` edge function reuses the **same engine** (`scripts/make-server-engine.mjs` now writes both copies). Scores are never accepted from the browser. |
 | `beta_testers` email allowlist + `is_beta()` (live DB only, not in the repo migration) | Left alone; it still gates Supreme Leader. Teacher access uses its own role table. |
 | No `vercel.json` | Added, with rewrites for `/teachers`, `/teacher/*`, `/classroom/*` (deep links would 404 otherwise). |
@@ -29,7 +29,7 @@ Teacher and admin calls never touch the service role key; the browser never send
 
 ## 3. Security explanation
 
-**Authentication.** Teachers: Supabase magic link. Students: a random 256-bit token returned once at join; only its SHA-256 hash is stored; presented on every call.
+**Authentication.** Teachers: Supabase email + password (email confirmed once at sign-up), with magic link as a fallback. Students: a random 256-bit token returned once at join; only its SHA-256 hash is stored; presented on every call.
 
 **Authorization (server-side only).** Every teacher RPC starts with `_teacher_guard`: (1) signed in? (2) `TEACHER_BETA_ENABLED` on? (3) caller holds capability `teacher.classrooms` through an active, unexpired, unrevoked row in `user_roles`? (4) under the rate limit? Then each resource is loaded by `id AND owner = auth.uid()`; a foreign id and a nonexistent id both return `not_found`, so ids cannot be probed. UI hiding is cosmetic; the public bundle contains no secret.
 
@@ -73,18 +73,18 @@ It adds nothing to `profiles`, `scores`, `banned_terms` or `beta_testers`, and d
 | `TEACHER_BETA_ENABLED` | row in `public.feature_flags` (not an env var) | yes, to turn it on | One switch read by the teacher RPCs **and** the student function, so flipping it takes effect instantly everywhere with no redeploy. Off = teachers see "Teacher Beta is currently unavailable", students cannot join. It is **not** the authorization mechanism; roles are. |
 | `IP_HASH_SALT` | Supabase function secret | recommended | Random string mixed into the IP hash used for rate limiting. Without it the hash is unsalted. |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | provided to Edge Functions by Supabase | automatic | Used only by the `classroom` function. Never in browser code. |
-| `VITE_TEACHER_CONTACT_EMAIL` | Vercel / `.env` | optional | Shown on `/teachers` as the address to request access. |
+| `VITE_TEACHER_CONTACT_EMAIL` | Vercel / `.env` | optional | Shown on the `/teacher` home page and waitlist page as a contact address. |
 
 No other new variables. The browser already uses the public URL + publishable key.
 
 ## 6. Deployment
 
 ### Supabase
-1. **Migration.** Dashboard → SQL Editor → paste `supabase/migrations/20261008000000_teacher_beta.sql` → Run. (Use this rather than `supabase db push`: your live project has migration versions the repo does not.) Then open **Advisors → Security** and confirm no new warnings you do not understand.
+1. **Migration.** Dashboard → SQL Editor → paste `supabase/migrations/20261008000000_teacher_beta.sql` → Run, then the later `teacher_beta_v2`, `teacher_beta_v3` and `teacher_signup` migrations in order. (Use this rather than `supabase db push`: your live project has migration versions the repo does not.) Then open **Advisors → Security** and confirm no new warnings you do not understand.
 2. **Edge function.** `supabase functions deploy classroom --project-ref gaurlsgdfwasrapvlmyd --no-verify-jwt`. `--no-verify-jwt` is required: students have no JWT; the function authenticates them by token.
 3. **Secret.** `supabase secrets set IP_HASH_SALT=$(openssl rand -hex 16) --project-ref gaurlsgdfwasrapvlmyd`.
 4. **Check the deploy.** `curl https://gaurlsgdfwasrapvlmyd.supabase.co/functions/v1/classroom` should return `{"engine_version":5,"sha256":...}` with the **same sha256** as `.../functions/v1/submit-score`. If you ever change the engine: `npm run make-server-engine` and redeploy **both** functions.
-5. **Email limits.** Teachers sign in by magic link. Supabase's built-in email sender is heavily rate-limited; for more than a couple of teachers, configure custom SMTP (Auth → SMTP Settings) before the pilot.
+5. **Email.** Sign-up confirmations, password resets and magic links are all emails. Supabase's built-in sender is heavily rate-limited; configure custom SMTP (Auth → SMTP Settings) before the pilot. In Auth → Providers → Email keep **Confirm email** on and set the minimum password length to 8. Every email link lands on the site root (Site URL) and `src/main.js` routes teachers back to `/teacher`, so no extra Redirect URLs are needed.
 6. **Turn it on:** `update public.feature_flags set enabled = true where key = 'TEACHER_BETA_ENABLED';`
 
 ### Vercel
@@ -99,7 +99,7 @@ Deploy as usual. `vercel.json` (new) rewrites the classroom routes to the app an
 ```sql
 select public.grant_role_by_email('you@example.com', 'teacher_admin');
 ```
-**Then each teacher:** ask them to open `/teacher` and sign in once (this creates their account; they will see "Not on the Teacher Beta list"). Then either use **/teacher/admin** (find by exact email or handle prefix → *Grant teacher_beta*) or SQL:
+**Then each teacher:** send them `https://giveitashot.online/teacher`. They create an account (name, school, email, password, optional note), confirm their email, and land on a waitlist page. Their request appears under **Waiting for access** on `/teacher/admin`: press *Approve* (or *Dismiss*). No email is sent on approval, so tell them they can sign in. Someone who already had a game account can use *Forgot password?* to set a password, or sign in by email link and fill in the request form. You can also still find anyone by exact email or handle prefix → *Grant teacher_beta*, or use SQL:
 ```sql
 select public.grant_role_by_email('teacher@school.org', 'teacher_beta');
 ```
@@ -115,7 +115,7 @@ select public.revoke_role_by_email('teacher@school.org', 'teacher_beta');
 or the *Revoke* button on `/teacher/admin`. Revoked rows are kept as an audit trail. To time-limit a grant: `update public.user_roles set expires_at = now() + interval '30 days' where ...`.
 
 ## 8. Pilot workflow (5 to 10 teachers)
-1. **Authorize:** as above; send them `https://giveitashot.online/teachers`.
+1. **Authorize:** send them `https://giveitashot.online/teacher`; approve them under *Waiting for access* once they sign up.
 2. **Create:** teacher signs in at `/teacher`, types a classroom name, **Create**. The join code appears immediately (target: under two minutes from sign-in to "students are joining").
 3. **Students join:** they open `giveitashot.online/classroom`, type the code, enter their first name and last initial. The teacher's Start button begins a 5-second countdown and every student's game starts together.
 4. **Launch:** teacher sets a title/instructions, **Start session**; students see **Start simulation** within about 6 seconds.

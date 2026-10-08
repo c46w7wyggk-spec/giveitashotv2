@@ -51,11 +51,23 @@ window.__classHome = () => { delete viewportEl.dataset.class; viewportEl.dataset
   let path = window.location.pathname.replace(/\/+$/, '') || '/';
   let ret = null;
   try { ret = window.localStorage.getItem(RETURN_KEY); } catch (e) { /* storage blocked */ }
-  // A magic link always lands on the site root; send the teacher back to the page they came from.
-  if (ret && path === '/' && /access_token=|[?&]code=|token_hash=/.test(window.location.hash + window.location.search) && api.sb) {
-    try { await api.sb.auth.getSession(); } catch (e) { /* the sign-in exchange failed; the teacher page will ask them to sign in again */ }
-    try { window.localStorage.removeItem(RETURN_KEY); } catch (e) { /* ignore */ }
-    if (CLASS_ROUTE.test(ret)) { window.history.replaceState(null, '', ret); path = ret.replace(/\/+$/, ''); }
+  // Every auth email link (magic link, sign-up confirmation, password reset) lands on the site root; send teachers back to /teacher.
+  // The hash is read before getSession() because the auth client clears it once it has consumed the tokens.
+  const link = window.location.hash + window.location.search;
+  if (path === '/' && api.sb && /access_token=|[?&]code=|token_hash=|error_code=/.test(link)) {
+    const recovery = /[#&?]type=recovery(&|$)/.test(link), signup = /[#&?]type=signup(&|$)/.test(link);
+    const err = (link.match(/error_description=([^&]*)/) || [])[1];
+    let user = null;
+    try { user = (await api.sb.auth.getSession()).data.session?.user || null; } catch (e) { /* the sign-in exchange failed; the teacher page will ask them to sign in again */ }
+    // A confirmation opened on another device has no saved return path, but the account itself says it was made on /teacher.
+    const teacherLink = recovery || (signup && user && user.user_metadata && user.user_metadata.teacher_signup) || (err && ret);
+    const dest = ret && CLASS_ROUTE.test(ret) ? ret : teacherLink ? '/teacher' : null;
+    try {
+      if (ret) window.localStorage.removeItem(RETURN_KEY);
+      if (recovery) window.sessionStorage.setItem('gias_pw_recovery', '1');
+      if (err && dest) window.sessionStorage.setItem('gias_auth_err', decodeURIComponent(err.replace(/\+/g, ' ')));
+    } catch (e) { /* storage blocked */ }
+    if (dest) { window.history.replaceState(null, '', dest); path = dest.replace(/\/+$/, ''); }
   }
   if (CLASS_ROUTE.test(path)) {
     viewportEl.dataset.mode = 'teacher';

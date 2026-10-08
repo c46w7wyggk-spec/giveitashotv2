@@ -25,6 +25,30 @@ export async function signInEmail(email) {
   const { error } = await need().auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
   if (error) throw error;
 }
+// Teacher accounts: email + password. Every email link lands on the site root (the one redirect URL Supabase already allows);
+// main.js then sends the teacher back to /teacher.
+export async function signUpTeacher(email, password, info) {
+  const { data, error } = await need().auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin, data: { teacher_signup: true, name: info.name, school: info.school, note: info.note || '' } } });
+  if (error) throw error;
+  // With email confirmation on, Supabase answers an already-registered address with a user that has no identities (and sends nothing).
+  return { session: data.session, exists: !!(data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) };
+}
+export async function signInPassword(email, password) {
+  const { error } = await need().auth.signInWithPassword({ email, password });
+  if (error) throw error;
+}
+export async function resendConfirmation(email) {
+  const { error } = await need().auth.resend({ type: 'signup', email, options: { emailRedirectTo: window.location.origin } });
+  if (error) throw error;
+}
+export async function sendPasswordReset(email) {
+  const { error } = await need().auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+  if (error) throw error;
+}
+export async function setPassword(password) {
+  const { error } = await need().auth.updateUser({ password });
+  if (error) throw error;
+}
 export async function signInGoogle() {
   const { error } = await need().auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
   if (error) throw error;
