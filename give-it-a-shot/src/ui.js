@@ -5,6 +5,7 @@ import * as classApi from './classroom/studentApi.js';
 import { MEAN, helpSections, tutorialSteps, minutesFor } from './learn.js';
 import { digest } from './engine.js';
 import { buildSummary } from './summary.js';
+import { evidenceFor } from './evidence.js';
 
 const HOME_TAG = 'UATX';
 const PENDING_KEY = 'gias_pending_v2';
@@ -588,7 +589,7 @@ export class App extends Engine {
         ['Calm', 'unrest ' + Math.round(m.u) + ' → ' + Math.round(pj.u), sc.sub.calm, '10%']];
       scoreRows = rowDef.map((r) => ({ label: r[0], value: 'Now → where it is headed: ' + r[1], weight: r[3], pts: Math.round(r[2]) + '/100', barStyle: 'height:100%;border-radius:4px;width:' + Math.round(r[2]) + '%;background:' + (r[2] >= 66 ? '#5fd08b' : r[2] >= 40 ? '#ffd166' : '#ff7b72') }));
       scoreText = String(sc.score);
-      scoreExplain = 'Each meter counts 40% for where the country stands now and 60% for where it is headed once everything you did fully lands (the legacy projection). Score = 200 plus 16 points for every point your weighted average (0-100) sits above 35, plus 50 for finishing the term and 40 for surviving an impeachment trial you were at real risk of losing. Scandal above 20 costs 0.8 points each' + (sc.pen ? ' (−' + sc.pen + ' for you)' : '') + '. Being removed, overthrown or fleeing cuts the total by 40%. Grades use the same meters with each side\'s own priorities.';
+      scoreExplain = 'Each meter counts 40% for where the country stands now and 60% for where it is headed once everything you did fully lands (the legacy projection). Score = 200 plus 16 points for every point your weighted average (0-100) sits above 35, plus 50 for finishing the term and 40 for surviving an impeachment trial you were at real risk of losing. Scandal above 20 costs 0.8 points each' + (sc.pen ? ' (−' + sc.pen + ' for you)' : '') + '. Being removed, overthrown or fleeing cuts the total by 40%. The research sets what each policy does; these weights are a choice about what matters most. The two grades above score the same results with each side\'s own priorities.';
       const kormWin = g.mode === 'korm' && !g.over && this.needle(g) >= KORM.needle && gc.band === KORM.band;
       kormRes = g.mode === 'korm' ? { win: kormWin, needleOk: this.needle(g) >= KORM.needle, gradeOk: gc.band === KORM.band, finished: !g.over, nd: Math.round(this.needle(g)), gl: gc.letter } : null;
       const better = sortedRows.filter((e) => e.score > sc.score).length;
@@ -704,6 +705,7 @@ export class App extends Engine {
       leaving: !!leaving, stampText: leaving === 'sign' ? 'SIGNED' : 'VETOED', stampCls: leaving === 'sign' ? 's' : 'v',
       memoUnc: p ? (p.sd < 0.4 ? 'low' : p.sd < 0.7 ? 'medium' : 'high') : '',
       memoReal: p ? p.real : '', memoPro: p ? p.pro : '', memoCon: p ? p.con : '',
+      hasEvGrade: !!(p && evidenceFor(p.id)), memoGrade: p && evidenceFor(p.id) ? evidenceFor(p.id).grade : '', memoSrc: p && evidenceFor(p.id) ? evidenceFor(p.id).src : '',
       canMean: isClass, showMean, memoMean: p ? (p.mean || MEAN[p.id] || '') : '', meanLabel: showMean ? 'Hide the explanation' : 'What does this mean?', toggleMean: () => this.setState({ mean: !showMean }),
       hasMoot: !!mootText && phase === 'desk', mootText,
       showEv: showEv, evLabel: showEv ? 'Hide the evidence' : 'See the evidence', toggleEv: () => this.setState({ ev: !showEv }),

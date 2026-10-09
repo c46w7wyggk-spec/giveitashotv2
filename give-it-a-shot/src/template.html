@@ -269,6 +269,7 @@
                     <div><b>Real world.</b> {{memoReal}}</div>
                     <div><b style="color:#7be0a3">Supporters say:</b> {{memoPro}}</div>
                     <div><b style="color:#ff9d96">Critics say:</b> {{memoCon}}</div>
+                    <sc-if value="{{hasEvGrade}}" hint-placeholder-val="{{false}}"><div class="small" style="font-size:12px"><b>How sure is the research?</b> {{memoGrade}}.<br><b>Sources:</b> {{memoSrc}}.</div></sc-if>
                   </div>
                 </sc-if>
               </div>
@@ -421,7 +422,7 @@
             <div class="small" style="font-size:11px">Cares about: direction toward planning, jobs, cost of living, approval, calm.</div>
           </div>
         </div>
-        <div class="eyebrow">HOW YOUR SCORE WAS BUILT (OBJECTIVE, SAME FOR EVERYONE)</div>
+        <div class="eyebrow">HOW YOUR SCORE WAS BUILT (SAME WEIGHTS FOR EVERYONE)</div>
         <div class="grid2" style="gap:8px">
           <sc-for list="{{scoreRows}}" as="r" hint-placeholder-count="6">
             <div class="card" style="padding:9px 12px;gap:5px">
