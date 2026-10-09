@@ -9,14 +9,14 @@ import { Engine } from '../engine.js';
 import { buildSummary, buildClassSummary } from '../summary.js';
 import { minutesFor } from '../learn.js';
 import { summaryCard, classSummaryCard } from './kit.js';
-import { overviewPage, classroomsPage, feedbackPage, feedbackCsv, csvOf, errorsPage, ownerTabs } from './owner.js';
+import { overviewPage, classroomsPage, usersPage, feedbackPage, feedbackCsv, csvOf, errorsPage, ownerTabs } from './owner.js';
 import { buildQuiz, UNIT_NAMES } from '../quiz.js';
 
 const RETURN_KEY = 'gias_after_login';
 const CONTACT = import.meta.env.VITE_TEACHER_CONTACT_EMAIL || '';
 let root, me = null, meFor = null, gate = 'loading', route = null, poll = null, lastHtml = '', lastKey = '', loadSeq = 0, ticker = null;
 const ENG = new Engine();
-const ui = { ownerFilter: 'open', errDays: 7, errResolved: false, sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, focus: '', showIndiv: false, sending: false, signinErr: '', email: '', mode: null, notice: null, unconfirmed: false, meta: {} };
+const ui = { ownerFilter: 'open', userFilter: 'all', userQ: '', errDays: 7, errResolved: false, sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, focus: '', showIndiv: false, sending: false, signinErr: '', email: '', mode: null, notice: null, unconfirmed: false, meta: {} };
 
 const daysOut = (d) => d + ' day' + (d === 1 ? '' : 's') + ' · about ' + minutesFor(d);
 
@@ -28,7 +28,7 @@ function parse(path) {
   if (seg.length === 1) return { name: 'dashboard' };
   if (seg[1] === 'classrooms') return seg[2] && seg.length === 3 ? { name: 'classroom', id: seg[2] } : seg.length === 2 ? { name: 'classrooms' } : { name: 'notfound' };
   if (seg[1] === 'sessions' && seg[2] && seg.length === 3) return { name: 'session', id: seg[2] };
-  if (seg[1] === 'admin') { const tab = seg[2] || 'overview'; return seg.length <= 3 && ['overview', 'classrooms', 'feedback', 'errors', 'access'].includes(tab) ? { name: 'admin', tab } : { name: 'notfound' }; }
+  if (seg[1] === 'admin') { const tab = seg[2] || 'overview'; return seg.length <= 3 && ['overview', 'classrooms', 'users', 'feedback', 'errors', 'access'].includes(tab) ? { name: 'admin', tab } : { name: 'notfound' }; }
   if (['resources', 'feedback'].includes(seg[1]) && seg.length === 2) return { name: seg[1] };
   return { name: 'notfound' };
 }
@@ -367,6 +367,7 @@ async function pAdmin() {
   if (!me.is_admin) throw new T.TError('not_authorized');
   if (route.tab === 'overview') return shell(overviewPage(await T.adminOverview()));
   if (route.tab === 'classrooms') return shell(classroomsPage(await T.adminOwnerClassrooms(), { filter: ui.ownerFilter }));
+  if (route.tab === 'users') return shell(usersPage(await T.adminUsers(), { filter: ui.userFilter, q: ui.userQ }));
   if (route.tab === 'feedback') { ui._feedback = await T.adminFeedback(); return shell(feedbackPage(ui._feedback)); }
   if (route.tab === 'errors') return shell(errorsPage(await T.adminErrors(ui.errDays), { days: ui.errDays, showResolved: ui.errResolved }));
   const [roles, pending] = await Promise.all([T.adminRoles(), T.adminApplications()]);
@@ -471,6 +472,14 @@ async function onAct(el) {
     if (a === 'copysum') return copyText(id === 'class' ? (ui._classSum ? plainClass(ui._classSum) : '') : (ui['_sum_' + id] || ''));
     if (a === 'indiv') { ui.showIndiv = !ui.showIndiv; lastHtml = ''; return refresh(); }
     if (a === 'ownerfilter') { ui.ownerFilter = el.dataset.v; return refresh(); }
+    if (a === 'userfilter') { ui.userFilter = el.dataset.v; return refresh(); }
+    if (a === 'userclear') { ui.userQ = ''; return refresh(); }
+    if (a === 'leaderbeta') {
+      const on = el.dataset.on === '1'; el.disabled = true;
+      const r = await T.adminSetLeaderBeta(el.dataset.uid, on);
+      toast(on ? el.dataset.who + ' can now open Supreme Leader.' : r.leader_beta ? el.dataset.who + ' still has access through ' + r.domain + '.' : el.dataset.who + ' no longer has Supreme Leader access.');
+      return refresh();
+    }
     if (a === 'errdays') { ui.errDays = Number(el.dataset.v) || 7; return refresh(); }
     if (a === 'errresolved') { ui.errResolved = el.checked; return refresh(); }
     if (a === 'resolveerr') { await T.adminResolveError(id); toast('Marked resolved. It reappears if it happens again.'); return refresh(); }
@@ -560,6 +569,7 @@ async function onSubmit(form, e) {
       btn.disabled = true;
       try { await T.sendFeedback({ worked: String(f.get('worked') || ''), confused: String(f.get('confused') || ''), change: String(f.get('change') || ''), useAgain: again == null ? null : again === 'yes', wouldPay: pay || null, classroom: f.get('classroom') || null }); ui.fbDone = true; return refresh(); } catch (err) { btn.disabled = false; return setErr('fb-err', err.message); }
     }
+    if (kind === 'usersearch') { ui.userQ = String(f.get('q') || '').trim(); return refresh(); }
     if (kind === 'find') {
       const q = String(f.get('q') || '').trim(); ui.findQ = q;
       if (q.length < 3) return setErr('find-err', 'Type at least 3 characters.');

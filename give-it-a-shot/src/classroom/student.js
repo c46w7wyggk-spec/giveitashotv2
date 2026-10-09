@@ -115,7 +115,7 @@ function sessionBlock(s) {
       (cls || '<p class="t-note">Other students’ results stay hidden until your teacher chooses to share them.</p>') + '</div>' + quizBlock(s);
   }
   if (ses.status === 'ended') return '<div class="t-card"><h2 class="t-h2">' + esc(ses.title) + '</h2><p role="status">This session has ended. Your teacher can start another one, and this page will update.</p></div>';
-  const len = '<p class="t-note">You will be President for <b>' + ses.days + ' days</b> (about ' + esc(minutesFor(ses.days)) + '). Everyone in your class gets the same country and the same starting events, so you can compare choices afterwards. If you refresh the page in the middle of a game, you start over.</p>';
+  const len = '<p class="t-note">You will be President for <b>' + ses.days + ' days</b> (about ' + esc(minutesFor(ses.days)) + '). Everyone in your class gets the same country and the same starting events, so you can compare choices afterwards. If you close or refresh this page in the middle of a game, you pick up where you left off when you come back on the same device.</p>';
   const head = '<div class="t-eyebrow">SESSION</div><h2 class="t-h2">' + esc(ses.title) + '</h2>' + (ses.instructions ? '<p class="t-pre">' + esc(ses.instructions) + '</p>' : '') + len;
   if (ses.started) return '<div class="t-card">' + head + '<p class="t-alert ok" role="status">The simulation has started. Opening your game...</p></div>';
   const left = secsLeft();
@@ -226,7 +226,10 @@ export function mount(el) {
   root.addEventListener('click', async (e) => {
     const a = e.target.closest('[data-act]'); if (!a) return;
     if (a.dataset.act === 'leave') {
-      const ok = await confirmDialog({ title: 'Leave this classroom?', body: 'Your name and any result you sent will be deleted. You can join again with the code.', confirm: 'Leave', danger: true });
+      const done = !!(st && st.completed);
+      const ok = await confirmDialog({ title: 'Leave this classroom?', body: done
+        ? 'Your result stays with your teacher. To come back, join again with the code and the same name.'
+        : 'Your name is removed from the class list. You can join again with the code.', confirm: 'Leave', danger: !done });
       if (!ok) return;
       try { await call({ action: 'leave', token: getToken() }); } catch (err) { /* already gone is fine */ }
       clearToken(); st = null; view = 'join'; notice = 'You left the classroom.'; render();

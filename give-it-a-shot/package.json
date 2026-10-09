@@ -12,7 +12,8 @@
     "make-server-engine": "node scripts/make-server-engine.mjs",
     "test:sql": "bash test/sql/run.sh",
     "test:edge": "bash test/edge/run.sh",
-    "test:ui": "bash test/ui/run.sh"
+    "test:ui": "bash test/ui/run.sh",
+    "test:resume": "node test/class-resume.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

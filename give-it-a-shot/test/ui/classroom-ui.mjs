@@ -5,6 +5,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { playLog } from '../helpers/bot.mjs';
 import { buildQuiz } from '../../src/quiz.js';
+import { ENGINE_VERSION } from '../../src/engine.js';
 import fs from 'node:fs';
 const require = createRequire('/opt/npm-tools/node_modules/');
 const { chromium } = require('playwright');
@@ -313,7 +314,7 @@ ok('end screen shows a written summary with questions', /YOUR WRITTEN SUMMARY/.t
 ok('end screen wording uses 7 days, not 14', /YOUR 7 DAYS ARE UP|YOUR TERM ENDED EARLY/.test(await sp.locator('#app').innerText()) && !/\b14 days\b|Fourteen/.test(await sp.locator('#app').innerText()));
 ok('end screen: class message shown, leaderboard/post card hidden', !(await sp.evaluate(() => /PUT IT ON THE LEADERBOARD|Play again with a new seed|Share your result/.test(document.getElementById('app').innerText))));
 const row = JSON.parse(await sql(`select to_jsonb(r) - 'log' from public.classroom_results r`));
-ok('result stored by the server for this member', row.engine_version === 5 && row.digest && row.digest.days === 7 && typeof row.score === 'number' && row.completion_status);
+ok('result stored by the server for this member', row.engine_version === ENGINE_VERSION && row.digest && row.digest.days === 7 && typeof row.score === 'number' && row.completion_status);
 await shot(sp, 'student-endscreen');
 await sp.click('text=Back to your classroom');
 await sp.waitForFunction(() => /Your result was sent to your teacher/.test(document.getElementById('tapp').innerText) && document.getElementById('viewport').dataset.mode === 'teacher');

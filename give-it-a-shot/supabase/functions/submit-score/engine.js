@@ -8,7 +8,7 @@ debt: 'Education', college: 'Education', vouch: 'Education', prek: 'Education',
 gascap: 'Energy', frack: 'Energy', carbon: 'Energy', parksoil: 'Energy', gasban: 'Energy', drillall: 'Energy',
 ubi: 'Welfare', ssx: 'Retirement', ssp: 'Retirement', age69: 'Retirement',
 tar25: 'Trade', trade: 'Trade', visa: 'Immigration', tariff40: 'Trade', freetrade: 'Trade', railnat: 'Transport', postsell: 'Trade',
-ccap: 'Finance', banknat: 'Finance', cut10: 'Budget', infra: 'Transport',
+ccap: 'Finance', banknat: 'Finance', cut10: 'Budget', impound: 'Budget', pentcut: 'Budget', hirefreeze: 'Budget', infra: 'Transport',
 lic: 'Labor', nolicense: 'Labor', permit: 'Environment', regs: 'Environment', techbreak: 'Tech',
 hushmoney: 'Power', pardonally: 'Power', fedfire: 'Power', emergency: 'Power', presspurch: 'Power', auditcrit: 'Power', packcourts: 'Power', cronies: 'Power'
 };
@@ -75,9 +75,12 @@ const XA = [
 { id: 'presspurch', cat: 'power', lean: 0, cost: 3, f: [-0.1, 0, 0, 0.2, 5, -3], sd: 0.8, ang: null, who: ['NY', 'IL', 'CA', 'FL'], wd: -1, scand: 18, cong: -4, catch: 0.6, dark: true, shield: 8, capGain: 0, hlx: ['', ''] },
 { id: 'auditcrit', cat: 'power', lean: 0, cost: 3, f: [0, 0, 0, -0.2, 0, -3], sd: 0.7, ang: ['business', 0.4], who: ['NY', 'CA', 'TX', 'FL'], wd: -2, scand: 16, cong: -5, catch: 0.5, dark: true, shield: 6, capGain: 0, hlx: ['', ''] },
 { id: 'packcourts', cat: 'power', lean: 0, cost: 4, f: [-0.3, 0, 0, 0, -2, 4], sd: 0.9, ang: ['urban', 0.4], who: ['TX', 'CA', 'NY', 'FL'], wd: -2, scand: 8, cong: -7, catch: 0.25, dark: true, shield: 4, capGain: 0, hlx: ['', ''] },
-{ id: 'cronies', cat: 'power', lean: 0, cost: 4, f: [-0.4, 0.1, 0.2, 0.4, 0, -1], sd: 0.9, ang: null, who: ['NY', 'TX', 'LA', 'DE'], wd: -2, scand: 22, cong: 6, catch: 0.6, dark: true, shield: 10, capGain: 2, hlx: ['', ''] }
+{ id: 'cronies', cat: 'power', lean: 0, cost: 4, f: [-0.4, 0.1, 0.2, 0.4, 0, -1], sd: 0.9, ang: null, who: ['NY', 'TX', 'LA', 'DE'], wd: -2, scand: 22, cong: 6, catch: 0.6, dark: true, shield: 10, capGain: 2, hlx: ['', ''] },
+{ id: 'impound', cat: 'budget', lean: 2, cost: 3, f: [-0.25, 0.15, -0.05, -0.6, -2, 2], sd: 0.7, ang: ['urban', 0.25], who: ['MD', 'VA', 'NM', 'AK'], wd: -3, scand: 4, cong: -10, catch: 0, dark: false, shield: 0, capGain: 0, hlx: ['', ''] },
+{ id: 'pentcut', cat: 'budget', lean: 0, cost: 2, f: [-0.1, 0.1, 0, -0.3, 0, 0], sd: 0.5, ang: null, who: ['VA', 'CA', 'AL'], wd: -2, scand: 0, cong: -5, catch: 0, dark: false, shield: 0, capGain: 0, hlx: ['', ''] },
+{ id: 'hirefreeze', cat: 'budget', lean: 1, cost: 1, f: [0, 0.05, 0, -0.05, 0, 0], sd: 0.6, ang: null, who: ['MD', 'VA', 'NM'], wd: -1, scand: 0, cong: -1, catch: 0, dark: false, shield: 0, capGain: 0, hlx: ['', ''] }
 ];
-export const ENGINE_VERSION = 5;
+export const ENGINE_VERSION = 6;
 export const MIN_DAYS = 3, MAX_DAYS = 28;
 export const BASE_GROWTH = 2; // trend GDP growth (%) when nothing is done
 export class Engine {
@@ -280,7 +283,7 @@ tar25: ['tariffs'], trade: ['tariffs'], tariff40: ['tariffs'],
 frack: ['fossil'], parksoil: ['fossil'], drillall: ['fossil'],
 zone: ['zoning'], nozoning: ['zoning'],
 lic: ['licensing'], nolicense: ['licensing'],
-wealth: ['wealthtax'], carbon: ['carbon'], college: ['tuition'], otoptout: ['otrule'], freetrade: ['tariffs', 'bordercarb']
+wealth: ['wealthtax'], carbon: ['carbon'], pentcut: ['defense'], college: ['tuition'], otoptout: ['otrule'], freetrade: ['tariffs', 'bordercarb']
 };
 const SYS = Object.assign({}, BASE_SYS), KILL = Object.assign({}, BASE_KILL);
 POL.forEach((x) => { x.tp = BASE_TOPIC[x.id]; });
@@ -705,6 +708,8 @@ else { d += 4; g.scand = this.clamp(g.scand + 20, 0, 100); this.push(g, '', '');
 pay(1);
 if (this.rn(g) < 0.55 - g.scand / 400) { d -= 18; g.scand = this.clamp(g.scand + 15, 0, 100); g.cong = this.clamp(g.cong - 8, 0, 100); this.push(g, '', ''); }
 else { d += 6; g.scand = this.clamp(g.scand + 25, 0, 100); this.push(g, '', ''); }
+} else if (i === 4) {
+this.push(g, '', '');
 } else throw new Error('');
 imp.conv = this.clamp(imp.conv + d, 0, 100); imp.r += 1;
 g.trialDay = g.day;
@@ -779,8 +784,8 @@ g.memos = g.memos.filter((m, i) => {
 if (i < g.mi || !eng.clash(m.id, x.id)) return true;
 g.moot.push({ id: m.id, by: x.id }); return false;
 });
-} else if (a >= '0' && a <= '3' && a.length === 1) {
-if (g.phase === 'incident') eng.resolveIncident(g, +a);
+} else if (a >= '0' && a <= '4' && a.length === 1) {
+if (g.phase === 'incident' && a !== '4') eng.resolveIncident(g, +a);
 else if (g.phase === 'trial') eng.resolveTrial(g, +a);
 else throw new Error('');
 } else if (a === 'n') {

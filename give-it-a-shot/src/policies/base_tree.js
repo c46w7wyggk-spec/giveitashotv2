@@ -12,7 +12,7 @@ export const BASE_TOPIC = {
   gascap: 'Energy', frack: 'Energy', carbon: 'Energy', parksoil: 'Energy', gasban: 'Energy', drillall: 'Energy',
   ubi: 'Welfare', ssx: 'Retirement', ssp: 'Retirement', age69: 'Retirement',
   tar25: 'Trade', trade: 'Trade', visa: 'Immigration', tariff40: 'Trade', freetrade: 'Trade', railnat: 'Transport', postsell: 'Trade',
-  ccap: 'Finance', banknat: 'Finance', cut10: 'Budget', infra: 'Transport',
+  ccap: 'Finance', banknat: 'Finance', cut10: 'Budget', impound: 'Budget', pentcut: 'Budget', hirefreeze: 'Budget', infra: 'Transport',
   lic: 'Labor', nolicense: 'Labor', permit: 'Environment', regs: 'Environment', techbreak: 'Tech',
   hushmoney: 'Power', pardonally: 'Power', fedfire: 'Power', emergency: 'Power', presspurch: 'Power', auditcrit: 'Power', packcourts: 'Power', cronies: 'Power'
 };

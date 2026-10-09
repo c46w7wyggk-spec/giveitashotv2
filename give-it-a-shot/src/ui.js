@@ -1,4 +1,4 @@
-import { Engine, dailySeed, utcDate, applyAction, XIDX } from './engine.js';
+import { Engine, dailySeed, utcDate, applyAction, tokens, XIDX } from './engine.js';
 import * as api from './api.js';
 import { shareCard } from './share.js';
 import * as classApi from './classroom/studentApi.js';
@@ -13,7 +13,9 @@ const TUT_KEY = 'gias_tut_v3';
 const NUMW = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen', 'Twenty', 'Twenty-One', 'Twenty-Two', 'Twenty-Three', 'Twenty-Four', 'Twenty-Five', 'Twenty-Six', 'Twenty-Seven', 'Twenty-Eight'];
 const spanWord = (d) => (d % 7 === 0 ? (d === 7 ? 'a week' : ['', '', 'two weeks', 'three weeks', 'four weeks'][d / 7]) : d + ' days');
 const WANT_KEY = 'gias_want_leader';
-const XCATS = [['tax', 'Taxes'], ['labor', 'Labor'], ['housing', 'Housing & Markets'], ['trade', 'Trade & Energy'], ['power', 'Power Plays']];
+// A class run in progress, so closing or refreshing the tab resumes the same game (and an unsent finished game is sent on return).
+const CLASS_RUN_KEY = 'gias_class_run_v1';
+const XCATS = [['tax', 'Taxes'], ['budget', 'Spending'], ['labor', 'Labor'], ['housing', 'Housing & Markets'], ['trade', 'Trade & Energy'], ['power', 'Power Plays']];
 const HANDLE_RE = /^[A-Za-z0-9_]{3,16}$/;
 const TAG_RE = /^[A-Za-z0-9]{2,8}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -21,6 +23,20 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const lsGet = (k) => { try { return window.localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { window.localStorage.setItem(k, v); } catch (e) { /* storage may be blocked */ } };
 const lsDel = (k) => { try { window.localStorage.removeItem(k); } catch (e) { /* ignore */ } };
+
+// Tap-to-explain text for the meters at the top of the screen. `core` drops the parts about impeachment and capital.
+const HUD_TIP = {
+  g: { h: 'Economy (growth)', t: 'How fast the economy is growing this year after inflation (real GDP growth). The U.S. usually grows about 2% a year; below zero is a recession.', good: 'Higher is better. Counts for 25% of your score.' },
+  j: { h: 'Unemployment', t: 'The share of people who want a job and are looking for one but cannot find it. It started at 4.3%, which is fairly low by U.S. history.', good: 'Lower is better. Counts for 20% of your score.' },
+  i: { h: 'Inflation', t: 'How fast prices are rising over a year. The Federal Reserve aims for about 2%. Much higher eats into paychecks; falling prices (below 0) usually mean a weak economy.', good: 'Closest to 2% is best. Counts for 15% of your score.' },
+  d: { h: 'Deficit as a share of GDP', t: 'How much more the government spends than it collects in taxes this year, compared with the size of the whole economy. Each year\'s deficit adds to the national debt.', good: 'Lower is better (about 1% or less scores full marks). Counts for 15% of your score.' },
+  a: { h: 'Approval', t: 'The share of Americans who approve of the job you are doing. It also moves Congress: popular presidents get more support.', good: 'Higher is better. Counts for 15% of your score.' },
+  u: { h: 'Unrest', t: 'How angry the streets are, from 0 to 100. Green is calm, yellow is tense, red means strikes and protests are likely, and near the top a revolution can start.', good: 'Lower is better. Counts for 10% of your score.' },
+  cap: { h: 'Political capital', t: 'What you spend on executive actions, which skip Congress. You get 1 more each morning, up to 8.', good: 'Spend it on the actions that matter most to you.' },
+  cong: { h: 'Congress', t: 'How much Congress backs you, from 0 to 100. More support makes the laws you sign work a little better. Signing bills raises it, vetoes lower it, and it drifts toward your approval.', good: 'Higher is better.' },
+  scand: { h: 'Scandal', t: 'How much trouble your power plays have caused. It fades a little each day. Above 20 it costs score points, and with low approval and a hostile Congress it can bring impeachment.', good: 'Lower is better.' },
+  nd: { h: 'Planned or free market', t: 'Where the laws you have passed put the economy, from planned (government directs more of it) to free market (prices and private businesses decide more). Each signed bill or action moves it toward its side.', good: 'This is a description, not a goal: it is not part of your score. The conservative and liberal grades at the end do weigh it.' },
+};
 
 const isUatxUser = (u, profile) => !!((u && /@(student\.)?uaustin\.org$/i.test(u.email || '')) || (profile && profile.tag === 'UATX'));
 // The Kormanik Challenge: finish the term very right wing AND earn an A from conservatives.
@@ -33,6 +49,21 @@ export class App extends Engine {
     this.state.g = this.makeGame('free', 'President');
   }
   setState(p) { Object.assign(this.state, p); this._rerender(); }
+  // The meters at the top open a short explanation when tapped; tapping the same one again (or the close button) hides it.
+  toggleTip(k) { this.setState({ hudTip: this.state.hudTip === k ? null : k }); }
+  hudTipValues(g, m, nd, core, prev) {
+    const k = this.state.hudTip;
+    const tipFor = (key) => ({ tip: () => this.toggleTip(key), on: k === key ? 'on' : '', exp: k === key ? 'true' : 'false' });
+    const out = { capTip: tipFor('cap'), congTip: tipFor('cong'), scandTip: tipFor('scand'), ndTip: tipFor('nd'), hasHudTip: false, closeHudTip: () => this.toggleTip(null) };
+    const d = k && HUD_TIP[k];
+    if (!d || (core && (k === 'cap' || k === 'scand'))) return out;
+    const fmt1 = (v) => (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1);
+    const now = { g: fmt1(m.g) + '%', j: m.j.toFixed(1) + '%', i: m.i.toFixed(1) + '%', d: m.d.toFixed(1) + '%', a: Math.round(m.a) + '%', u: String(Math.round(m.u)),
+      cap: Math.floor(g.cap) + ' of 8', cong: String(Math.round(g.cong)), scand: String(Math.round(g.scand)), nd: String(Math.round(nd)) + ' of 100' }[k];
+    let chg = '';
+    if (prev && prev[k] != null && 'gjidau'.indexOf(k) >= 0) { const dv = m[k] - prev[k]; if (Math.abs(dv) >= (k === 'a' || k === 'u' ? 0.5 : 0.05)) chg = (dv > 0 ? 'Up ' : 'Down ') + Math.abs(dv).toFixed(k === 'a' || k === 'u' ? 0 : 1) + ' since this morning.'; }
+    return Object.assign(out, { hasHudTip: true, hudTipTitle: d.h, hudTipNow: now, hudTipText: d.t, hudTipGood: d.good, hudTipChange: chg });
+  }
 
   // ---------- games ----------
   makeGame(mode, title) {
@@ -52,6 +83,7 @@ export class App extends Engine {
       else if (g.phase === 'incident' || g.phase === 'trial' || g.phase === 'brief' || g.phase === 'end') patch.tab = 'desk';
     }
     this.setState(patch);
+    if (g.mode === 'class') this.saveClassRun(g);
     if (g.phase === 'end' && cur.phase !== 'end') { this.onGameEnd(g); this.celebrate(); }
     else if (g.mode === 'class' && g.phase !== 'end' && /[en]$/.test(g.log || '')) this.sendProgress(g);
   }
@@ -74,20 +106,37 @@ export class App extends Engine {
   // ---------- classroom (Teacher Beta) ----------
   // A class run uses the session's seed from the server, is never posted to the public board, and is sent to the
   // classroom function, which replays the log itself. The score on this screen is only a preview.
+  saveClassRun(g) { lsSet(CLASS_RUN_KEY, JSON.stringify({ seed: g.seed0, days: g.days, lvl: g.lvl, unit: g.unit || null, log: g.log || '' })); }
+  // The saved run for this exact session (same seed, length, level and unit), replayed to where the student left off; null if none.
+  resumeClassRun(info, fresh) {
+    let o = null; try { o = JSON.parse(lsGet(CLASS_RUN_KEY) || 'null'); } catch (e) { o = null; }
+    if (!o || !o.log || o.seed !== info.seed || o.days !== fresh.days || o.lvl !== fresh.lvl || (o.unit || null) !== (fresh.unit || null)) return null;
+    try {
+      const g = JSON.parse(JSON.stringify(fresh));
+      for (const a of tokens(o.log)) { if (g.phase === 'end') break; applyAction(this, g, a); }
+      g.log = o.log; g.n = 1;
+      return g;
+    } catch (e) { lsDel(CLASS_RUN_KEY); return null; }
+  }
   startClass(info) {
-    const g = this.newGame(info.seed, info.days || 14, info.difficulty === 1 ? 1 : 0, info.focus || null);
+    let g = this.newGame(info.seed, info.days || 14, info.difficulty === 1 ? 1 : 0, info.focus || null);
     g.title = 'President'; g.seed0 = info.seed; g.mode = 'class'; g.dd = null; g.log = '';
     g.phase = 'desk'; g.day = 1; g.ds = this.M(g); g.ds0 = g.ds; this.deal(g);
-    this.setState({ mode: 'class', g: g, tab: 'map', xsel: null, xopen: false, tut: 0, helpOpen: false, mean: false, xmean: false, cfOn: false, ev: false, classMsg: '', classErr: '', classSent: false, classSending: false, rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '' });
+    const resumed = this.resumeClassRun(info, g);
+    if (resumed) g = resumed; else lsDel(CLASS_RUN_KEY);
+    this.setState({ mode: 'class', g: g, tab: resumed && g.phase !== 'desk' ? 'desk' : 'map', xsel: null, xopen: false, helpOpen: false, mean: false, xmean: false, cfOn: false, ev: false, classMsg: '', classErr: '', classSent: false, classSending: false, rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '', tut: resumed ? -1 : 0 });
+    if (resumed && g.phase === 'end') this.onGameEnd(g);
   }
   async submitClass(g) {
     if (this._prog && this._prog.timer) { clearTimeout(this._prog.timer); this._prog.timer = null; }
     this.setState({ rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '', classSending: true, classSent: false, classErr: '', classMsg: 'Sending your result to your teacher...' });
     try {
       await classApi.submitRun(g.log);
+      lsDel(CLASS_RUN_KEY);
       this.setState({ classSending: false, classSent: true, classMsg: 'Your class results are being collected for discussion. Other students\' results stay hidden until your teacher shares them.' });
     } catch (e) {
       const already = e && e.code === 'already_submitted';
+      if (already || (e && ['session_not_active', 'invalid_token', 'invalid_game'].includes(e.code))) lsDel(CLASS_RUN_KEY);
       this.setState({ classSending: false, classSent: already, classMsg: already ? 'Your result for this session was already recorded.' : 'Your result has not been sent yet.', classErr: already ? '' : String((e && e.message) || e) });
     }
   }
@@ -381,7 +430,7 @@ export class App extends Engine {
       const dv = m[s.k] - ref[s.k];
       const small = Math.abs(dv) < (s.dd ? 0.05 : 0.5);
       const good = dv * GOOD[s.k] > 0;
-      return { hasMeter: s.k === 'u', meterPos: Math.min(100, Math.max(0, m.u)).toFixed(0) + '%', tileAnim: small ? '' : 'animation:pop' + ap + ' .45s ease-out both;animation-delay:' + (si * 50) + 'ms;', label: s.label, short: s.short, value: s.val, delta: small ? '' : (dv > 0 ? '▲' : '▼') + Math.abs(dv).toFixed(s.dd), dcls: good ? 'good' : 'bad' };
+      return { k: s.k, tip: () => this.toggleTip(s.k), tipOn: st.hudTip === s.k ? 'true' : 'false', tipCls: st.hudTip === s.k ? 'on' : '', arrow: small ? '' : (dv > 0 ? '▲' : '▼'), hasMeter: s.k === 'u', meterPos: Math.min(100, Math.max(0, m.u)).toFixed(0) + '%', tileAnim: small ? '' : 'animation:pop' + ap + ' .45s ease-out both;animation-delay:' + (si * 50) + 'ms;', label: s.label, short: s.short, value: s.val, delta: small ? '' : (dv > 0 ? '▲' : '▼') + Math.abs(dv).toFixed(s.dd), dcls: good ? 'good' : 'bad' };
     });
     const nd = this.needle(g);
     const needleWord = nd < 20 ? 'Command economy' : nd < 40 ? 'More planned' : nd <= 60 ? 'Mixed economy' : nd <= 80 ? 'More market' : 'Laissez-faire';
@@ -431,7 +480,7 @@ export class App extends Engine {
     const takenNow = this.taken(g);
     const blockTitle = (id) => { const b = this.blocker(g, id, takenNow); return b ? this.pol(b).t : ''; };
     const xcats = XC.map((c) => ({ label: c[1], cls: c[0] === xc ? 'on' : '', pick: () => this.setState({ xcat: c[0], xsel: null }) }));
-    const TAGS = { tax: ['Taxes', 'nt'], labor: ['Labor', 'nt'], housing: ['Housing', 'nt'], trade: ['Trade', 'nt'], power: ['Power play', 'dk'] };
+    const TAGS = { tax: ['Taxes', 'nt'], budget: ['Spending', 'nt'], labor: ['Labor', 'nt'], housing: ['Housing', 'nt'], trade: ['Trade', 'nt'], power: ['Power play', 'dk'] };
     const xlean = (x) => hideLean ? (TAGS[x.cat] || ['Action', 'nt']) : (x.cat === 'power' ? ['Power play', 'dk'] : x.lean < 0 ? ['Leans planned', 'pl'] : x.lean > 0 ? ['Leans market', 'fm'] : ['Neutral', 'nt']);
     const xlist = D.XA.map((x, i) => ({ x, i })).filter((o) => o.x.cat === xc).map((o) => {
       const done = g.xdone.indexOf(o.x.id) >= 0 || g.xpend === o.x.id;
@@ -521,6 +570,7 @@ export class App extends Engine {
         { label: 'Cut deals with senators', desc: lastMemo ? 'Water down "' + this.pol(lastMemo.id).t + '" to about half strength to win votes.' : 'Hand out pork to swing states. Cheap and effective.', need: 0, cost: 'Free', tag: 'Clean', tagCls: 'nt' },
         { label: 'Bribe swing senators', desc: 'About ' + o2 + ' in 100 to work, adds 12 scandal. If it fails, you are exposed.', need: 2, cost: costTxt(2), tag: 'Dark', tagCls: 'dk' },
         { label: 'Leak dirt on swing senators', desc: 'About ' + o3 + ' in 100 to work, adds 15 scandal and costs Congress goodwill. A failure goes public.', need: 1, cost: costTxt(1), tag: 'Dark', tagCls: 'dk' },
+        { label: 'Take no action', desc: 'Stay out of it and let the Senate vote on the record. Costs nothing, but the count only moves with your approval and scandal.', need: 0, cost: 'Free', tag: 'Neutral', tagCls: 'nt' },
       ];
       trial = {
         trialRound: String(Math.min(3, g.imp.r + 1)),
@@ -672,6 +722,7 @@ export class App extends Engine {
       _share: { title: endTitle, score: sc ? sc.score : 0, cons: gC ? gC.letter : '', lib: gL ? gL.letter : '', role: g.title, needle: this.needle(g), mode: g.mode, dd: g.dd, kwin: !!(kormRes && kormRes.win) },
       dayLabel: title ? 'READY' : 'DAY ' + Math.min(days, g.day) + ' / ' + days, dotsCls: days > 16 ? 'many' : '', termDays: String(days),
       showScand: !core, showCap: !core, showX: !core,
+      ...this.hudTipValues(g, m, nd, core, prevM),
       dots: dots, stats: stats,
       capText: Math.floor(g.cap) + ' / 8', capPips: capPips, congText: String(Math.round(g.cong)), congBar: congBar, scandText: String(Math.round(g.scand)), scandBar: scandBar,
       needleWord: needleWord, needleSub: (nd >= 50 ? '+' : '−') + Math.abs(Math.round(nd - 50)), needleLeft: 'left:' + nd.toFixed(1) + '%',

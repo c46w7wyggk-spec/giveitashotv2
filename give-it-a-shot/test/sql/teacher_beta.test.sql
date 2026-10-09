@@ -310,13 +310,28 @@ do $$ declare sid uuid := (select v::uuid from t.state where k='sid'); begin
   perform t.back();
 end $$;
 
--- 8. leaving deletes the student and their data
-do $$ declare n int; begin
+-- 8. leaving: a student who never finished is deleted; one who finished keeps the result for the teacher and can rejoin by name
+do $$ declare n int; m record; mid uuid; code text; cid uuid := (select v::uuid from t.state where k='cid'); sid uuid := (select v::uuid from t.state where k='sid'); begin
+  select id into mid from public.classroom_members where token_hash = 'hash-s2';
   perform t.as_service();
+  perform public.student_leave('hash-s5');
   perform public.student_leave('hash-s2');
   perform t.back();
-  select count(*) into n from public.classroom_members where token_hash = 'hash-s2'; perform t.eq('left: member gone', n, 0);
-  select count(*) into n from public.classroom_results where score = 500; perform t.eq('left: results gone', n, 0);
+  select count(*) into n from public.classroom_members where display_name = 'Warm Hare 55'; perform t.eq('left without a result: member gone', n, 0);
+  select count(*) into n from public.classroom_progress where member_id not in (select id from public.classroom_members); perform t.eq('left without a result: progress gone', n, 0);
+  perform t.eq('left after finishing: member kept as left', (select status from public.classroom_members where id = mid), 'left');
+  select count(*) into n from public.classroom_results where score = 500; perform t.eq('left after finishing: result kept', n, 1);
+  perform t.as_service();
+  perform t.fails('old token stops working', $q$select public.student_context('hash-s2')$q$, 'invalid_token');
+  perform t.back(); perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  perform t.eq('teacher still sees the result', (select count(*)::int from jsonb_array_elements(public.teacher_get_session(sid)->'results') r where r->>'display_name' = 'Calm Fox 22'), 1);
+  perform t.eq('left student is not on the live roster', (select count(*)::int from jsonb_array_elements(public.teacher_get_session(sid)->'participants') r where r->>'display_name' = 'Calm Fox 22'), 0);
+  code := (public.teacher_set_join_code(cid, 24))->>'join_code'; update t.state set v = code where k = 'code';
+  perform t.back(); perform t.as_service();
+  select * into m from public.classroom_join(code, 'hash-s2b', array['Calm Fox 22', 'Calm Fox 22 2']);
+  perform t.eq('rejoin by the same name reattaches the old seat', m.o_member_id, mid);
+  perform t.eq('rejoined student sees their result again', public.student_context('hash-s2b')->'my_result'->>'score', '500');
+  perform t.back();
 end $$;
 
 -- 9. role revocation is immediate; expiry honoured
@@ -524,6 +539,27 @@ do $$ declare r jsonb; cid uuid; n int; nt int; fp text; begin
   perform t.back();
 end $$;
 
+-- 13b. owner Users tab and Supreme Leader beta switch
+do $$ declare r jsonb; begin
+  insert into public.beta_testers(email) values ('@school.example') on conflict do nothing;
+  insert into auth.users(id, email) values ('f1000000-0000-0000-0000-0000000000f1', 'kid@school.example') on conflict do nothing;
+  perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  perform t.fails('teachers cannot list users', 'select public.admin_list_users()', 'not_authorized');
+  perform t.fails('teachers cannot grant leader beta', $q$select public.admin_set_leader_beta('c0000000-0000-0000-0000-00000000000c', true)$q$, 'not_authorized');
+  perform t.back(); perform t.as_user('d0000000-0000-0000-0000-00000000000d');
+  r := public.admin_list_users();
+  perform t.eq('users list includes players and teachers', (select count(*)::int from jsonb_array_elements(r) u where u->>'email' in ('player@example.com', 'teacher.a@example.com')), 2);
+  perform t.eq('player starts without leader beta', (select u->>'leader_beta' from jsonb_array_elements(r) u where u->>'email' = 'player@example.com'), 'false');
+  perform t.eq('domain access shows', (select u->>'leader_beta_domain' from jsonb_array_elements(r) u where u->>'email' = 'kid@school.example'), '@school.example');
+  perform public.admin_set_leader_beta('c0000000-0000-0000-0000-00000000000c', true);
+  perform t.eq('grant shows in the list', (select u->>'leader_beta' from jsonb_array_elements(public.admin_list_users()) u where u->>'email' = 'player@example.com'), 'true');
+  perform t.eq('revoke turns it off', (public.admin_set_leader_beta('c0000000-0000-0000-0000-00000000000c', false))->>'leader_beta', 'false');
+  perform t.eq('domain access cannot be revoked per person', (public.admin_set_leader_beta('f1000000-0000-0000-0000-0000000000f1', false))->>'leader_beta', 'true');
+  perform t.back(); perform t.as_anon();
+  perform t.fails('anon cannot read the beta list', 'select * from public.beta_testers', 'permission denied');
+  perform t.back();
+end $$;
+
 -- 14. every public function that browsers can reach is on the intended allow-list
 do $$ declare names text; begin
   select string_agg(p.proname, ',' order by p.proname) into names
@@ -531,7 +567,7 @@ do $$ declare names text; begin
    where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')
      and (p.proname like 'teacher\_%' or p.proname like 'admin\_%' or p.proname like '\_%' or p.proname in ('rl_hit','rl_peek','gen_join_code','classroom_join','student_context','student_record_result','student_leave','classroom_session_stats','grant_role_by_email','revoke_role_by_email','purge_archived_classrooms','user_has_capability'));
   perform t.eq('authenticated-executable function allow-list',
-    names, 'admin_dismiss_application,admin_find_users,admin_grant_role,admin_list_applications,admin_list_classrooms,admin_list_errors,admin_list_feedback,admin_list_roles,admin_owner_classrooms,admin_owner_overview,admin_resolve_errors,admin_revoke_role,teacher_apply,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
+    names, 'admin_dismiss_application,admin_find_users,admin_grant_role,admin_list_applications,admin_list_classrooms,admin_list_errors,admin_list_feedback,admin_list_roles,admin_list_users,admin_owner_classrooms,admin_owner_overview,admin_resolve_errors,admin_revoke_role,admin_set_leader_beta,teacher_apply,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
   select string_agg(p.proname, ',') into names from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') and p.proname ~ '^(teacher|admin|classroom|student|rl|grant|revoke|purge|gen|_)';
   perform t.eq('anon can execute none of the new functions', names, null);

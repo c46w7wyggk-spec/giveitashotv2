@@ -1,6 +1,6 @@
 // End-to-end test of the classroom edge function (running under Deno against a local Postgres). See run.sh.
 import { execFileSync } from 'node:child_process';
-import { runLog } from '../../src/engine.js';
+import { runLog, ENGINE_VERSION } from '../../src/engine.js';
 import { playLog } from '../helpers/bot.mjs';
 import { buildQuiz, MC_COUNT } from '../../src/quiz.js';
 
@@ -26,7 +26,7 @@ const seed = Number(psql(`select seed from public.classroom_sessions where id='$
 
 // CORS / health
 const pre = await fetch(BASE, { method: 'OPTIONS' }); ok('OPTIONS preflight ok', pre.status === 200);
-const hc = await (await fetch(BASE)).json(); ok('GET self-test returns engine hash', hc.engine_version === 5 && /^[0-9a-f]{64}$/.test(hc.sha256));
+const hc = await (await fetch(BASE)).json(); ok('GET self-test returns engine hash', hc.engine_version === ENGINE_VERSION && /^[0-9a-f]{64}$/.test(hc.sha256));
 
 // join (normalises what a student types)
 const students = [];
@@ -70,7 +70,7 @@ r = await post({ action: 'submit', token: students[0].token, log: log0, score: 9
 ok('submit accepted', r.status === 200 && r.body.ok, JSON.stringify(r));
 ok('score is the server-replayed score, not 999999', r.body.result.score === expected.sc.score && r.body.result.score !== 999999, JSON.stringify(r.body));
 const stored = JSON.parse(psql(`select to_jsonb(r) from public.classroom_results r limit 1`));
-ok('stored metrics match the engine replay', stored.score === expected.sc.score && Math.abs(Number(stored.approval) - Math.round(expected.sc.m.a * 100) / 100) < 0.01 && stored.engine_version === 5, JSON.stringify(stored));
+ok('stored metrics match the engine replay', stored.score === expected.sc.score && Math.abs(Number(stored.approval) - Math.round(expected.sc.m.a * 100) / 100) < 0.01 && stored.engine_version === ENGINE_VERSION, JSON.stringify(stored));
 r = await post({ action: 'submit', token: students[0].token, log: log0 }); ok('replayed submit => 409 already_submitted', r.status === 409 && r.body.error === 'already_submitted');
 r = await post({ action: 'state', token: students[0].token }); ok('state shows completed + own result + digest', r.body.completed === true && r.body.my_result.score === expected.sc.score && r.body.my_result.digest?.days === 7 && r.body.my_result.digest?.lvl === 1, JSON.stringify(r.body.my_result).slice(0, 300));
 ok('stored digest has decisions, and the raw log is not in it', Array.isArray(stored.digest?.signed) && stored.digest.ser.length >= 1 && !JSON.stringify(stored.digest).includes(log0));
@@ -128,9 +128,10 @@ ok('teacher sees the quiz score', tv.results.find((x) => x.score === expected.sc
 psql(`select public.teacher_end_session('${sess.id}')`, A);
 r = await post({ action: 'submit', token: students[3].token, log: log3 }); ok('submit after teacher ended session => 409', r.status === 409 && r.body.error === 'session_not_active');
 
-// leave deletes the student's data
+// leaving after finishing keeps the result for the teacher (beta 10/09); the token stops working
+const before = psql(`select count(*) from public.classroom_results`);
 r = await post({ action: 'leave', token: students[2].token }); ok('leave ok', r.status === 200);
-ok('left student and result are deleted', psql(`select count(*) from public.classroom_members where token_hash='${tokHash(students[2].token)}'`) === '0' && psql(`select count(*) from public.classroom_results`) === '2');
+ok('left student keeps their result for the teacher', psql(`select count(*) from public.classroom_members where token_hash='${tokHash(students[2].token)}'`) === '0' && psql(`select count(*) from public.classroom_results`) === before);
 r = await post({ action: 'state', token: students[2].token }); ok('left token no longer works', r.status === 401);
 
 // per-token submit rate limit (6/min)
