@@ -4,6 +4,8 @@ import { createRequire } from 'node:module';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { playLog } from '../helpers/bot.mjs';
+import { buildQuiz } from '../../src/quiz.js';
+import fs from 'node:fs';
 const require = createRequire('/opt/npm-tools/node_modules/');
 const { chromium } = require('playwright');
 const run = promisify(execFile);
@@ -245,11 +247,12 @@ ok('slider at the maximum shows 28 days, 28-56 minutes', /28 days · about 28-56
 await tp.evaluate(() => { const r = document.getElementById('s-days'); r.value = '7'; r.dispatchEvent(new Event('input', { bubbles: true })); });
 await shot(tp, 'teacher-start-form');
 await tp.check('input[name=difficulty][value="1"]');
+await tp.selectOption('#s-focus', 'u3');
 await tp.click('form[data-form=start] button[type=submit]');
 await tp.waitForSelector('[data-act=startsim]');
 const sessUrl = tp.url();
-ok('session created in a waiting room: 7 days, core difficulty stored; seed not yet released', /^.*\/teacher\/sessions\/[0-9a-f-]{36}$/.test(sessUrl) && (await sql(`select days || ',' || difficulty || ',' || coalesce(starts_at::text,'null') from public.classroom_sessions`)) === '7,1,null');
-ok('teacher waiting room shows who is here and the settings', /Core \(simplified\)/.test(await text(tp)) && /7 days/.test(await text(tp)) && (await text(tp)).includes('Sam R.'));
+ok('session created in a waiting room: 7 days, core difficulty stored; seed not yet released', /^.*\/teacher\/sessions\/[0-9a-f-]{36}$/.test(sessUrl) && (await sql(`select days || ',' || difficulty || ',' || focus || ',' || coalesce(starts_at::text,'null') from public.classroom_sessions`)) === '7,1,u3,null');
+ok('teacher waiting room shows who is here and the settings', /Core \(simplified\)/.test(await text(tp)) && /Unit 3: National income/.test(await text(tp)) && /7 days/.test(await text(tp)) && (await text(tp)).includes('Sam R.'));
 ok('teacher waiting room shows the join code and where to enter it, for projecting', (await tp.locator('.t-launch .t-code').innerText()).replace(/\s/g, '') === code && /\/classroom/.test(await tp.locator('.t-join').innerText()));
 await shot(tp, 'teacher-waiting-room-code');
 
@@ -265,7 +268,7 @@ ok('student: countdown appears on its own', /^[0-5]$/.test(await sp.locator('.t-
 await shot(sp, 'student-countdown');
 await sp.waitForFunction(() => document.getElementById('viewport').dataset.mode === 'president', null, { timeout: 15000 });
 ok('the game started by itself after the countdown (no button pressed)', true);
-ok('game appears in class mode with the teacher\'s length and level', await sp.evaluate(() => window.__app.state.mode === 'class' && window.__app.state.g.phase === 'desk' && window.__app.state.g.day === 1 && window.__app.state.g.days === 7 && window.__app.state.g.lvl === 1));
+ok('game appears in class mode with the teacher\'s length and level', await sp.evaluate(() => window.__app.state.mode === 'class' && window.__app.state.g.phase === 'desk' && window.__app.state.g.day === 1 && window.__app.state.g.days === 7 && window.__app.state.g.lvl === 1 && window.__app.state.g.unit === 'u3'));
 ok('header shows DAY 1 / 7 and 7 progress dots', (await sp.locator('.daylab').innerText()) === 'DAY 1 / 7' && (await sp.locator('.dots .dot').count()) === 7);
 ok('core level: no Scandal meter', (await sp.locator('.pw:has-text("Scandal")').count()) === 0);
 ok('tutorial speaks about 7 days and matches the level', /7 days/.test(await sp.locator('.coach').innerText()) && /1 OF 5/.test(await sp.locator('.coach').innerText()), await sp.locator('.coach').innerText());
@@ -284,7 +287,7 @@ ok('core level: no executive actions panel', (await sp.locator('.xcat').count())
 const seed = Number(await sql(`select seed from public.classroom_sessions limit 1`));
 ok('game uses the server-assigned seed', await sp.evaluate((s) => window.__app.state.g.seed0 === s, seed));
 // play the whole term through the real App.act pipeline
-const O = { days: 7, lvl: 1 };
+const O = { days: 7, lvl: 1, unit: 'u3' };
 const log = playLog(seed, 5, O);
 const half = log.slice(0, Math.floor(log.length / 2)).replace(/x$/, '');
 const playPart = (page, part) => page.evaluate(async (part) => {
@@ -317,6 +320,24 @@ await sp.waitForFunction(() => /Your result was sent to your teacher/.test(docum
 ok('back in the classroom: own result and written summary shown, other results hidden', /Your result/.test(await text(sp)) && /Your written summary/.test(await text(sp)) && /stay hidden until your teacher/.test(await text(sp)));
 await shot(sp, 'student-done');
 
+// end-of-game quiz: built from this student's own game, graded by the server
+await sp.waitForSelector('form[data-form=quiz]');
+const q = buildQuiz(row, { focus: 'u3' });
+ok('quiz shows three questions and a written response, focused on Unit 3', (await sp.locator('form[data-form=quiz] .t-quiz-q').count()) === 3 && /Unit 3: National income/.test(await text(sp)) && (await sp.locator('#quiz-frq').count()) === 1);
+await sp.click('form[data-form=quiz] button[type=submit]');
+await sp.waitForSelector('text=Answer every multiple-choice question first.');
+ok('quiz cannot be sent with unanswered questions', true);
+for (let i = 0; i < q.mc.length; i++) await sp.check('input[name=q' + i + '][value="' + (i === 2 ? (q.mc[i].answer + 1) % 4 : q.mc[i].answer) + '"]');
+await sp.fill('#quiz-frq', 'AD shifts right because taxes fell.');
+await sp.waitForTimeout(6800);   // the lobby polls every 6 s: answers and the half-typed response must survive the re-render
+ok('quiz answers survive the lobby refresh', (await sp.inputValue('#quiz-frq')) === 'AD shifts right because taxes fell.' && (await sp.isChecked('input[name=q0][value="' + q.mc[0].answer + '"]')));
+await shot(sp, 'student-quiz');
+await sp.click('form[data-form=quiz] button[type=submit]');
+await sp.waitForSelector('text=You got 2 of 3 right');
+ok('quiz graded: 2 of 3, with the correct answer and an explanation shown for the miss', /Correct answer:/.test(await text(sp)) && /AD shifts right because taxes fell/.test(await text(sp)));
+ok('quiz stored by the server', (await sql(`select quiz_score || '/' || quiz_of from public.classroom_results`)) === '2/3');
+await shot(sp, 'student-quiz-graded');
+
 // teacher watches it complete
 await tp.goto(sessUrl); await tp.waitForSelector('text=1 of 1 finished');
 { const t = await text(tp); ok('teacher: 1 of 1 finished, class average, highlights, distribution, ranges, prompts, all-finished hint', ['Class average', 'Where the class did best', 'How scores spread out', 'Range across the class', 'Discussion prompts', 'Economic tradeoffs', 'Everyone has finished'].every((x) => t.includes(x)), t.slice(0, 400)); }
@@ -327,6 +348,10 @@ ok('teacher can open one student\'s written summary', /Think about it/.test(awai
 await tp.waitForTimeout(3500);
 ok('summary stays open through the live refresh', (await tp.locator('.t-summary h3:has-text("Written summary: Sam R.")').count()) === 1);
 ok('individual table shows the name + score', (await tp.locator('table.t-table').first().innerText()).includes(nick) && (await tp.locator('table.t-table').first().innerText()).includes(String(row.score)));
+ok('individual table shows the quiz score', /2 \/ 3/.test(await tp.locator('table.t-table:not(.t-board)').first().innerText()), await tp.locator('table.t-table:not(.t-board)').first().innerText());
+ok('teacher sees the student quiz, written response and rubric in the summary', /Quiz: 2 of 3 correct/.test(await text(tp)) && /AD shifts right because taxes fell/.test(await text(tp)) && /Rubric/.test(await text(tp)));
+{ const [dl] = await Promise.all([tp.waitForEvent('download'), tp.click('[data-act=gradescsv]')]); const csv = fs.readFileSync(await dl.path(), 'utf8');
+  ok('grades CSV has the student, score, quiz and written response', csv.startsWith('student,score,status,quiz_correct,quiz_total,written_response') && csv.includes(nick) && csv.includes(',2,3,AD shifts right because taxes fell.'), csv); }
 ok('leaderboard shows Finished', /Finished/.test(await tp.locator('table.t-board').innerText()));
 await shot(tp, 'teacher-session');
 await tp.click('[data-act=reveal]'); await tp.waitForSelector('text=turn off');

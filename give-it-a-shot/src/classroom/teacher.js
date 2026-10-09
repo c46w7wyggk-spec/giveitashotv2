@@ -9,13 +9,14 @@ import { Engine } from '../engine.js';
 import { buildSummary, buildClassSummary } from '../summary.js';
 import { minutesFor } from '../learn.js';
 import { summaryCard, classSummaryCard } from './kit.js';
-import { overviewPage, classroomsPage, feedbackPage, feedbackCsv, errorsPage, ownerTabs } from './owner.js';
+import { overviewPage, classroomsPage, feedbackPage, feedbackCsv, csvOf, errorsPage, ownerTabs } from './owner.js';
+import { buildQuiz, UNIT_NAMES } from '../quiz.js';
 
 const RETURN_KEY = 'gias_after_login';
 const CONTACT = import.meta.env.VITE_TEACHER_CONTACT_EMAIL || '';
 let root, me = null, meFor = null, gate = 'loading', route = null, poll = null, lastHtml = '', lastKey = '', loadSeq = 0, ticker = null;
 const ENG = new Engine();
-const ui = { ownerFilter: 'open', errDays: 7, errResolved: false, sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, showIndiv: false, sending: false, signinErr: '', email: '', mode: null, notice: null, unconfirmed: false, meta: {} };
+const ui = { ownerFilter: 'open', errDays: 7, errResolved: false, sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, focus: '', showIndiv: false, sending: false, signinErr: '', email: '', mode: null, notice: null, unconfirmed: false, meta: {} };
 
 const daysOut = (d) => d + ' day' + (d === 1 ? '' : 's') + ' · about ' + minutesFor(d);
 
@@ -192,6 +193,9 @@ async function pClassroom(id) {
       '<fieldset class="t-diff"><legend class="t-label">Difficulty</legend>' +
       '<label class="t-opt"><input type="radio" name="difficulty" value="0"' + (ui.diff === 0 ? ' checked' : '') + '><span><b>AP / Advanced</b><br><span class="t-note">The full simulation: about three memos a day, power plays, scandal, impeachment and revolutions.</span></span></label>' +
       '<label class="t-opt"><input type="radio" name="difficulty" value="1"' + (ui.diff === 1 ? ' checked' : '') + '><span><b>Core (simplified)</b><br><span class="t-note">For regular high school classes: fewer memos a day, no executive actions or political capital, no scandal or impeachment, and plain-language help on every policy.</span></span></label></fieldset>' +
+      '<label class="t-label" for="s-focus">AP Macroeconomics unit (optional)</label><select id="s-focus" class="t-input" name="focus" aria-describedby="s-focus-note"><option value="">Mixed: bills from every topic</option>' +
+      Object.keys(UNIT_NAMES).map((k) => '<option value="' + k + '"' + (ui.focus === k ? ' selected' : '') + '>' + esc(UNIT_NAMES[k]) + '</option>').join('') + '</select>' +
+      '<div class="t-note" id="s-focus-note">With a unit chosen, the desk deals that unit’s bills first (from about a quarter of the desk for Unit 6, which has the fewest bills, to about three quarters for Unit 3), and the questions at the end lean toward it. Everyone still plays the same country.</div>' +
       '<label class="t-label" for="s-ins">Instructions for students (optional)</label><textarea id="s-ins" class="t-input" name="instructions" rows="3" maxlength="600" placeholder="e.g. Play through once. Do not talk until everyone is finished."></textarea><div class="t-err" id="start-err" role="alert"></div><button class="t-btn gold lg" type="submit">Open the waiting room</button></form>';
   return shell('<p class="t-crumb"><a href="/teacher" data-nav>Dashboard</a> / ' + esc(c.name) + '</p><div class="t-title"><h1 class="t-h1">' + esc(c.name) + '</h1>' + (c.archived_at ? '<span class="t-chip">archived</span>' : '<span class="t-chip live">open</span>') + '</div>' +
     '<section class="t-card"><div class="t-eyebrow">JOIN CODE</div>' + codePanel + '</section>' + sessionPanel +
@@ -224,9 +228,29 @@ function boardHtml(list, days, phase) {
     '<p class="t-note">' + ranked + ' of ' + list.length + ' students on the board. Scores update after each simulated day and are estimates until a student finishes (the final score also counts where the country is headed).</p>';
 }
 function individualTable(results) {
-  const head = '<tr><th>Student</th><th>Score</th>' + METRICS.map((m) => '<th>' + esc(m.label.replace(' (GDP growth)', '')) + '</th>').join('') + '<th>Status</th></tr>';
-  return '<div class="t-scroll"><table class="t-table"><thead>' + head + '</thead><tbody>' + results.map((r) => '<tr><th scope="row">' + esc(r.display_name) + '</th><td>' + esc(r.score) + '</td>' + METRICS.map((m) => '<td>' + esc(fmtMetric(m, r[m.key])) + '</td>').join('') + '<td>' + (r.completion_status === 'removed' ? 'removed from office' : 'finished term') + '</td></tr>').join('') + '</tbody></table></div>';
+  const head = '<tr><th>Student</th><th>Score</th><th>Quiz</th>' + METRICS.map((m) => '<th>' + esc(m.label.replace(' (GDP growth)', '')) + '</th>').join('') + '<th>Status</th></tr>';
+  return '<div class="t-scroll"><table class="t-table"><thead>' + head + '</thead><tbody>' + results.map((r) => '<tr><th scope="row">' + esc(r.display_name) + '</th><td>' + esc(r.score) + '</td><td>' + (r.quiz_of ? esc(r.quiz_score + ' / ' + r.quiz_of) : '–') + '</td>' + METRICS.map((m) => '<td>' + esc(fmtMetric(m, r[m.key])) + '</td>').join('') + '<td>' + (r.completion_status === 'removed' ? 'removed from office' : 'finished term') + '</td></tr>').join('') + '</tbody></table></div>' +
+    '<div class="t-actions"><button class="t-btn ghost sm" data-act="gradescsv">Download grades (CSV)</button></div>' +
+    '<p class="t-note">Quiz: multiple-choice questions built from each student’s own game, graded automatically. Written responses are in each student’s summary below.</p>';
 }
+// The student's quiz, rebuilt from the same stored result the server graded: their choices, the key and the written response with a rubric.
+function quizDetail(r, focus) {
+  let q = null; try { q = buildQuiz(r, { focus: focus || null, titleOf: (id) => { const p = ENG.pol(id); return p ? p.t : ''; } }); } catch (e) { q = null; }
+  if (!q) return '';
+  const z = r.quiz;
+  const mcs = q.mc.map((m, i) => {
+    const a = z && z.answers ? z.answers[i] : null, ok = a === m.answer;
+    return '<li><p>' + esc(m.q) + '</p>' + (z ? '<p class="t-quiz-a ' + (ok ? 'ok' : 'no') + '">' + (ok ? 'Correct: ' : 'Chose: ') + esc(m.choices[a] || '(none)') + '</p>' : '') +
+      (z && ok ? '' : '<p class="t-note">Answer: ' + esc(m.choices[m.answer]) + '</p>') + '</li>';
+  }).join('');
+  return '<div class="t-quizbox"><h3 class="t-h3">Quiz' + (z ? ': ' + esc(r.quiz_score) + ' of ' + esc(r.quiz_of) + ' correct' : ' (not submitted yet)') + '</h3><ol class="t-bul">' + mcs + '</ol>' +
+    '<h3 class="t-h3">Written response</h3><p class="t-pre t-note">' + esc(q.frq.q) + '</p>' + (z ? (z.frq ? '<p class="t-pre t-quiz-frq">' + esc(z.frq) + '</p>' : '<p class="t-note">No written response.</p>') : '') +
+    '<p class="t-note"><b>Rubric</b> (1 point each):</p><ul class="t-rubric">' + q.frq.rubric.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></div>';
+}
+const gradesCsv = (rows) => csvOf(['student', 'score', 'status', 'quiz_correct', 'quiz_total', 'written_response'], rows.map((r) => ({
+  student: r.display_name, score: r.score, status: r.completion_status === 'removed' ? 'removed from office' : 'finished term',
+  quiz_correct: r.quiz ? r.quiz_score : '', quiz_total: r.quiz ? r.quiz_of : '', written_response: r.quiz ? r.quiz.frq || '' : '' })));
+
 // plain-text versions for "Copy" (paste into a gradebook note, an email or a doc)
 const plainSum = (sm, who) => [who ? who + ' — ' + sm.headline : sm.headline].concat(sm.paras, ['', 'Think about it:'], sm.questions.map((q) => '- ' + q)).join('\n');
 const plainClass = (cs) => ['Class summary'].concat(cs.paras, ['', 'Discussion questions:'], cs.questions.map((q) => '- ' + q)).join('\n');
@@ -254,15 +278,16 @@ async function pSession(id) {
   const joinLine = !jc || phase !== 'running' ? '' : jcLive
     ? '<p class="t-note t-joinline">Joining late? Go to <b>' + joinHost + '</b> and enter <b class="t-code-inline">' + codeSpaced(jc.code) + '</b></p>' : '';
   // decision digests (for the written summaries) are fetched once per new result, not on every poll
-  if (done > 0 && (!ui.dg || ui.dg.sid !== id || ui.dg.n !== done)) {
-    try { const g = await T.digests(id); ui.dg = { sid: id, n: done, days: g.days, rows: g.rows }; } catch (e) { /* summaries are optional */ }
+  const quizzes = d.results.filter((r) => r.quiz_of).length;
+  if (done > 0 && (!ui.dg || ui.dg.sid !== id || ui.dg.n !== done || ui.dg.q !== quizzes)) {
+    try { const g = await T.digests(id); ui.dg = { sid: id, n: done, q: quizzes, days: g.days, rows: g.rows }; } catch (e) { /* summaries are optional */ }
   }
   const dgRows = ui.dg && ui.dg.sid === id ? ui.dg.rows : [];
   let classSum = null; try { classSum = dgRows.length ? buildClassSummary(ENG, dgRows, s.days) : null; } catch (e) { classSum = null; }
   ui._classSum = classSum;
-  const meta = s.difficulty === 1 ? 'Core (simplified)' : 'AP / Advanced';
+  const meta = (s.difficulty === 1 ? 'Core (simplified)' : 'AP / Advanced') + (s.focus && UNIT_NAMES[s.focus] ? ' · ' + UNIT_NAMES[s.focus] : '');
   const openKey = Object.keys(ui.sumOpen).filter((k) => ui.sumOpen[k]).sort().join(',');
-  const key = [phase, done, s.reveal_results, openKey, dgRows.length, jc ? (jcLive ? jc.code : 'off') : ''].join('|');
+  const key = [phase, done, quizzes, s.reveal_results, openKey, dgRows.length, jc ? (jcLive ? jc.code : 'off') : ''].join('|');
   const sumCards = dgRows.map((r) => {
     let sm = null; try { sm = r.digest ? buildSummary(ENG, r.digest, { score: r.score, cons: r.cons_letter, lib: r.lib_letter }) : null; } catch (e) { sm = null; }
     ui['_sum_' + r.member_id] = sm ? plainSum(sm, r.display_name) : '';
@@ -270,7 +295,7 @@ async function pSession(id) {
     return '<div class="t-sumrow"><div class="t-actions"><b>' + esc(r.display_name) + '</b><span class="t-note">score ' + esc(r.score) + ' · ' + (r.completion_status === 'removed' ? 'removed from office' : 'finished term') + '</span>' +
       '<button class="t-btn ghost sm" data-act="sumtoggle" data-id="' + esc(r.member_id) + '" aria-expanded="' + open + '">' + (open ? 'Hide summary' : 'Read summary') + '</button>' +
       (open && sm ? '<button class="t-btn ghost sm" data-act="copysum" data-id="' + esc(r.member_id) + '">Copy</button>' : '') + '</div>' +
-      (open ? (sm ? summaryCard(sm, { title: 'Written summary: ' + r.display_name, label: 'Summary for ' + r.display_name }) : '<p class="t-note">No summary available for this result.</p>') : '') + '</div>';
+      (open ? (sm ? summaryCard(sm, { title: 'Written summary: ' + r.display_name, label: 'Summary for ' + r.display_name }) : '<p class="t-note">No summary available for this result.</p>') + quizDetail(r, s.focus) : '') + '</div>';
   }).join('');
 
   let control = '';
@@ -449,6 +474,12 @@ async function onAct(el) {
     if (a === 'errdays') { ui.errDays = Number(el.dataset.v) || 7; return refresh(); }
     if (a === 'errresolved') { ui.errResolved = el.checked; return refresh(); }
     if (a === 'resolveerr') { await T.adminResolveError(id); toast('Marked resolved. It reappears if it happens again.'); return refresh(); }
+    if (a === 'gradescsv') {
+      const rows = ui.dg ? ui.dg.rows : [];
+      const url = URL.createObjectURL(new Blob([gradesCsv(rows)], { type: 'text/csv' }));
+      const link = document.createElement('a'); link.href = url; link.download = 'class-grades-' + new Date().toISOString().slice(0, 10) + '.csv';
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); return;
+    }
     if (a === 'feedbackcsv') {
       const url = URL.createObjectURL(new Blob([feedbackCsv(ui._feedback || [])], { type: 'text/csv' }));
       const link = document.createElement('a'); link.href = url; link.download = 'teacher-feedback-' + new Date().toISOString().slice(0, 10) + '.csv';
@@ -521,8 +552,8 @@ async function onSubmit(form, e) {
     }
     if (kind === 'start') {
       btn.disabled = true;
-      const days = Math.max(3, Math.min(28, parseInt(f.get('days'), 10) || 14)), diff = f.get('difficulty') === '1' ? 1 : 0; ui.days = days; ui.diff = diff;
-      try { const s = await T.startSession(form.dataset.id, String(f.get('title') || '').trim(), String(f.get('instructions') || '').trim(), days, diff); return go('/teacher/sessions/' + s.id); } catch (err) { btn.disabled = false; return setErr('start-err', err.message); }
+      const days = Math.max(3, Math.min(28, parseInt(f.get('days'), 10) || 14)), diff = f.get('difficulty') === '1' ? 1 : 0, focus = UNIT_NAMES[f.get('focus')] ? f.get('focus') : ''; ui.days = days; ui.diff = diff; ui.focus = focus;
+      try { const s = await T.startSession(form.dataset.id, String(f.get('title') || '').trim(), String(f.get('instructions') || '').trim(), days, diff, focus || null); return go('/teacher/sessions/' + s.id); } catch (err) { btn.disabled = false; return setErr('start-err', err.message); }
     }
     if (kind === 'feedback') {
       const again = f.get('again'), pay = f.get('pay');
@@ -548,6 +579,7 @@ export function mount(el) {
   root.addEventListener('input', (e) => {
     if (e.target.id === 's-days') { ui.days = Number(e.target.value); const o = document.getElementById('s-days-out'); if (o) o.textContent = daysOut(ui.days); }
     if (e.target.name === 'difficulty') ui.diff = Number(e.target.value);
+    if (e.target.id === 's-focus') ui.focus = e.target.value;
   });
   window.addEventListener('popstate', () => { if (document.getElementById('viewport').dataset.mode === 'teacher') load(); });
   if (api.sb) api.sb.auth.onAuthStateChange((ev) => {

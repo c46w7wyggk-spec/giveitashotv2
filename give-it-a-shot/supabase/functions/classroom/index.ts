@@ -4,6 +4,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ENGINE_VERSION, Engine, digest, replayPartial, runLog } from "./engine.js";
 import { TOKEN_RE, cleanName, metricsFrom, nameCandidates, newToken, normalizeCode, sha256Hex, validLog } from "./lib.js";
+import { FRQ_MAX, buildQuiz, gradeQuiz } from "./quiz.js";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +24,8 @@ const KNOWN: Record<string, [number, string]> = {
   session_not_active: [409, "This session has ended."],
   not_started: [409, "The simulation has not started yet. Wait for your teacher to press Start."],
   already_submitted: [409, "Your result for this session was already recorded."],
+  quiz_already_submitted: [409, "Your quiz answers were already recorded."],
+  invalid_quiz: [400, "Those quiz answers could not be checked."],
   not_found: [404, "Not found."],
   try_again: [503, "Please try again."],
 };
@@ -114,7 +117,7 @@ Deno.serve(async (req) => {
     if (!ctx.session.started || ctx.session.seed == null) return dbError({ message: "not_started" });
     // The seed, length and difficulty come from the database, never from the browser; the score comes from replaying the log with the shared engine.
     let run, dg;
-    try { run = runLog(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty }); dg = digest(new Engine(), run.g); }
+    try { run = runLog(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty, unit: ctx.session.focus || null }); dg = digest(new Engine(), run.g); }
     catch (e) { return json({ error: "invalid_game", message: "That game record could not be verified: " + (e as Error).message }, 400); }
     const metrics = metricsFrom(run, ENGINE_VERSION, body.log, dg);
     const { error } = await db.rpc("student_record_result", { p_token_hash: th, p_session: ctx.session.id, p_metrics: metrics });
@@ -132,13 +135,31 @@ Deno.serve(async (req) => {
     if (ctx.completed) return json({ ok: true, skipped: true });
     if (!ctx.session.started || ctx.session.seed == null) return dbError({ message: "not_started" });
     let rp;
-    try { rp = replayPartial(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty }); }
+    try { rp = replayPartial(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty, unit: ctx.session.focus || null }); }
     catch (e) { return json({ error: "invalid_game", message: "That game record could not be verified." }, 400); }
     const m = rp.eng.M(rp.g);
     const { error } = await db.rpc("student_record_progress", { p_token_hash: th, p_session: ctx.session.id, p_day: rp.day,
       p_score: rp.score, p_approval: Math.round(m.a * 10) / 10, p_scandal: Math.round((rp.g.scand || 0) * 10) / 10, p_over: !!rp.g.over });
     if (error) return dbError(error);
     return json({ ok: true });
+  }
+
+  // End-of-game quiz. The questions are rebuilt from the stored, server-replayed result, so the browser cannot choose
+  // its own questions or answers key; only the chosen options and the written response come from the browser.
+  if (action === "quiz") {
+    if (!(await hit("quiz:" + th, 6, 60))) return tooMany();
+    const { data: ctx, error: ce } = await db.rpc("student_context", { p_token_hash: th });
+    if (ce) return dbError(ce);
+    if (!ctx.session || !ctx.completed || !ctx.my_result) return dbError({ message: "not_found" });
+    if (ctx.my_result.quiz) return dbError({ message: "quiz_already_submitted" });
+    const quiz = buildQuiz(ctx.my_result, { focus: ctx.session.focus || null });
+    const frq = typeof body.frq === "string" ? body.frq.trim().slice(0, FRQ_MAX) : "";
+    const g = quiz ? gradeQuiz(quiz, body.answers) : null;
+    if (!g) return dbError({ message: "invalid_quiz" });
+    const stored = { v: quiz.v, ids: quiz.mc.map((m) => m.id), answers: body.answers, right: g.right, frq_id: quiz.frq.id, frq };
+    const { error } = await db.rpc("student_record_quiz", { p_token_hash: th, p_session: ctx.session.id, p_quiz: stored, p_score: g.correct, p_of: g.of });
+    if (error) return dbError(error);
+    return json({ ok: true, quiz: { score: g.correct, of: g.of, right: g.right } });
   }
 
   return json({ error: "unknown_action" }, 400);

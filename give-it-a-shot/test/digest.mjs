@@ -6,8 +6,9 @@ import { playGame } from './helpers/bot.mjs';
 let n = 0;
 for (let s = 1; s <= 120; s++) {
   const seed = s * 7919 + 11; const days = [14, 3, 28, 9, 21, 5][s % 6]; const lvl = s % 3 === 0 ? 1 : 0;
-  const { log } = playGame(seed, s, { days, lvl });
-  const o = { days, lvl };
+  const unit = [null, 'u1', 'u3', 'u4', 'u5', 'u6', null][s % 7];
+  const { log } = playGame(seed, s, { days, lvl, unit });
+  const o = { days, lvl, unit };
   const f = F.runLog(seed, 'President', log, o); const df = JSON.stringify(F.digest(new F.Engine(), f.g));
   for (const E of [S, C]) {
     const r = E.runLog(seed, 'President', log, o);
@@ -18,7 +19,7 @@ for (let s = 1; s <= 120; s++) {
     if (p.day > days) throw new Error('day overflow');
   }
   const d = JSON.parse(df);
-  if (d.days !== days || !Array.isArray(d.signed) || d.ser.length < 1) throw new Error('bad digest ' + s);
+  if (d.days !== days || d.unit !== unit || !Array.isArray(d.signed) || d.ser.length < 1) throw new Error('bad digest ' + s);
   n++;
 }
 console.log('digest/partial OK on', n, 'games');

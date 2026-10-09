@@ -25,3 +25,4 @@ export async function call(body) {
 }
 export const submitRun = (log) => call({ action: 'submit', token: getToken(), log });
 export const progressRun = (log) => call({ action: 'progress', token: getToken(), log });
+export const submitQuiz = (answers, frq) => call({ action: 'quiz', token: getToken(), answers, frq });

@@ -204,6 +204,39 @@ do $$ declare cid uuid := (select v::uuid from t.state where k='cid'); sid uuid;
   perform t.fails('bad token cannot submit', format('select public.student_record_result(''forged'', %L, t.metrics(1))', sid), 'invalid_token');
   perform t.back();
 end $$;
+-- 6b. AP unit focus and the end-of-game quiz (graded by the edge function; the database only stores it, once)
+do $$ declare cid uuid := (select v::uuid from t.state where k='cid'); sid uuid := (select v::uuid from t.state where k='sid'); r jsonb; fc uuid; begin
+  perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  perform t.fails('unknown focus rejected', format('select public.teacher_start_session(%L, ''x'', '''', 14, 0, ''u9'')', cid), 'invalid_focus');
+  perform t.eq('default focus is mixed', public.teacher_get_session(sid)->'session'->>'focus', null);
+  perform t.back();
+  perform t.as_user('b0000000-0000-0000-0000-00000000000b');
+  fc := (public.teacher_create_classroom('Focus class')->>'id')::uuid;
+  r := public.teacher_start_session(fc, 'Fiscal week', '', 10, 1, 'u3');
+  perform t.eq('focus stored', r->>'focus', 'u3');
+  perform t.eq('teacher sees focus', public.teacher_get_session((r->>'id')::uuid)->'session'->>'focus', 'u3');
+  perform public.teacher_end_session((r->>'id')::uuid);
+  perform t.back();
+  perform t.as_service();
+  perform t.eq('student sees focus (mixed)', public.student_context('hash-s1')->'session'->>'focus', null);
+  perform t.fails('quiz before a result is rejected', format('select public.student_record_quiz(''hash-s5'', %L, ''{}'', 1, 3)', sid), 'not_found');
+  perform t.fails('quiz score above total rejected', format('select public.student_record_quiz(''hash-s1'', %L, ''{}'', 4, 3)', sid), 'invalid_quiz');
+  perform t.fails('negative quiz score rejected', format('select public.student_record_quiz(''hash-s1'', %L, ''{}'', -1, 3)', sid), 'invalid_quiz');
+  perform t.fails('forged token cannot record a quiz', format('select public.student_record_quiz(''forged'', %L, ''{}'', 1, 3)', sid), 'invalid_token');
+  perform public.student_record_quiz('hash-s1', sid, '{"answers":[0,1,2],"frq":"AD shifts right"}', 2, 3);
+  perform t.fails('quiz is recorded once', format('select public.student_record_quiz(''hash-s1'', %L, ''{}'', 3, 3)', sid), 'quiz_already_submitted');
+  perform t.eq('student sees own quiz score', public.student_context('hash-s1')->'my_result'->>'quiz_score', '2');
+  perform t.eq('student sees own written answer', public.student_context('hash-s1')->'my_result'->'quiz'->>'frq', 'AD shifts right');
+  perform t.back();
+  perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  perform t.eq('teacher sees quiz score', (select x->>'quiz_score' from jsonb_array_elements(public.teacher_get_session(sid)->'results') x where x->>'score' = '600'), '2');
+  perform t.eq('teacher sees written answer', (select x->'quiz'->>'frq' from jsonb_array_elements(public.teacher_session_digests(sid)->'rows') x where x->>'score' = '600'), 'AD shifts right');
+  perform t.fails('teachers cannot record quizzes', format('select public.student_record_quiz(''hash-s2'', %L, ''{}'', 3, 3)', sid), 'permission denied');
+  perform t.back();
+  perform t.as_user('b0000000-0000-0000-0000-00000000000b');
+  perform t.fails('B cannot read A quiz answers', format('select public.teacher_session_digests(%L)', sid), 'not_found');
+  perform t.back();
+end $$;
 do $$ declare sid uuid := (select v::uuid from t.state where k='sid'); ctx jsonb; r jsonb; othercode text; ocid uuid; mid5 uuid; begin
   -- a student from ANOTHER classroom cannot submit into this session
   perform t.as_user('b0000000-0000-0000-0000-00000000000b');

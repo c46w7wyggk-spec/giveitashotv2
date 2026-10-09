@@ -1,7 +1,7 @@
 // Give It A Shot — deterministic game engine. Shared by the browser and the submit-score edge function.
 // Same seed + same action log => same game, same score. Bump ENGINE_VERSION on ANY change that alters outcomes.
 import { XA } from './xactions.js';
-import { POL2, BASE_TOPIC, BASE_SYS, BASE_KILL } from './policies.js';
+import { POL2, BASE_TOPIC, BASE_SYS, BASE_KILL, AP_UNITS } from './policies.js';
 export const ENGINE_VERSION = 5;
 export const MIN_DAYS = 3, MAX_DAYS = 28;
 export const BASE_GROWTH = 2; // trend GDP growth (%) when nothing is done
@@ -341,14 +341,16 @@ export class Engine {
   pol(id) { const D = this.data(); return D.POL.find((p) => p.id === id) || D.XA.find((p) => p.id === id); }
 
   // days: 3-28. lvl: 0 = standard (AP), 1 = core (plain language, fewer memos, no executive actions, capital, scandal or impeachment).
-  newGame(seed, days, lvl) {
+  // unit: null, or an AP_UNITS key (classroom sessions only): the desk prefers that unit's bills. null deals exactly as before.
+  newGame(seed, days, lvl, unit) {
     const D = this.data();
     days = days == null ? 14 : days; lvl = lvl == null ? 0 : lvl;
     if (!Number.isInteger(days) || days < MIN_DAYS || days > MAX_DAYS) throw new Error('bad days');
     if (lvl !== 0 && lvl !== 1) throw new Error('bad level');
+    if (unit != null && !AP_UNITS[unit]) throw new Error('bad unit');
     // memos per day: long terms get fewer so the bill pool lasts (standard: 3 up to 14 days; core: 2, then 1 past 18 days)
     const mpd = lvl === 1 ? this.clamp(Math.round(28 / days), 1, 2) : this.clamp(Math.round(36 / days), 1, 3);
-    const g = { rs: seed | 0, day: 1, days: days, lvl: lvl, mpd: mpd, phase: 'title', title: 'President', memos: [], moot: [], pols: [], evs: [], hits: [], vet: {}, sched: {}, inc: [], carry: [], flash: [], news: [], todayPol: [], over: false, ok: '', bond: false, riot: false, ds: null, ds0: null, mi: 0,
+    const g = { rs: seed | 0, day: 1, days: days, lvl: lvl, mpd: mpd, unit: unit || null, phase: 'title', title: 'President', memos: [], moot: [], pols: [], evs: [], hits: [], vet: {}, sched: {}, inc: [], carry: [], flash: [], news: [], todayPol: [], over: false, ok: '', bond: false, riot: false, ds: null, ds0: null, mi: 0,
       cap: 5, cong: 50, scand: 0, imp: null, trials: 0, lastTrial: -9, trialDay: 0, rev: 0, revDay: -9, surv: false, shield: 0, xToday: false, xpend: null, xdone: [], seen: {}, tp: [], fulog: [], press: [], sidc: 0, evlog: [], crlog: [], ser: [], nv: 0 };
     // Schedule random events on days 2..days-1: about 3 per 7 days, always a disaster and a war first (14 days = 6 events).
     const slots = []; for (let d = 2; d <= days - 1; d++) slots.push(d);
@@ -452,10 +454,13 @@ export class Engine {
       add(this.pick(g, t2.length ? t2 : a)); return true;
     };
     const maxKids = want >= 3 ? 2 : 1;
-    for (let i = 0; i < maxKids && i < want; i++) if (!take(kids, () => true)) break;
+    // Unit focus: try the unit's bills first (keeping the planned/market balance if possible), then fall back to the normal deal.
+    const inU = g.unit ? ((set) => (p) => set.indexOf(p.id) >= 0)(AP_UNITS[g.unit]) : null;
+    for (let i = 0; i < maxKids && i < want; i++) if (!(inU && take(kids, inU)) && !take(kids, () => true)) break;
     while (chosen.length < want) {
       const bal = chosen.reduce((s, p) => s + Math.sign(p.lean), 0);
       const flt = bal > 0 ? (p) => p.lean < 0 : bal < 0 ? (p) => p.lean > 0 : () => true;
+      if (inU && (take(roots, (p) => flt(p) && inU(p)) || take(roots, inU))) continue;
       if (!take(roots, flt) && !take(roots, () => true) && !take(kids, () => true)) break;
     }
     g.memos = this.shuffle(g, chosen).map((p) => {
@@ -831,8 +836,8 @@ export function tokens(log) {
   }
   return out;
 }
-export function begin(eng, seed, role, days, lvl) {
-  const g = eng.newGame(seed, days, lvl); g.title = 'President';
+export function begin(eng, seed, role, days, lvl, unit) {
+  const g = eng.newGame(seed, days, lvl, unit); g.title = 'President';
   g.phase = 'desk'; g.day = 1; g.ds = eng.M(g); g.ds0 = g.ds; eng.deal(g);
   return g;
 }
@@ -865,13 +870,13 @@ export function applyAction(eng, g, a) {
   } else throw new Error('unknown action ' + a);
   return g;
 }
-// opts: { days: 3-28 (default 14), lvl: 0 standard | 1 core (default 0) }. The public game always uses the defaults.
+// opts: { days: 3-28 (default 14), lvl: 0 standard | 1 core (default 0), unit: AP unit focus or null }. The public game always uses the defaults.
 export function runLog(seed, role, log, opts) {
   const eng = new Engine();
   if (!eng.data().TITLES.some((t) => t.id === role)) throw new Error('unknown role');
   if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
   const o = opts || {};
-  const g = begin(eng, seed, role, o.days, o.lvl);
+  const g = begin(eng, seed, role, o.days, o.lvl, o.unit);
   for (const a of tokens(log)) { if (g.phase === 'end') throw new Error('log continues past end'); applyAction(eng, g, a); }
   if (g.phase !== 'end') throw new Error('game not finished');
   const sc = eng.scoreCard(g);
@@ -884,7 +889,7 @@ export function digest(eng, g) {
   const sc = eng.scoreCard(g);
   const r1 = (v) => Math.round(v * 10) / 10;
   return {
-    days: g.days, lvl: g.lvl, day: g.day, over: !!g.over, ok: g.ok || '', surv: !!g.surv,
+    days: g.days, lvl: g.lvl, unit: g.unit || null, day: g.day, over: !!g.over, ok: g.ok || '', surv: !!g.surv,
     signed: g.pols.filter((p) => !p.x).map((p) => p.id), repealed: g.pols.filter((p) => p.rep).map((p) => p.id),
     vetoed: Object.keys(g.vet), nv: g.nv, xa: g.xdone.slice(), moot: (g.moot || []).map((q) => q.id + '>' + q.by), fu: (g.fulog || []).map((f) => f.d + ':' + f.id + ':' + f.sk + ':' + f.sid),
     ev: g.evlog.map((e) => e.d + ':' + e.id), cr: g.crlog.map((c) => c.d + ':' + c.fac + (c.pol ? ':' + c.pol : '')),
@@ -897,7 +902,7 @@ export function replayPartial(seed, role, log, opts) {
   const eng = new Engine();
   if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
   const o = opts || {};
-  const g = begin(eng, seed, role, o.days, o.lvl);
+  const g = begin(eng, seed, role, o.days, o.lvl, o.unit);
   if (log.endsWith('x')) log = log.slice(0, -1);
   for (const a of tokens(log)) { if (g.phase === 'end') break; applyAction(eng, g, a); }
   const sc = eng.scoreCard(g);
