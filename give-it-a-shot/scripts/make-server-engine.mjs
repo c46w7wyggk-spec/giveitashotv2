@@ -22,3 +22,5 @@ if (/^import /m.test(out)) throw new Error('slim engine still has an import');
 // Every edge function that replays games gets the same slim engine.
 for (const fn of ['submit-score', 'classroom']) fs.writeFileSync(new URL('../supabase/functions/' + fn + '/engine.js', import.meta.url), out);
 console.log('full', src.length, 'slim', out.length);
+// The classroom function grades the end-of-game quiz itself, so it gets a verbatim copy of the quiz builder.
+fs.writeFileSync(new URL('../supabase/functions/classroom/quiz.js', import.meta.url), rd('quiz.js'));

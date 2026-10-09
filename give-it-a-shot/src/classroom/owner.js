@@ -94,10 +94,13 @@ export function feedbackPage(list, opts = {}) {
     (list.length ? list.map(item).join('') : '<div class="t-card"><p class="t-empty">No feedback yet. Teachers send it from the Give Feedback button at the bottom of every teacher page.</p></div>');
 }
 
-export function feedbackCsv(list) {
-  const cols = ['created_at', 'name', 'school', 'email', 'classroom', 'use_again', 'would_pay', 'worked', 'confused', 'change'];
+// CSV with formula-injection guarding (a cell starting with = + - @ is quoted and prefixed with ').
+export function csvOf(cols, list) {
   const cell = (v) => { const s = v == null ? '' : String(v); return /[",\n\r]/.test(s) || /^[=+\-@]/.test(s) ? '"' + s.replace(/"/g, '""').replace(/^([=+\-@])/, "'$1") + '"' : s; };
   return cols.join(',') + '\n' + list.map((f) => cols.map((k) => cell(f[k])).join(',')).join('\n') + '\n';
+}
+export function feedbackCsv(list) {
+  return csvOf(['created_at', 'name', 'school', 'email', 'classroom', 'use_again', 'would_pay', 'worked', 'confused', 'change'], list);
 }
 
 export function errorsPage(groups, opts = {}) {

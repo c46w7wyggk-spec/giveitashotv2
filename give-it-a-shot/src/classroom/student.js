@@ -1,15 +1,18 @@
 // /classroom: students enter a code and their name (first name and last initial), wait in a lobby, and the game starts for
 // everyone at once when the teacher presses Start (5-second countdown). No account, no email.
-import { call, getToken, setToken, clearToken, ClassError } from './studentApi.js';
+import { call, getToken, setToken, clearToken, ClassError, submitQuiz } from './studentApi.js';
 import { esc, avgCards, distChart, confirmDialog, toast, METRICS, fmtMetric, summaryCard } from './kit.js';
 import { Engine } from '../engine.js';
 import { buildSummary } from '../summary.js';
 import { minutesFor } from '../learn.js';
+import { buildQuiz, FRQ_MAX, UNIT_NAMES } from '../quiz.js';
 
 let root, view = 'loading', st = null, notice = '', busy = false, joinErr = '', timer = null, tick = null, codeDraft = '', nameDraft = '';
 let offset = 0;            // server clock minus this device's clock, so every student's countdown ends together
 let playing = false;       // a game is running in the other screen; do not poll or auto-start
 let launching = false;
+let quizDraft = { answers: [], frq: '' }, quizBusy = false, quizErr = '';   // kept across the lobby's polling re-renders
+let ENG = null; const eng = () => (ENG = ENG || new Engine());
 
 const shell = (inner) => '<div class="t-wrap narrow"><header class="t-top"><div class="t-brand"><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="#eef1f6"></path></svg><div><div class="t-brand-t">GIVE IT A SHOT</div><div class="t-brand-s">Classroom</div></div></div></header><main id="t-main">' + inner + '</main><footer class="t-foot">Your teacher sees the name you enter and your results. Do not enter an email address or other personal details. <a href="/" data-nav-out>Back to the game</a></footer></div>';
 
@@ -19,7 +22,9 @@ function render() {
   else if (view === 'disabled') html = '<div class="t-card"><h1 class="t-h1">Classroom mode is unavailable</h1><p>Classroom mode is not running right now. Ask your teacher what to do next.</p></div>';
   else if (view === 'join') html = joinView();
   else html = lobbyView();
+  const ae = document.activeElement, typing = ae && ae.id === 'quiz-frq' ? [ae.selectionStart, ae.selectionEnd] : null;
   root.innerHTML = shell(html);
+  restoreQuiz(typing);
   const c = root.querySelector('#class-code'); if (c) c.value = codeDraft;
   const n = root.querySelector('#class-name'); if (n) n.value = nameDraft;
 }
@@ -49,6 +54,52 @@ function mySummary(s) {
   try { return summaryCard(buildSummary(new Engine(), r.digest, { score: r.score, cons: r.cons_letter, lib: r.lib_letter }), { title: 'Your written summary' }); } catch (e) { return ''; }
 }
 
+// End-of-game check-up: three AP-style questions built from this student's own game, plus one written response.
+// The server rebuilds the same questions from the stored result and grades the multiple choice itself.
+function quizBlock(s) {
+  const r = s.my_result;
+  if (!r || !r.digest) return '';
+  let q = null;
+  try { q = buildQuiz(r, { focus: s.session.focus || null, titleOf: (id) => { const p = eng().pol(id); return p ? p.t : ''; } }); } catch (e) { q = null; }
+  if (!q) return '';
+  const focus = s.session.focus && UNIT_NAMES[s.session.focus] ? '<p class="t-note">Focus: AP Macroeconomics ' + esc(UNIT_NAMES[s.session.focus]) + '</p>' : '';
+  const head = '<div class="t-eyebrow">CHECK YOUR UNDERSTANDING</div><h2 class="t-h2">Questions about your term</h2>' + focus;
+  if (r.quiz) {
+    const a = r.quiz.answers || [];
+    const items = q.mc.map((m, i) => {
+      const ok = a[i] === m.answer;
+      return '<li class="t-quiz-q"><p><b>' + (i + 1) + '.</b> ' + esc(m.q) + '</p><p class="t-quiz-a ' + (ok ? 'ok' : 'no') + '">' + (ok ? 'Correct: ' : 'Your answer: ') + esc(m.choices[a[i]] || '(none)') + '</p>' +
+        (ok ? '' : '<p class="t-quiz-a ok">Correct answer: ' + esc(m.choices[m.answer]) + '</p>') + '<p class="t-note">' + esc(m.why) + '</p></li>';
+    }).join('');
+    return '<div class="t-card">' + head + '<div class="t-alert ok" role="status">You got ' + esc(r.quiz_score) + ' of ' + esc(r.quiz_of) + ' right. Your answers were sent to your teacher.</div><ol class="t-quiz">' + items + '</ol>' +
+      '<h3 class="t-h3">Written response</h3><p class="t-pre">' + esc(q.frq.q) + '</p>' + (r.quiz.frq ? '<p class="t-pre t-quiz-frq">' + esc(r.quiz.frq) + '</p>' : '<p class="t-note">You did not write a response.</p>') +
+      '<p class="t-note">Your teacher reads and grades the written response.</p></div>';
+  }
+  const items = q.mc.map((m, i) => '<li class="t-quiz-q"><fieldset><legend><b>' + (i + 1) + '.</b> ' + esc(m.q) + '</legend>' +
+    m.choices.map((c, j) => '<label class="t-opt"><input type="radio" name="q' + i + '" value="' + j + '"' + (quizBusy ? ' disabled' : '') + '><span>' + esc(c) + '</span></label>').join('') + '</fieldset></li>').join('');
+  return '<form class="t-card" data-form="quiz" novalidate>' + head + '<p class="t-note">Answer from what happened in your own game. You can submit once.</p><ol class="t-quiz">' + items + '</ol>' +
+    '<h3 class="t-h3"><label for="quiz-frq">Written response</label></h3><p class="t-pre" id="quiz-frq-q">' + esc(q.frq.q) + '</p>' +
+    '<p class="t-note">Describe any graph in words (for example, "AD shifts right"). Your teacher grades this part.</p>' +
+    '<textarea id="quiz-frq" class="t-input t-area" rows="8" maxlength="' + FRQ_MAX + '" aria-describedby="quiz-frq-q"' + (quizBusy ? ' disabled' : '') + '></textarea>' +
+    '<div class="t-err" role="alert">' + esc(quizErr) + '</div>' +
+    '<button class="t-btn gold" type="submit"' + (quizBusy ? ' disabled' : '') + '>' + (quizBusy ? 'Sending...' : 'Submit answers') + '</button></form>';
+}
+function restoreQuiz(typing) {
+  const f = root.querySelector('form[data-form="quiz"]'); if (!f) return;
+  quizDraft.answers.forEach((v, i) => { if (v == null) return; const el = f.querySelector('input[name="q' + i + '"][value="' + v + '"]'); if (el) el.checked = true; });
+  const t = f.querySelector('#quiz-frq'); if (t) { t.value = quizDraft.frq; if (typing) { t.focus(); t.setSelectionRange(typing[0], typing[1]); } }
+}
+async function sendQuiz(e) {
+  e.preventDefault();
+  if (quizBusy) return;
+  const n = root.querySelectorAll('form[data-form="quiz"] .t-quiz-q').length;
+  const answers = []; for (let i = 0; i < n; i++) answers.push(quizDraft.answers[i]);
+  if (answers.some((a) => a == null)) { quizErr = 'Answer every multiple-choice question first.'; render(); return; }
+  quizBusy = true; quizErr = ''; render();
+  try { await submitQuiz(answers, quizDraft.frq); quizBusy = false; quizDraft = { answers: [], frq: '' }; await refresh(true); }
+  catch (err) { quizBusy = false; quizErr = err.message; if (err.code === 'quiz_already_submitted') await refresh(true); else render(); }
+}
+
 const secsLeft = () => (st && st.session && st.session.starts_at ? (Date.parse(st.session.starts_at) - (Date.now() + offset)) / 1000 : null);
 
 function sessionBlock(s) {
@@ -61,7 +112,7 @@ function sessionBlock(s) {
       cls = '<h2 class="t-h2">How the class did</h2><p class="t-note">' + c.completed + ' students finished. These are class totals; nobody is named.</p>' + avgCards(c.average) + distChart(c.distribution);
     } else if (ses.reveal_results) cls = '<p class="t-note">Class results will show once at least 3 students have finished.</p>';
     return '<div class="t-card"><h2 class="t-h2">' + esc(ses.title) + '</h2><div class="t-alert ok" role="status">Your result was sent to your teacher.</div>' + resultBlock(s.my_result) + mySummary(s) +
-      (cls || '<p class="t-note">Other students’ results stay hidden until your teacher chooses to share them.</p>') + '</div>';
+      (cls || '<p class="t-note">Other students’ results stay hidden until your teacher chooses to share them.</p>') + '</div>' + quizBlock(s);
   }
   if (ses.status === 'ended') return '<div class="t-card"><h2 class="t-h2">' + esc(ses.title) + '</h2><p role="status">This session has ended. Your teacher can start another one, and this page will update.</p></div>';
   const len = '<p class="t-note">You will be President for <b>' + ses.days + ' days</b> (about ' + esc(minutesFor(ses.days)) + '). Everyone in your class gets the same country and the same starting events, so you can compare choices afterwards. If you refresh the page in the middle of a game, you start over.</p>';
@@ -108,7 +159,7 @@ function maybeLaunch() {
   const ses = st.session;
   if (ses.status === 'active' && ses.started && ses.seed != null && onLobby()) {
     launching = true; playing = true; clearTimeout(timer); clearInterval(tick);
-    window.__classPlay({ seed: ses.seed, title: ses.title, days: ses.days, difficulty: ses.difficulty, name: st.nickname });
+    window.__classPlay({ seed: ses.seed, title: ses.title, days: ses.days, difficulty: ses.difficulty, focus: ses.focus || null, name: st.nickname });
     launching = false;
   }
 }
@@ -161,10 +212,16 @@ async function join(e) {
 
 export function mount(el) {
   root = el;
-  root.addEventListener('submit', (e) => { if (e.target.dataset.form === 'join') join(e); });
+  root.addEventListener('submit', (e) => { if (e.target.dataset.form === 'join') join(e); if (e.target.dataset.form === 'quiz') sendQuiz(e); });
+  root.addEventListener('change', (e) => {
+    const m = /^q(\d)$/.exec(e.target.name || ''); if (!m) return;
+    quizDraft.answers[+m[1]] = +e.target.value;
+    if (quizErr) { quizErr = ''; const el = root.querySelector('form[data-form="quiz"] .t-err'); if (el) el.textContent = ''; }
+  });
   root.addEventListener('input', (e) => {
     if (e.target.id === 'class-code') { codeDraft = e.target.value; e.target.value = e.target.value.toUpperCase(); }
     if (e.target.id === 'class-name') nameDraft = e.target.value;
+    if (e.target.id === 'quiz-frq') quizDraft.frq = e.target.value;
   });
   root.addEventListener('click', async (e) => {
     const a = e.target.closest('[data-act]'); if (!a) return;

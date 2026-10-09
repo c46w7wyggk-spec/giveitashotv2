@@ -75,7 +75,7 @@ export class App extends Engine {
   // A class run uses the session's seed from the server, is never posted to the public board, and is sent to the
   // classroom function, which replays the log itself. The score on this screen is only a preview.
   startClass(info) {
-    const g = this.newGame(info.seed, info.days || 14, info.difficulty === 1 ? 1 : 0);
+    const g = this.newGame(info.seed, info.days || 14, info.difficulty === 1 ? 1 : 0, info.focus || null);
     g.title = 'President'; g.seed0 = info.seed; g.mode = 'class'; g.dd = null; g.log = '';
     g.phase = 'desk'; g.day = 1; g.ds = this.M(g); g.ds0 = g.ds; this.deal(g);
     this.setState({ mode: 'class', g: g, tab: 'map', xsel: null, xopen: false, tut: 0, helpOpen: false, mean: false, xmean: false, cfOn: false, ev: false, classMsg: '', classErr: '', classSent: false, classSending: false, rankBoard: null, submitted: false, lbMsg: '', lbErr: '', shareMsg: '' });

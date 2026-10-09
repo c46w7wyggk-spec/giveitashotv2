@@ -1,7 +1,7 @@
-// Plays a random but legal term with the real engine. opts: { days, lvl, aggressive } -> { log, g, eng }.
+// Plays a random but legal term with the real engine. opts: { days, lvl, unit, aggressive } -> { log, g, eng }.
 import { Engine, begin, applyAction, XIDX } from '../../src/engine.js';
 export function playGame(seed, rseed = 1, opts = {}) {
-  const eng = new Engine(); const D = eng.data(); const g = begin(eng, seed, 'President', opts.days, opts.lvl);
+  const eng = new Engine(); const D = eng.data(); const g = begin(eng, seed, 'President', opts.days, opts.lvl, opts.unit);
   let log = '', n = 0, r = rseed * 31 + 7;
   const rnd = () => { r = (r * 1103515245 + 12345) & 0x7fffffff; return r / 0x7fffffff; };
   while (g.phase !== 'end' && n++ < 900) {
