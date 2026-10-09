@@ -4,6 +4,9 @@ import { mount } from './runtime.js';
 import { App } from './ui.js';
 import { watchForUpdates } from './update.js';
 import * as api from './api.js';
+import { installErrorReporting } from './errors.js';
+
+installErrorReporting();
 
 const root = document.getElementById('app');
 let view;

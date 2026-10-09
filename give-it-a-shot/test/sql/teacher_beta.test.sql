@@ -441,6 +441,56 @@ do $$ declare r jsonb; n int; begin
   perform t.back();
 end $$;
 
+-- 15. owner dashboard: error log, tombstones, admin-only views
+do $$ declare r jsonb; cid uuid; n int; nt int; fp text; begin
+  -- anyone can report an error; junk is ignored; query strings are stripped
+  perform t.as_anon();
+  perform public.log_client_error('error', 'TypeError: x is undefined', 'ui.js:10:5', 'at f (ui.js:10:5)', '/classroom?code=ABC#x', 'b1', 'TestUA');
+  perform public.log_client_error('bogus', 'ignored', null, null, null, null, null);
+  perform public.log_client_error('error', '   ', null, null, null, null, null);
+  perform t.fails('anon cannot read the error table', 'select count(*) from public.client_errors', 'permission denied');
+  perform t.fails('anon cannot call the overview', 'select public.admin_owner_overview()', 'permission denied');
+  perform t.back();
+  perform t.as_user('c0000000-0000-0000-0000-00000000000c');
+  perform public.log_client_error('api', 'submit-score failed: 500', 'submit-score', null, '/', 'b1', 'TestUA');
+  for i in 1..25 loop perform public.log_client_error('rejection', 'spam ' || i, null, null, '/', null, null); end loop;
+  perform t.fails('player cannot read the overview', 'select public.admin_owner_overview()', 'not_authorized');
+  perform t.fails('player cannot list feedback', 'select public.admin_list_feedback()', 'not_authorized');
+  perform t.fails('player cannot list errors', 'select public.admin_list_errors(7)', 'not_authorized');
+  perform t.fails('player cannot resolve errors', $q$select public.admin_resolve_errors('x')$q$, 'not_authorized');
+  perform t.fails('player cannot list all classrooms', 'select public.admin_owner_classrooms()', 'not_authorized');
+  perform t.back();
+  perform t.eq('per-sender limit caps one user at 20 reports per 10 min', (select count(*)::int from public.client_errors where user_id = 'c0000000-0000-0000-0000-00000000000c'), 20);
+  perform t.eq('only valid anon report stored', (select count(*)::int from public.client_errors where user_id is null), 1);
+  perform t.eq('path stored without query or hash', (select path from public.client_errors where user_id is null), '/classroom');
+  -- deleting a classroom leaves a nameless tombstone with its counts
+  delete from public.rate_limits where key like 't_create_classroom:%';
+  perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  r := public.teacher_create_classroom('Doomed'); cid := (r->>'id')::uuid;
+  perform public.teacher_delete_classroom(cid);
+  perform t.back();
+  perform t.eq('tombstone written on delete', (select count(*)::int from public.classroom_tombstones where classroom_id = cid), 1);
+  -- the admin sees everything
+  n := (select count(*)::int from auth.users); nt := (select count(*)::int from public.classroom_tombstones);
+  fp := (select fingerprint from public.client_errors where kind = 'api' limit 1);
+  perform t.as_user('d0000000-0000-0000-0000-00000000000d');
+  r := public.admin_owner_overview();
+  perform t.eq('overview counts accounts', (r->'people'->>'accounts')::int, n);
+  perform t.eq('overview has 14 daily rows', jsonb_array_length(r->'daily'), 14);
+  perform t.eq('overview counts deleted classrooms', (r->'classrooms'->>'deleted')::int >= 1, true);
+  perform t.eq('overview counts errors today', (r->'errors'->>'last_24h')::int, 21);
+  r := public.admin_owner_classrooms();
+  perform t.eq('owner classrooms lists open ones', jsonb_array_length(r->'classrooms') >= 1, true);
+  perform t.eq('owner classrooms lists deleted ones', jsonb_array_length(r->'deleted'), nt);
+  perform t.eq('no student names in the owner classroom view', position('display_name' in r::text) = 0 and position('"log"' in r::text) = 0, true);
+  r := public.admin_list_errors(7);
+  perform t.eq('errors grouped by fingerprint', jsonb_array_length(r), 21);
+  perform public.admin_resolve_errors(fp);
+  perform t.eq('resolve marks the group fixed', (select e->>'resolved' from jsonb_array_elements(public.admin_list_errors(7)) e where e->>'kind' = 'api'), 'true');
+  perform t.eq('feedback list is an array', jsonb_typeof(public.admin_list_feedback()), 'array');
+  perform t.back();
+end $$;
+
 -- 14. every public function that browsers can reach is on the intended allow-list
 do $$ declare names text; begin
   select string_agg(p.proname, ',' order by p.proname) into names
@@ -448,7 +498,7 @@ do $$ declare names text; begin
    where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')
      and (p.proname like 'teacher\_%' or p.proname like 'admin\_%' or p.proname like '\_%' or p.proname in ('rl_hit','rl_peek','gen_join_code','classroom_join','student_context','student_record_result','student_leave','classroom_session_stats','grant_role_by_email','revoke_role_by_email','purge_archived_classrooms','user_has_capability'));
   perform t.eq('authenticated-executable function allow-list',
-    names, 'admin_dismiss_application,admin_find_users,admin_grant_role,admin_list_applications,admin_list_classrooms,admin_list_roles,admin_revoke_role,teacher_apply,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
+    names, 'admin_dismiss_application,admin_find_users,admin_grant_role,admin_list_applications,admin_list_classrooms,admin_list_errors,admin_list_feedback,admin_list_roles,admin_owner_classrooms,admin_owner_overview,admin_resolve_errors,admin_revoke_role,teacher_apply,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
   select string_agg(p.proname, ',') into names from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') and p.proname ~ '^(teacher|admin|classroom|student|rl|grant|revoke|purge|gen|_)';
   perform t.eq('anon can execute none of the new functions', names, null);

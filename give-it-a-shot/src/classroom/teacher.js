@@ -9,12 +9,13 @@ import { Engine } from '../engine.js';
 import { buildSummary, buildClassSummary } from '../summary.js';
 import { minutesFor } from '../learn.js';
 import { summaryCard, classSummaryCard } from './kit.js';
+import { overviewPage, classroomsPage, feedbackPage, feedbackCsv, errorsPage, ownerTabs } from './owner.js';
 
 const RETURN_KEY = 'gias_after_login';
 const CONTACT = import.meta.env.VITE_TEACHER_CONTACT_EMAIL || '';
 let root, me = null, meFor = null, gate = 'loading', route = null, poll = null, lastHtml = '', lastKey = '', loadSeq = 0, ticker = null;
 const ENG = new Engine();
-const ui = { sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, showIndiv: false, sending: false, signinErr: '', email: '', mode: null, notice: null, unconfirmed: false, meta: {} };
+const ui = { ownerFilter: 'open', errDays: 7, errResolved: false, sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, showIndiv: false, sending: false, signinErr: '', email: '', mode: null, notice: null, unconfirmed: false, meta: {} };
 
 const daysOut = (d) => d + ' day' + (d === 1 ? '' : 's') + ' · about ' + minutesFor(d);
 
@@ -26,7 +27,8 @@ function parse(path) {
   if (seg.length === 1) return { name: 'dashboard' };
   if (seg[1] === 'classrooms') return seg[2] && seg.length === 3 ? { name: 'classroom', id: seg[2] } : seg.length === 2 ? { name: 'classrooms' } : { name: 'notfound' };
   if (seg[1] === 'sessions' && seg[2] && seg.length === 3) return { name: 'session', id: seg[2] };
-  if (['resources', 'feedback', 'admin'].includes(seg[1]) && seg.length === 2) return { name: seg[1] };
+  if (seg[1] === 'admin') { const tab = seg[2] || 'overview'; return seg.length <= 3 && ['overview', 'classrooms', 'feedback', 'errors', 'access'].includes(tab) ? { name: 'admin', tab } : { name: 'notfound' }; }
+  if (['resources', 'feedback'].includes(seg[1]) && seg.length === 2) return { name: seg[1] };
   return { name: 'notfound' };
 }
 export function go(path, replace) { window.history[replace ? 'replaceState' : 'pushState'](null, '', path); load(); }
@@ -37,7 +39,7 @@ function shell(inner, opts = {}) {
   const authed = gate === 'ok' && me;
   const who = authed ? esc(me.handle ? '@' + me.handle : 'Signed in') : '';
   return '<div class="t-wrap' + (opts.narrow ? ' narrow' : '') + '"><header class="t-top"><a class="t-brand" href="/teacher" data-nav><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="#eef1f6"></path></svg><div><div class="t-brand-t">GIVE IT A SHOT</div><div class="t-brand-s">For teachers <span class="t-pill">BETA</span></div></div></a>' +
-    (authed ? '<nav class="t-navs" aria-label="Teacher">' + nav('dashboard', '/teacher', 'Dashboard') + nav('classrooms', '/teacher/classrooms', 'Classrooms') + nav('resources', '/teacher/resources', 'Guide') + nav('feedback', '/teacher/feedback', 'Feedback') + (me.is_admin ? nav('admin', '/teacher/admin', 'Admin') : '') + '</nav>' +
+    (authed ? '<nav class="t-navs" aria-label="Teacher">' + nav('dashboard', '/teacher', 'Dashboard') + nav('classrooms', '/teacher/classrooms', 'Classrooms') + nav('resources', '/teacher/resources', 'Guide') + nav('feedback', '/teacher/feedback', 'Feedback') + (me.is_admin ? nav('admin', '/teacher/admin', 'Owner') : '') + '</nav>' +
       '<div class="t-who"><span class="t-note">' + who + '</span><button class="t-btn ghost sm" data-act="signout">Sign out</button></div>' : '') +
     '</header><main id="t-main" tabindex="-1">' + inner + '</main><footer class="t-foot">' +
     (authed ? '<button class="t-btn ghost sm" data-act="feedback">Give Feedback</button> ' : '') +
@@ -318,7 +320,7 @@ function pResources() {
     sec('Learning objectives', ul(['Identify tradeoffs between growth, inflation, unemployment and the deficit.', 'Explain how political incentives (approval, Congress, scandal) can pull against economically optimal choices.', 'Compare different decisions made in identical circumstances and reason about why outcomes differed.', 'Evaluate the assumptions a simulation makes about the real world.'])) +
     sec('Discussion questions', PROMPTS.map((g) => '<h3 class="t-h3">' + esc(g.title) + '</h3>' + ul(g.items.map(esc))).join('')) +
     sec('Technical requirements', ul(['Any current browser on a phone, tablet, laptop or Chromebook, with an internet connection.', 'Students do <b>not</b> need an account or email address.', 'Teachers sign in with an invited email address (one-time link, no password).', 'If a student refreshes mid-game, that game restarts. Their finished result is saved only when they finish.'])) +
-    sec('Privacy notes', ul(['Students type the name they want you to see (we ask for first name and last initial). We never ask for an email, and we do not check names against any school roster. If a student leaves the name blank, a random nickname is used instead.', 'We store each student’s in-game decisions and resulting scores, plus a last-active time, for the classroom.', 'You see the names students typed, who is playing, their live scores, finished results, and a written summary of each student’s decisions. You cannot see student emails because we never collect them. You can remove a student from a session at any time.', 'Students see their own result. Class totals are shown to them only if you choose to share, and only once at least 3 students have finished.', 'You can archive a classroom (stops joining) or delete it (permanently removes all of its data). A student can leave at any time, which deletes their name and result.', 'This beta has not been independently reviewed for legal or regulatory compliance. If your school requires an approval process for student software, please check with your administrator before using it.'])) +
+    sec('Privacy notes', ul(['Students type the name they want you to see (we ask for first name and last initial). We never ask for an email, and we do not check names against any school roster. If a student leaves the name blank, a random nickname is used instead.', 'We store each student’s in-game decisions and resulting scores, plus a last-active time, for the classroom.', 'If a page hits an error, the site sends us the error message, the page address and the browser type so we can fix it. Error reports never include names or game answers.', 'You see the names students typed, who is playing, their live scores, finished results, and a written summary of each student’s decisions. You cannot see student emails because we never collect them. You can remove a student from a session at any time.', 'Students see their own result. Class totals are shown to them only if you choose to share, and only once at least 3 students have finished.', 'You can archive a classroom (stops joining) or delete it (permanently removes all of its data). A student can leave at any time, which deletes their name and result.', 'This beta has not been independently reviewed for legal or regulatory compliance. If your school requires an approval process for student software, please check with your administrator before using it.'])) +
     sec('Feedback', '<p>We are asking a small group of teachers to help shape this. What worked, what confused students, and what you would change are the most useful things you can tell us.</p><button class="t-btn gold" data-act="feedback">Give Feedback</button>'));
 }
 
@@ -338,18 +340,21 @@ async function pFeedback() {
 
 async function pAdmin() {
   if (!me.is_admin) throw new T.TError('not_authorized');
-  const [roles, allCls, pending] = await Promise.all([T.adminRoles(), T.adminClassrooms(), T.adminApplications()]);
+  if (route.tab === 'overview') return shell(overviewPage(await T.adminOverview()));
+  if (route.tab === 'classrooms') return shell(classroomsPage(await T.adminOwnerClassrooms(), { filter: ui.ownerFilter }));
+  if (route.tab === 'feedback') { ui._feedback = await T.adminFeedback(); return shell(feedbackPage(ui._feedback)); }
+  if (route.tab === 'errors') return shell(errorsPage(await T.adminErrors(ui.errDays), { days: ui.errDays, showResolved: ui.errResolved }));
+  const [roles, pending] = await Promise.all([T.adminRoles(), T.adminApplications()]);
   const found = ui.found || [];
   const rolesList = '<ul class="t-list">' + roles.map((r) => '<li><span><b>' + esc(r.handle ? '@' + r.handle : r.email) + '</b> <span class="t-note">' + esc(r.email) + '</span></span><span class="t-chip">' + esc(r.role) + '</span><button class="t-btn ghost sm" data-act="revokerole" data-uid="' + esc(r.user_id) + '" data-role="' + esc(r.role) + '" data-who="' + esc(r.handle || r.email) + '">Revoke</button></li>').join('') + '</ul>';
   const pendingList = '<ul class="t-list">' + pending.map((r) => '<li><span><b>' + esc(r.name) + '</b> · ' + esc(r.school) + (r.confirmed ? '' : ' <span class="t-chip">email not confirmed</span>') + '<br><span class="t-note">' + esc(r.email) + ' · ' + esc(relTime(r.created_at)) + '</span>' +
     (r.note ? '<br><span class="t-note">\u201c' + esc(r.note) + '\u201d</span>' : '') + '</span><span class="t-actions"><button class="t-btn gold sm" data-act="approve" data-id="' + esc(r.user_id) + '" data-who="' + esc(r.name) + '">Approve</button><button class="t-btn ghost sm" data-act="dismissreq" data-id="' + esc(r.user_id) + '" data-who="' + esc(r.name) + '">Dismiss</button></span></li>').join('') + '</ul>';
-  return shell('<div class="t-title"><h1 class="t-h1">Beta access</h1><span class="t-pill big">Admin</span></div>' +
+  return shell('<div class="t-title"><h1 class="t-h1">Owner dashboard</h1></div>' + ownerTabs('access') +
     '<h2 class="t-h2">Waiting for access' + (pending.length ? ' (' + pending.length + ')' : '') + '</h2><section class="t-card flush">' + (pending.length ? pendingList : '<p class="t-empty pad">No one is waiting.</p>') + '</section>' +
     '<p class="t-note">Approving turns on teacher_beta right away. No email is sent, so let the teacher know they can sign in.</p>' +
     '<form class="t-card row" data-form="find" novalidate><div class="grow"><label class="t-label" for="a-q">Find a user by exact email or handle prefix</label><input id="a-q" class="t-input" name="q" autocomplete="off" value="' + esc(ui.findQ || '') + '"><div class="t-err" id="find-err" role="alert"></div></div><button class="t-btn" type="submit">Search</button></form>' +
     (ui.findQ ? '<section class="t-card flush">' + (found.length ? '<ul class="t-list">' + found.map((u) => '<li><span><b>' + esc(u.handle ? '@' + u.handle : '(no handle yet)') + '</b> <span class="t-note">' + esc(u.email) + '</span></span><span>' + u.roles.map((r) => '<span class="t-chip">' + esc(r) + '</span>').join(' ') + '</span><span class="t-actions"><button class="t-btn sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_beta">Grant teacher_beta</button><button class="t-btn ghost sm" data-act="grant" data-uid="' + esc(u.user_id) + '" data-role="teacher_admin">Grant teacher_admin</button></span></li>').join('') + '</ul>' : '<p class="t-empty pad">No match. The person must have created an account or signed in to the game at least once.</p>') + '</section>' : '') +
-    '<h2 class="t-h2">All classrooms (read only)</h2><section class="t-card flush">' + (allCls.length ? '<ul class="t-list">' + allCls.map((c) => '<li><span><b>' + esc(c.name) + '</b>' + (c.archived_at ? ' <span class="t-chip">archived</span>' : '') + (c.active_session ? ' <span class="t-chip live">session running</span>' : '') + '<br><span class="t-note">' + esc(c.owner_handle ? '@' + c.owner_handle : c.owner_email || 'unknown teacher') + ' · ' + c.member_count + ' student' + (c.member_count === 1 ? '' : 's') + ' · ' + c.session_count + ' session' + (c.session_count === 1 ? '' : 's') + ' · created ' + esc(when(c.created_at)) + '</span></span></li>').join('') + '</ul>' : '<p class="t-empty pad">No classrooms yet.</p>') + '</section><p class="t-note">Counts only. Student names and results stay private to the teacher who owns each classroom.</p>' +
-    '<h2 class="t-h2">Currently authorized</h2><section class="t-card flush">' + (roles.length ? rolesList : '<p class="t-empty pad">No one yet.</p>') + '</section><p class="t-note">Revoking takes effect immediately: the next request that person makes is refused.</p>');
+    '<h2 class="t-h2">Currently authorized</h2><section class="t-card flush">' + (roles.length ? rolesList : '<p class="t-empty pad">No one yet.</p>') + '</section><p class="t-note">Revoking takes effect immediately: the next request that person makes is refused. Anyone you grant teacher_admin sees this whole owner dashboard.</p>');
 }
 
 // ------------------------------------------------------------------ loader
@@ -371,6 +376,7 @@ async function load() {
     const every = route.name === 'session' ? (route.phase === 'lobby' ? 2500 : 3000) : 8000;
     poll = setInterval(() => { if (!document.hidden && !document.querySelector('dialog[open]') && !isTyping()) draw(seq, true); }, every);
   }
+  if (route.name === 'admin' && route.tab === 'overview') poll = setInterval(() => { if (!document.hidden && !document.querySelector('dialog[open]')) draw(seq, true); }, 60000);
 }
 const isTyping = () => { const a = document.activeElement; return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && root.contains(a); };
 async function draw(seq, quiet) {
@@ -439,6 +445,15 @@ async function onAct(el) {
     if (a === 'sumtoggle') { ui.sumOpen[id] = !ui.sumOpen[id]; lastHtml = ''; return refresh(); }
     if (a === 'copysum') return copyText(id === 'class' ? (ui._classSum ? plainClass(ui._classSum) : '') : (ui['_sum_' + id] || ''));
     if (a === 'indiv') { ui.showIndiv = !ui.showIndiv; lastHtml = ''; return refresh(); }
+    if (a === 'ownerfilter') { ui.ownerFilter = el.dataset.v; return refresh(); }
+    if (a === 'errdays') { ui.errDays = Number(el.dataset.v) || 7; return refresh(); }
+    if (a === 'errresolved') { ui.errResolved = el.checked; return refresh(); }
+    if (a === 'resolveerr') { await T.adminResolveError(id); toast('Marked resolved. It reappears if it happens again.'); return refresh(); }
+    if (a === 'feedbackcsv') {
+      const url = URL.createObjectURL(new Blob([feedbackCsv(ui._feedback || [])], { type: 'text/csv' }));
+      const link = document.createElement('a'); link.href = url; link.download = 'teacher-feedback-' + new Date().toISOString().slice(0, 10) + '.csv';
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); return;
+    }
     if (a === 'grant') { await T.adminGrant(el.dataset.uid, el.dataset.role); toast('Access granted.'); ui.found = await T.adminFind(ui.findQ); return refresh(); }
     if (a === 'revokerole') { if (!(await confirmDialog({ title: 'Revoke access?', body: el.dataset.who + ' will lose ' + el.dataset.role + ' immediately.', confirm: 'Revoke', danger: true }))) return; await T.adminRevoke(el.dataset.uid, el.dataset.role); toast('Access revoked.'); return refresh(); }
   } catch (e) { fail(e); if (['not_authorized', 'not_authenticated', 'teacher_beta_disabled'].includes(e.code)) load(); }

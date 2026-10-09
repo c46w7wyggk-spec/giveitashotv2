@@ -80,7 +80,7 @@ No other new variables. The browser already uses the public URL + publishable ke
 ## 6. Deployment
 
 ### Supabase
-1. **Migration.** Dashboard → SQL Editor → paste `supabase/migrations/20261008000000_teacher_beta.sql` → Run, then the later `teacher_beta_v2`, `teacher_beta_v3` and `teacher_signup` migrations in order. (Use this rather than `supabase db push`: your live project has migration versions the repo does not.) Then open **Advisors → Security** and confirm no new warnings you do not understand.
+1. **Migration.** Dashboard → SQL Editor → paste `supabase/migrations/20261008000000_teacher_beta.sql` → Run, then the later `teacher_beta_v2`, `teacher_beta_v3`, `teacher_signup` and `owner_dashboard` migrations in order. (Use this rather than `supabase db push`: your live project has migration versions the repo does not.) Then open **Advisors → Security** and confirm no new warnings you do not understand.
 2. **Edge function.** `supabase functions deploy classroom --project-ref gaurlsgdfwasrapvlmyd --no-verify-jwt`. `--no-verify-jwt` is required: students have no JWT; the function authenticates them by token.
 3. **Secret.** `supabase secrets set IP_HASH_SALT=$(openssl rand -hex 16) --project-ref gaurlsgdfwasrapvlmyd`.
 4. **Check the deploy.** `curl https://gaurlsgdfwasrapvlmyd.supabase.co/functions/v1/classroom` should return `{"engine_version":5,"sha256":...}` with the **same sha256** as `.../functions/v1/submit-score`. If you ever change the engine: `npm run make-server-engine` and redeploy **both** functions.
@@ -179,3 +179,12 @@ The suites use a small stand-in for Supabase's roles/`auth` schema and forward t
 - **Teacher dashboard.** Each classroom is now a large card with join code, student count, and buttons for the live session or "Set up a session". A "Classrooms" link is in the top navigation.
 - **Admin overview.** Admins see a read-only list of every classroom (owner, student count, sessions) on the Admin page. Names and results stay private to the owning teacher. This needs migration `20261008020000_teacher_beta_v3.sql`.
 - **Deploy order:** run the v3 migration, deploy both edge functions (engine v4), deploy the site. Sessions in progress at engine v3 should be restarted.
+
+## Update: Owner dashboard (2026-10-09)
+`/teacher/admin` is now the **Owner dashboard**, visible only to `teacher_admin` accounts (the "Owner" link). Migration `20261009000000_owner_dashboard.sql`.
+- **Overview:** accounts, public-game scores, classrooms, feedback and error totals; a 14-day activity table; database size, connections, rate-limiter call volume, busiest hour and largest tables. Refreshes every minute.
+- **Classrooms:** every open, archived and deleted classroom with its teacher, student count and per-session counts and average score. No student names or results.
+- **Feedback:** all teacher feedback with the teacher's name, school and email, plus a CSV download.
+- **Errors:** browser crashes, unhandled promise rejections and failed calls to our own server, reported by the production site (`src/errors.js`, at most 8 per page visit) through `log_client_error`, grouped by fingerprint, with "Mark resolved".
+- **Access:** the previous admin page (waiting requests, find user, grant/revoke). Granting `teacher_admin` gives someone the whole Owner dashboard.
+Not covered here: edge-function logs and CPU (Supabase dashboard → Edge Functions → Logs) and site traffic (Vercel Analytics).

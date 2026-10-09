@@ -15,6 +15,8 @@ The design goal is to collect as little as possible. Students never create an ac
 | The student's in-game decisions (an action log like `sseexxA...`) and the resulting numbers (score, GDP growth, unemployment, inflation, deficit, approval, unrest, scandal, the two grades, the economy dial) | `classroom_results` | server re-computes and stores the result | teacher sees the numbers (not the log); student sees their own numbers |
 | Hash of the visitor's IP address, salted | `rate_limits.key` (counters only) | stop code guessing and spam | nobody through the app; DB admins only. Not linked to a nickname or classroom. Old rows are deleted opportunistically (on roughly 1% of rate-limit calls), so they can linger for longer than a day in quiet periods. |
 | Event names with ids (`classroom_joined`, ...) | `analytics_events` | usage counts for the pilot | DB admins only. Student events carry no user id. |
+| Error reports from any visitor: error message, script location and stack, page path (no query string), build id, browser user agent, and the user id if signed in (never for students) | `client_errors` | find and fix crashes and failed server calls | teacher_admin accounts (Owner dashboard → Errors). Deleted after 90 days. |
+| When a classroom is deleted: its owner, created/archived/deleted dates and how many students, sessions and results it had (no names, no results) | `classroom_tombstones` | count past usage | teacher_admin accounts (Owner dashboard → Classrooms → Deleted) |
 
 **Not collected from students:** name, email, auth account, handle, age, school, device identifiers, email, surname, age, school or device identifiers. The only typed text is the first name and last initial the student enters, plus the teacher's session title/instructions. Teachers should tell students not to enter anything else.
 
@@ -22,6 +24,9 @@ The design goal is to collect as little as possible. Students never create an ac
 
 ## What teachers can see
 Student names, live progress (day, score, approval, scandal), join/last-active times, written summaries built from each student's decisions, who has finished, each finished student's result numbers, class aggregates. They cannot see student emails (none exist), auth ids, tokens, replay logs, or IP data. A teacher can only see their own classrooms; this is enforced in the database (see `TEACHER_BETA.md`).
+
+## What admins (teacher_admin) can see
+The Owner dashboard at `/teacher/admin`: every classroom's name, owner, student count, sessions and per-session counts and average score; all teacher feedback with the teacher's email, name and school; error reports; usage and load totals. Admins do **not** see student names, individual results, written summaries or replay logs; those stay with the classroom's own teacher.
 
 ## What students can see
 Their classroom name, their own name, the session title/instructions, their own result. Class totals (averages, distribution, highlights; never names) only if the teacher turns on "Share class results", only after they have finished themselves, and only when at least 3 students have finished.

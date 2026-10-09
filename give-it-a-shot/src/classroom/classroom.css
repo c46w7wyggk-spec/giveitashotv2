@@ -155,3 +155,16 @@ summary{cursor:pointer;font-weight:700}
 #t-main{display:flex;flex-direction:column}
 .t-scroll,.t-card{position:relative}
 .t-board th[scope=row]{text-align:left}.t-board td:first-child{text-align:left}
+
+/* Owner dashboard (/teacher/admin/*) */
+.t-subnav{border-bottom:1px solid var(--line);padding-bottom:8px}
+.t-badge{display:inline-block;min-width:18px;padding:0 5px;border-radius:9px;background:var(--gold);color:var(--bg);font-size:11px;text-align:center}
+.t-stat.warn{border-color:#7a6420}.t-stat.warn .t-stat-v{color:#ffe6a3}
+.t-stat.live{border-color:#2f7a4b}.t-stat.live .t-stat-v{color:#7be0a3}
+.t-chip.warn{background:#3a2f12;color:#ffe6a3}
+.t-spark{display:block}.t-spark rect{fill:var(--gold)}.t-spark rect.z{fill:var(--line2)}
+.t-act td{vertical-align:middle}.t-act td:nth-child(2){text-align:left}
+.t-err-g{align-items:flex-start!important}
+.t-err-g details{margin-top:6px}.t-err-g summary{cursor:pointer;font-size:13px;color:var(--soft)}
+.t-stack{max-height:220px;overflow:auto;font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;margin:6px 0}
+#tapp .t-pre{overflow-wrap:anywhere}

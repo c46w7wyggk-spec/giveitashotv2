@@ -344,13 +344,26 @@ ok('teacher B opening teacher A session URL: not found, no data', /not found|bel
 await bp.goto(APP + '/teacher/classrooms/not-a-uuid'); await settled(bp);
 ok('garbage id handled gracefully', /not found|belongs to another/.test(await text(bp)));
 await bp.goto(APP + '/teacher/admin'); await settled(bp);
-ok('teacher_beta (non-admin) cannot open admin page', !/Beta access/.test(await text(bp)) && (await bp.locator('a[href="/teacher/admin"]').count()) === 0);
+ok('teacher_beta (non-admin) cannot open admin page', !/Owner dashboard/.test(await text(bp)) && (await bp.locator('a[href="/teacher/admin"]').count()) === 0);
 await bp.close();
 
 // ------------------------------------------------------------ admin page
 const ap = await newPage(browser, 'D');
-await ap.goto(APP + '/teacher/admin'); await ap.waitForSelector('form[data-form=find]');
-ok('admin sees admin nav and page', /Beta access/.test(await text(ap)) && (await ap.locator('a[href="/teacher/admin"]').count()) === 1);
+await ap.goto(APP + '/teacher/admin'); await ap.waitForSelector('text=Stability and load');
+ok('admin sees the Owner nav and the overview', /Owner dashboard/.test(await text(ap)) && (await ap.locator('header a[href="/teacher/admin"]').count()) === 1);
+ok('overview counts people, classrooms and waiting requests', /2 teachers are waiting for access/.test(await text(ap)) && /Open classrooms/i.test(await text(ap)) && (await ap.locator('svg.t-spark').count()) === 6, (await text(ap)).slice(0, 600));
+await shot(ap, 'owner-overview');
+await ap.click('a[href="/teacher/admin/classrooms"]'); await ap.waitForSelector('[data-act=ownerfilter]');
+ok('owner classrooms: every teacher\'s classroom with session aggregates, no student names', /Period 3/.test(await text(ap)) && /Tax week/.test(await text(ap)) && !/Sam R\./.test(await text(ap)));
+await shot(ap, 'owner-classrooms');
+await sql(`insert into public.client_errors(kind, fingerprint, message, source, path, build, ua) values ('error', 'fp1', 'TypeError: boom', 'ui.js:1:2', '/', 'b1', 'UA')`);
+await ap.click('a[href="/teacher/admin/errors"]'); await ap.waitForSelector('[data-act=resolveerr]');
+ok('owner errors: grouped error shown', /TypeError: boom/.test(await text(ap)));
+await ap.click('[data-act=resolveerr]'); await ap.waitForFunction(() => /No open errors/.test(document.getElementById('tapp').innerText));
+ok('owner errors: resolve hides the group', (await sql(`select count(*) from public.client_errors where resolved_at is null`)) === '0');
+await ap.click('a[href="/teacher/admin/feedback"]'); await ap.waitForSelector('text=No feedback yet');
+ok('owner feedback page renders', true);
+await ap.click('a[href="/teacher/admin/access"]'); await ap.waitForSelector('form[data-form=find]');
 ok('admin sees both requests waiting, with school and note', /Waiting for access \(2\)/.test(await text(ap)) && /Central High/.test(await text(ap)) && /AP Gov, 2 sections/.test(await text(ap)));
 await ap.click(`[data-act=approve][data-id="${ACCT[NEW].id}"]`);
 await ap.waitForFunction(() => /Waiting for access \(1\)/.test(document.getElementById('tapp').innerText));

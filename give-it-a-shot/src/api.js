@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { reportApi } from './errors.js';
 
 // The URL and publishable key are public by design; the fallbacks keep the board working if a host drops .env files.
 const URL = import.meta.env.VITE_SUPABASE_URL || 'https://gaurlsgdfwasrapvlmyd.supabase.co';
@@ -81,6 +82,8 @@ export async function submitScore(payload) {
   if (error) {
     let msg = error.message;
     try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch { /* keep default */ }
+    const st = error.context && error.context.status;
+    if (!st || st >= 500) reportApi('submit-score', (st || 'no status') + ' ' + msg);
     throw new Error(msg);
   }
   return data;

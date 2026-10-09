@@ -1,6 +1,7 @@
 // Teacher/admin calls. These go straight to Postgres functions with the signed-in user's own JWT.
 // There is no service key in the browser, and the browser never says who it is: the database reads auth.uid().
 import { sb } from '../api.js';
+import { reportApi } from '../errors.js';
 
 const MSG = {
   not_authenticated: 'Please sign in again.',
@@ -38,7 +39,7 @@ function codeOf(e) {
 async function rpc(fn, args) {
   if (!sb) throw new TError('offline');
   const { data, error } = await sb.rpc(fn, args || {});
-  if (error) throw new TError(codeOf(error));
+  if (error) { const c = codeOf(error); if (c === 'server_error') reportApi('rpc:' + fn, error.message); throw new TError(c); }
   return data;
 }
 
@@ -64,6 +65,11 @@ export const adminRoles = () => rpc('admin_list_roles');
 export const adminApplications = () => rpc('admin_list_applications');
 export const adminDismiss = (uid) => rpc('admin_dismiss_application', { p_user: uid });
 export const adminClassrooms = () => rpc('admin_list_classrooms');
+export const adminOverview = () => rpc('admin_owner_overview');
+export const adminOwnerClassrooms = () => rpc('admin_owner_classrooms');
+export const adminFeedback = () => rpc('admin_list_feedback');
+export const adminErrors = (days) => rpc('admin_list_errors', { p_days: days });
+export const adminResolveError = (fp) => rpc('admin_resolve_errors', { p_fingerprint: fp });
 export const adminFind = (q) => rpc('admin_find_users', { p_query: q });
 export const adminGrant = (uid, role) => rpc('admin_grant_role', { p_user: uid, p_role: role });
 export const adminRevoke = (uid, role) => rpc('admin_revoke_role', { p_user: uid, p_role: role });
