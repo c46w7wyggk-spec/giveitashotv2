@@ -94,5 +94,23 @@ ok('default game is 14 days, standard', (() => { const g = new Engine().newGame(
 { let xa = 0; for (let s = 1; s <= 100; s++) xa += playGame(s * 59, s, { days: 14, lvl: 1, aggressive: true }).g.xdone.length; ok('core has no executive actions', xa === 0); }
 ok('core rejects every executive action', (() => { const eng = new Engine(); const g = begin(eng, 5, 'President', 14, 1); g.cap = 8; try { applyAction(eng, g, xi('nocorptax')); return false; } catch (e) { return /core mode/.test(e.message); } })());
 
+// 8. beta 10/09: "Take no action" in an impeachment trial (option 4) costs nothing and is only valid during a trial
+{
+  const eng = new Engine(); const g = begin(eng, 11, 'President', 14, 0);
+  ok('option 4 is rejected outside a trial', (() => { try { applyAction(eng, g, '4'); return false; } catch (e) { return true; } })());
+  g.phase = 'trial'; g.imp = { st: 'trial', w: 1, r: 0, conv: 60, c0: 60 }; g.cap = 0; const sc0 = g.scand, cg0 = g.cong;
+  applyAction(eng, g, '4');
+  ok('no-action trial round is free and adds no scandal', g.cap === 0 && g.scand === sc0 && g.cong === cg0 && (g.imp ? g.imp.r === 1 : true));
+  let found = 0;
+  for (let s = 1; s <= 300 && !found; s++) { const r = playGame(s * 53, s, { days: 14, lvl: 0 }); if (r.g.trials) found = 1; }
+  ok('impeachment still reachable', found === 1);
+}
+// 9. beta 10/09: spending-cut executive actions exist, cut the deficit, and the Pentagon cut shares the defense lever with the desk bills
+{
+  for (const id of ['impound', 'pentcut', 'hirefreeze']) { const x = D.XA.find((q) => q.id === id); ok('action ' + id + ' exists in Spending', x && x.cat === 'budget' && x.f[3] < 0); }
+  const eng = new Engine(); ok('Pentagon cut clashes with the defense bills', eng.clash('pentcut', 'defcut') && eng.clash('pentcut', 'defup'));
+  ok('the national sales tax still excludes a VAT', eng.clash('consumptax', 'natvat'));
+}
+
 console.log(fails ? fails + ' FAILED' : 'rules OK', '(dealt', dealt, 'memos, withdrew', withdrawn, ')');
 process.exit(fails ? 1 : 0);

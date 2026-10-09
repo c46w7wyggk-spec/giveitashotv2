@@ -74,3 +74,5 @@ export const adminResolveError = (fp) => rpc('admin_resolve_errors', { p_fingerp
 export const adminFind = (q) => rpc('admin_find_users', { p_query: q });
 export const adminGrant = (uid, role) => rpc('admin_grant_role', { p_user: uid, p_role: role });
 export const adminRevoke = (uid, role) => rpc('admin_revoke_role', { p_user: uid, p_role: role });
+export const adminUsers = () => rpc('admin_list_users');
+export const adminSetLeaderBeta = (uid, on) => rpc('admin_set_leader_beta', { p_user: uid, p_on: !!on });

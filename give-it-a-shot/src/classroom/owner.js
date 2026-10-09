@@ -4,7 +4,7 @@
 import { esc, relTime, when } from './kit.js';
 
 export const OWNER_TABS = [['overview', '/teacher/admin', 'Overview'], ['classrooms', '/teacher/admin/classrooms', 'Classrooms'],
-  ['feedback', '/teacher/admin/feedback', 'Feedback'], ['errors', '/teacher/admin/errors', 'Errors'], ['access', '/teacher/admin/access', 'Access']];
+  ['users', '/teacher/admin/users', 'Users'], ['feedback', '/teacher/admin/feedback', 'Feedback'], ['errors', '/teacher/admin/errors', 'Errors'], ['access', '/teacher/admin/access', 'Access']];
 
 export function ownerTabs(tab, badges = {}) {
   return '<nav class="t-navs t-subnav" aria-label="Owner dashboard">' + OWNER_TABS.map(([k, href, label]) =>
@@ -81,6 +81,33 @@ export function classroomsPage(data, opts = {}) {
     '<div class="t-actions">' + tab('open', 'Open', open.length) + tab('archived', 'Archived', arch.length) + tab('deleted', 'Deleted', dead.length) + tab('all', 'All', all.length) + '</div>' +
     (filter === 'deleted' ? deadList : pick.length ? pick.map(card).join('') : '<div class="t-card"><p class="t-empty">Nothing here.</p></div>') +
     '<p class="t-note">Counts and averages only. Student names, individual results and game logs stay private to the teacher who owns each classroom. A deleted classroom keeps only its size and dates, not its name.</p>';
+}
+
+// Every account (players, teachers, admins) with its public-game stats. Supreme Leader beta access is switched per account here.
+export function usersPage(list, opts = {}) {
+  const filter = opts.filter || 'all', q = (opts.q || '').trim().toLowerCase();
+  const isTeacher = (u) => u.roles.includes('teacher_beta') || u.roles.includes('teacher_admin');
+  const F = { all: () => true, players: (u) => !isTeacher(u), teachers: isTeacher, leader: (u) => u.leader_beta, active: (u) => u.games_7d > 0 };
+  const count = (k) => list.filter(F[k]).length;
+  const shown = list.filter(F[filter] || F.all).filter((u) => !q || (u.email || '').toLowerCase().includes(q) || (u.handle || '').toLowerCase().includes(q));
+  const tab = (k, label) => '<button class="t-btn sm' + (filter === k ? '' : ' ghost') + '" data-act="userfilter" data-v="' + k + '" aria-pressed="' + (filter === k) + '">' + label + ' (' + count(k) + ')</button>';
+  const who = (u) => (u.handle ? '@' + u.handle + (u.tag ? ' [' + u.tag + ']' : '') : '(no handle yet)');
+  const lb = (u) => u.leader_beta && u.leader_beta_domain
+    ? '<span class="t-chip">on via ' + esc(u.leader_beta_domain) + '</span>'
+    : '<button class="t-btn sm' + (u.leader_beta ? ' ghost' : '') + '" data-act="leaderbeta" data-uid="' + esc(u.user_id) + '" data-on="' + (u.leader_beta ? '0' : '1') + '" data-who="' + esc(u.handle || u.email) + '" aria-pressed="' + !!u.leader_beta + '">' + (u.leader_beta ? 'Remove access' : 'Give access') + '</button>';
+  const row = (u) => '<tr><th scope="row"><b>' + esc(who(u)) + '</b><br><span class="t-note">' + esc(u.email || '') + (u.confirmed ? '' : ' · not confirmed') + '</span>' +
+    (u.roles.length ? '<br>' + u.roles.map((r) => '<span class="t-chip">' + esc(r) + '</span>').join(' ') : '') + '</th>' +
+    '<td>' + esc(when(u.created_at)) + '</td><td>' + esc(u.last_sign_in_at ? relTime(u.last_sign_in_at) : 'never') + '</td>' +
+    '<td>' + n(u.games) + (u.daily_games ? '<br><span class="t-note">' + n(u.daily_games) + ' daily</span>' : '') + '</td><td>' + n(u.games_7d) + '</td>' +
+    '<td>' + n(u.best_score) + '</td><td>' + n(u.avg_score) + '</td><td>' + esc(u.last_game_at ? relTime(u.last_game_at) : '-') + '</td>' +
+    '<td>' + (isTeacher(u) ? n(u.classrooms) : '-') + '</td><td>' + (u.leader_beta ? '<span class="t-chip live">on</span>' : '<span class="t-note">off</span>') + ' ' + lb(u) + '</td></tr>';
+  const totals = cards([stat('Accounts', n(list.length)), stat('Played this week', n(count('active'))), stat('Teachers', n(count('teachers'))), stat('Supreme Leader beta', n(count('leader')))]);
+  return '<div class="t-title"><h1 class="t-h1">Owner dashboard</h1></div>' + ownerTabs('users', opts.badges) + totals +
+    '<form class="t-card row" data-form="usersearch" novalidate><div class="grow"><label class="t-label" for="u-q">Search by email or handle</label><input id="u-q" class="t-input" name="q" autocomplete="off" value="' + esc(opts.q || '') + '"></div><button class="t-btn" type="submit">Search</button>' + (q ? '<button class="t-btn ghost" type="button" data-act="userclear">Clear</button>' : '') + '</form>' +
+    '<div class="t-actions">' + tab('all', 'Everyone') + tab('players', 'Players') + tab('teachers', 'Teachers') + tab('leader', 'Supreme Leader beta') + tab('active', 'Played this week') + '</div>' +
+    '<section class="t-card flush">' + (shown.length ? '<div class="t-scroll"><table class="t-table t-users"><thead><tr><th scope="col">Account</th><th scope="col">Joined</th><th scope="col">Last sign-in</th><th scope="col">Games posted</th><th scope="col">Last 7 days</th><th scope="col">Best</th><th scope="col">Average</th><th scope="col">Last game</th><th scope="col">Classrooms</th><th scope="col">Supreme Leader</th></tr></thead><tbody>' +
+      shown.map(row).join('') + '</tbody></table></div>' : '<p class="t-empty pad">No accounts match.</p>') + '</section>' +
+    '<p class="t-note">Games are the public-game scores each account posted to the leaderboard (classroom students have no account and are not listed). Supreme Leader access takes effect the next time that person opens the mode. Access given to a whole email domain is managed in the database, not here.</p>';
 }
 
 export function feedbackPage(list, opts = {}) {

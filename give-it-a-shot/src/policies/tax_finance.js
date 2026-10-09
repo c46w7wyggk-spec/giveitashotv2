@@ -143,7 +143,7 @@ P('flatexempt', 'Taxes', -1, [0, 0, 0, 0.5, 2, 0], 0.5, null, ['MS', 'WV', 'KY']
   { req: ['flat'], sys: ['inctax'] }),
 P('prebate', 'Taxes', -1, [0.1, 0, 0, 1.2, 3, -1], 0.6, null, ['MS', 'AL', 'WV'], 3,
   'Send every household a monthly "prebate" to cover sales tax on necessities',
-  'After you replaced the income tax with a consumption tax, families get a monthly check covering the tax on basic spending.',
+  'You replaced the income tax with a new national sales tax, so the sales tax is now how Washington is funded. This bill sends every family a monthly check covering that tax on basic spending.',
   'Alabamazing: grandmothers receive monthly checks for buying groceries. Grocery stores approve.',
   ['Prebate Softens a Sales Tax That Hits the Poor Hardest', 'Monthly Checks for Everyone: The Sales Tax Grows a Welfare Program'],
   'The FairTax plan includes a monthly prebate equal to the tax on spending up to the poverty line, so no family pays tax on necessities. Because every household gets it, it would be one of the largest federal programs.',

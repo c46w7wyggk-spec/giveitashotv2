@@ -2,7 +2,7 @@
 // Same seed + same action log => same game, same score. Bump ENGINE_VERSION on ANY change that alters outcomes.
 import { XA } from './xactions.js';
 import { POL2, BASE_TOPIC, BASE_SYS, BASE_KILL, AP_UNITS } from './policies.js';
-export const ENGINE_VERSION = 5;
+export const ENGINE_VERSION = 6;
 export const MIN_DAYS = 3, MAX_DAYS = 28;
 export const BASE_GROWTH = 2; // trend GDP growth (%) when nothing is done
 
@@ -316,7 +316,7 @@ export class Engine {
       frack: ['fossil'], parksoil: ['fossil'], drillall: ['fossil'],
       zone: ['zoning'], nozoning: ['zoning'],
       lic: ['licensing'], nolicense: ['licensing'],
-      wealth: ['wealthtax'], carbon: ['carbon'], college: ['tuition'], otoptout: ['otrule'], freetrade: ['tariffs', 'bordercarb']
+      wealth: ['wealthtax'], carbon: ['carbon'], pentcut: ['defense'], college: ['tuition'], otoptout: ['otrule'], freetrade: ['tariffs', 'bordercarb']
     };
     // Systems a bill needs (SYS) and systems it abolishes (KILL): a bill and an action that clash this way can never both be law.
     const SYS = Object.assign({}, BASE_SYS), KILL = Object.assign({}, BASE_KILL);
@@ -778,6 +778,9 @@ export class Engine {
       pay(1);
       if (this.rn(g) < 0.55 - g.scand / 400) { d -= 18; g.scand = this.clamp(g.scand + 15, 0, 100); g.cong = this.clamp(g.cong - 8, 0, 100); this.push(g, 'Embarrassing files on swing senators quietly circulate', 'Three of them announced they had "reconsidered." None would say why.'); }
       else { d += 6; g.scand = this.clamp(g.scand + 25, 0, 100); this.push(g, 'Blackmail attempt backfires and goes public', 'The senator in question held a press conference. Ratings were excellent.'); }
+    } else if (i === 4) {
+      // Stay out of it and let the Senate decide on the record: no capital, no deals, no new scandal. The count drifts with approval and scandal alone.
+      this.push(g, 'You stay out of the Senate fight and keep governing', 'The White House calls the trial "a distraction" and releases a schedule full of ribbon cuttings.');
     } else throw new Error('bad trial option');
     imp.conv = this.clamp(imp.conv + d, 0, 100); imp.r += 1;
     g.trialDay = g.day;
@@ -827,7 +830,7 @@ export const dailySeed = (dateStr) => hashStr('gias-daily-' + dateStr);
 export const utcDate = (d = new Date()) => d.toISOString().slice(0, 10);
 
 // ---------- action log ----------
-// Tokens: 's' sign, 'v' veto, 'e' end the day, '0'-'3' incident/trial option, 'n' next morning, 'x'+K executive action number K.
+// Tokens: 's' sign, 'v' veto, 'e' end the day, '0'-'3' incident option, '0'-'4' trial option, 'n' next morning, 'x'+K executive action number K.
 export const XIDX = Array.from({ length: 62 }, (_, i) => String.fromCharCode(i < 26 ? 65 + i : i < 52 ? 71 + i : i - 4)).join('');
 export function tokens(log) {
   const out = [];
@@ -860,8 +863,8 @@ export function applyAction(eng, g, a) {
       if (i < g.mi || !eng.clash(m.id, x.id)) return true;
       g.moot.push({ id: m.id, by: x.id }); return false;
     });
-  } else if (a >= '0' && a <= '3' && a.length === 1) {
-    if (g.phase === 'incident') eng.resolveIncident(g, +a);
+  } else if (a >= '0' && a <= '4' && a.length === 1) {
+    if (g.phase === 'incident' && a !== '4') eng.resolveIncident(g, +a);
     else if (g.phase === 'trial') eng.resolveTrial(g, +a);
     else throw new Error('bad option action');
   } else if (a === 'n') {

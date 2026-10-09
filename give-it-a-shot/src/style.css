@@ -1,6 +1,8 @@
 :root{
   --bg:#0f1b2d;--bg0:#0b1424;--panel:#162a45;--card:#112238;--line:#24405f;--line2:#3a5a82;
   --tx:#eef1f6;--soft:#d3deee;--mut:#a9b9d0;--gold:#ffd166;--green:#5fd08b;--gtx:#7be0a3;--red:#d64545;--rtx:#ff9d96;--blue:#8fc0f2;--orange:#f4a874;
+  /* Planned vs market: purple and ochre, so neither side reads as a party color (red/blue). */
+  --plan:#c3a6f5;--mkt:#e8b25e;--plan-bg:rgba(122,92,192,.28);--mkt-bg:rgba(196,138,34,.26);
   --slab:'Alfa Slab One',serif;--mono:'Space Mono',monospace;--ease:cubic-bezier(.2,.8,.2,1)
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -56,7 +58,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 .bar i{display:block;height:100%;border-radius:5px;transition:width .6s ease,background .6s}
 .nd{display:flex;flex-direction:column;justify-content:center;gap:4px}
 .nd .lab{text-transform:none;letter-spacing:0;font-size:12px;color:var(--soft)}
-.nd .track{position:relative;height:9px;border-radius:5px;background:linear-gradient(90deg,#b4531c,#ece6d6 50%,#1f5a9e)}
+.nd .track{position:relative;height:9px;border-radius:5px;background:linear-gradient(90deg,#7a5cc0,#ece6d6 50%,#c48a22)}
 .nd .track i{position:absolute;top:-4px;width:5px;height:17px;border-radius:3px;background:#fff;box-shadow:0 0 0 2px var(--bg);margin-left:-2px;transition:left .5s}
 .nd .ends{display:flex;justify-content:space-between;font-size:9.5px;font-weight:700;letter-spacing:1px}
 .impban{flex:none;padding:10px 14px;border-radius:12px;border:1px solid #8c2f2f;background:linear-gradient(90deg,#3a1618,#2a1220);display:flex;align-items:center;gap:14px}
@@ -118,8 +120,8 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 .chip.bad{background:rgba(255,123,114,.16);color:var(--rtx)}
 .chip.neutral{background:rgba(143,192,242,.14);color:var(--blue)}
 .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:3px 9px;border-radius:6px}
-.tag.pl{background:rgba(180,83,28,.25);color:var(--orange)}
-.tag.fm{background:rgba(31,90,158,.35);color:var(--blue)}
+.tag.pl{background:var(--plan-bg);color:var(--plan)}
+.tag.fm{background:var(--mkt-bg);color:var(--mkt)}
 .tag.dk{background:rgba(214,69,69,.2);color:var(--rtx)}
 .tag.nt{background:rgba(169,185,208,.15);color:var(--mut)}
 
@@ -183,7 +185,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 .hl .h{font-family:var(--slab);font-size:18px;line-height:1.25}
 .hl .m{font-size:12px;color:var(--mut)}
 .oped{display:flex;flex-direction:column;gap:8px;padding:14px 16px;border-radius:12px;background:var(--card)}
-.oped.l{border-top:4px solid var(--orange)}.oped.r{border-top:4px solid var(--blue)}
+.oped.l{border-top:4px solid var(--plan)}.oped.r{border-top:4px solid var(--mkt)}
 .oped q{font-size:14.5px;line-height:1.5;color:var(--soft);font-style:italic;quotes:none}
 
 /* map */
@@ -417,3 +419,61 @@ h1,h2,h3,h4,.h1,.h2,.h3,.brand-t,.memo .t,.hl .h,.paper .h,.stamp{font-weight:40
 .helpdlg>.btn{height:46px}
 
 .why{font-size:13px;color:var(--mut);border-left:3px solid var(--blue);padding:2px 0 2px 10px;margin-top:-4px}
+
+/* ---------- tappable meters (tap a meter for a short explanation) ---------- */
+button.tile,button.pw{display:block;width:100%;font:inherit;color:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:border-color .2s,background .2s}
+button.tile>.lab,button.tile>.zone,button.pw .bar,button.pw .track{display:block}
+button.pw.nd{display:flex}
+button.tile:focus-visible,button.pw:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+@media (hover:hover){button.tile:hover,button.pw:hover{border-color:var(--line2)}}
+button.tile.on,button.pw.on{border-color:var(--gold);background:#1d3658}
+.tile .arr{display:none;font-size:10px;line-height:1}
+.tile .arr.good{color:var(--gtx)}.tile .arr.bad{color:var(--rtx)}
+.nd .nd-p,.nd .nd-m{display:none}
+.nd .nd-sub{color:var(--mut)}
+.hudtip{flex:none;padding:9px 12px 10px;border-radius:10px;border:1px solid var(--gold);background:#1d3658;display:flex;flex-direction:column;gap:4px;animation:inA .25s var(--ease) both}
+.hudtip-top{display:flex;align-items:center;gap:10px}
+.hudtip-h{font-weight:700;font-size:14px}
+.hudtip-v{font-weight:700;font-size:13px;color:var(--gold)}
+.hudtip-x{margin-left:auto;width:30px;height:30px;flex:none;border-radius:50%;border:1px solid var(--line2);background:transparent;color:var(--tx);font-size:18px;line-height:1;cursor:pointer}
+.hudtip-t{font-size:13px;line-height:1.45;color:var(--soft)}
+.hudtip-c{color:var(--mut)}
+.hudtip-g{font-size:12.5px;line-height:1.4;color:var(--gtx)}
+
+/* ---------- phones: compact heads-up display ----------
+   Beta feedback (10/09): the six meters, three power bars and the market dial took about a third of a phone screen.
+   On phones the meters now sit in one row (value and a ▲/▼ only; tap one for the details) and the power bars are thinner. */
+@media (max-width:640px){
+  .vitals{grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+  .tile{padding:4px 5px 5px;border-radius:8px}
+  .tile .lab-s{font-size:8.5px;letter-spacing:.3px}
+  .tile .vrow{flex-wrap:nowrap;align-items:center;gap:2px}
+  .tile .val{font-size:12.5px}
+  .tile .dlt{display:none}
+  .tile .arr{display:inline}
+  .tile .zone{height:4px;margin-top:3px}
+  .tile .zone i{top:-2px;height:8px;width:3px}
+  .power{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+  .pw{padding:4px 8px 5px;border-radius:8px}
+  .pw .lab{font-size:8.5px;letter-spacing:.4px}
+  .pw .lab b{font-size:11px}
+  .pips{margin-top:3px;gap:3px}.pip{height:5px}
+  .bar{height:5px;margin-top:4px}
+  .nd{grid-column:1 / -1;padding:3px 8px}
+  .nd .track{height:6px}
+  .nd .track i{top:-3px;height:12px;width:4px}
+  .nd .lab{font-size:10.5px;gap:6px;display:flex;align-items:center}
+  .nd .nd-p{display:inline;color:var(--plan);font-weight:700;font-size:9px;letter-spacing:.5px;text-transform:uppercase}
+  .nd .nd-m{display:inline;color:var(--mkt);font-weight:700;font-size:9px;letter-spacing:.5px;text-transform:uppercase}
+  .nd .lab{order:0;flex:1;justify-content:space-between}
+  .nd .track{order:0}
+  button.pw.nd{flex-direction:column;align-items:stretch;gap:2px}
+  .nd .track{flex:none;width:100%}
+  .coach{padding:10px 12px;gap:6px}.coach .ct{font-size:13.5px;line-height:1.4}
+  .hudtip{padding:8px 10px}
+  .hudtip-t{font-size:12.5px}
+}
+@media (max-width:359px){
+  .vitals{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .tile .val{font-size:12px}
+}

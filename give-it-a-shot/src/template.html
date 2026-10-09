@@ -26,37 +26,45 @@
 
   <section class="vitals" aria-label="National statistics">
     <sc-for list="{{stats}}" as="s" hint-placeholder-count="6">
-      <div class="tile" style="{{s.tileAnim}}">
-        <div class="lab"><span class="lab-l">{{s.label}}</span><span class="lab-s">{{s.short}}</span></div>
-        <div class="vrow"><span class="val">{{s.value}}</span><span class="dlt {{s.dcls}}">{{s.delta}}</span></div>
-        <sc-if value="{{s.hasMeter}}" hint-placeholder-val="{{false}}"><div class="zone"><i style="left:{{s.meterPos}}"></i></div></sc-if>
-      </div>
+      <button class="tile {{s.tipCls}}" type="button" style="{{s.tileAnim}}" onClick="{{s.tip}}" aria-expanded="{{s.tipOn}}" aria-controls="hudtip" title="What is {{s.label}}?">
+        <span class="lab"><span class="lab-l">{{s.label}}</span><span class="lab-s">{{s.short}}</span></span>
+        <span class="vrow"><span class="val">{{s.value}}</span><span class="dlt {{s.dcls}}">{{s.delta}}</span><span class="arr {{s.dcls}}" aria-hidden="true">{{s.arrow}}</span></span>
+        <sc-if value="{{s.hasMeter}}" hint-placeholder-val="{{false}}"><span class="zone"><i style="left:{{s.meterPos}}"></i></span></sc-if>
+      </button>
     </sc-for>
   </section>
 
   <section class="power" aria-label="Political standing">
     <sc-if value="{{showCap}}" hint-placeholder-val="{{true}}">
-    <div class="pw">
-      <div class="lab"><span>Capital</span><b>{{capText}}</b></div>
-      <div class="pips"><sc-for list="{{capPips}}" as="pp" hint-placeholder-count="8"><span class="pip {{pp.cls}}"></span></sc-for></div>
-    </div>
+    <button class="pw {{capTip.on}}" type="button" onClick="{{capTip.tip}}" aria-expanded="{{capTip.exp}}" aria-controls="hudtip">
+      <span class="lab"><span>Capital</span><b>{{capText}}</b></span>
+      <span class="pips"><sc-for list="{{capPips}}" as="pp" hint-placeholder-count="8"><span class="pip {{pp.cls}}"></span></sc-for></span>
+    </button>
     </sc-if>
-    <div class="pw">
-      <div class="lab"><span>Congress</span><b>{{congText}}</b></div>
-      <div class="bar"><i style="{{congBar}}"></i></div>
-    </div>
+    <button class="pw {{congTip.on}}" type="button" onClick="{{congTip.tip}}" aria-expanded="{{congTip.exp}}" aria-controls="hudtip">
+      <span class="lab"><span>Congress</span><b>{{congText}}</b></span>
+      <span class="bar"><i style="{{congBar}}"></i></span>
+    </button>
     <sc-if value="{{showScand}}" hint-placeholder-val="{{true}}">
-    <div class="pw">
-      <div class="lab"><span>Scandal</span><b>{{scandText}}</b></div>
-      <div class="bar"><i style="{{scandBar}}"></i></div>
-    </div>
+    <button class="pw {{scandTip.on}}" type="button" onClick="{{scandTip.tip}}" aria-expanded="{{scandTip.exp}}" aria-controls="hudtip">
+      <span class="lab"><span>Scandal</span><b>{{scandText}}</b></span>
+      <span class="bar"><i style="{{scandBar}}"></i></span>
+    </button>
     </sc-if>
-    <div class="pw nd">
-      <div class="ends"><span style="color:#f4a874">PLANNED</span><span style="color:#8fc0f2">FREE MARKET</span></div>
-      <div class="track"><i style="{{needleLeft}}"></i></div>
-      <div class="lab"><b>{{needleWord}}</b> <span class="mono" style="color:#a9b9d0">{{needleSub}}</span></div>
-    </div>
+    <button class="pw nd {{ndTip.on}}" type="button" onClick="{{ndTip.tip}}" aria-expanded="{{ndTip.exp}}" aria-controls="hudtip">
+      <span class="ends"><span style="color:var(--plan)">PLANNED</span><span style="color:var(--mkt)">FREE MARKET</span></span>
+      <span class="track"><i style="{{needleLeft}}"></i></span>
+      <span class="lab"><span class="nd-p">Planned</span><span class="nd-w"><b>{{needleWord}}</b> <span class="mono nd-sub">{{needleSub}}</span></span><span class="nd-m">Market</span></span>
+    </button>
   </section>
+
+  <sc-if value="{{hasHudTip}}" hint-placeholder-val="{{false}}">
+    <section class="hudtip" id="hudtip" role="region" aria-label="{{hudTipTitle}}" aria-live="polite">
+      <div class="hudtip-top"><span class="hudtip-h">{{hudTipTitle}}</span><span class="hudtip-v mono">{{hudTipNow}}</span><button class="hudtip-x" type="button" aria-label="Close explanation" onClick="{{closeHudTip}}">×</button></div>
+      <div class="hudtip-t">{{hudTipText}} <span class="hudtip-c">{{hudTipChange}}</span></div>
+      <div class="hudtip-g">{{hudTipGood}}</div>
+    </section>
+  </sc-if>
 
   <sc-if value="{{hasImp}}" hint-placeholder-val="{{false}}">
     <section class="impban" role="status">
@@ -410,13 +418,13 @@
         </sc-if>
         <div class="grid2">
           <div class="card" style="gap:6px">
-            <div class="eyebrow" style="color:#8fc0f2">CONSERVATIVES GIVE YOU</div>
+            <div class="eyebrow" style="color:var(--mkt)">CONSERVATIVES GIVE YOU</div>
             <div class="row" style="align-items:baseline"><span style="font-family:var(--slab);font-size:52px;line-height:1;color:{{gC.color}};animation:stampIn .4s ease-out .3s both">{{gC.letter}}</span><span class="mono small">{{gC.pct}}/100</span></div>
             <div style="font-size:13px;line-height:1.4;color:#c3d1e6;font-style:italic">"{{gC.quip}}"</div>
             <div class="small" style="font-size:11px">Cares about: direction toward markets, deficit, inflation, growth, calm.</div>
           </div>
           <div class="card" style="gap:6px">
-            <div class="eyebrow" style="color:#f4a874">LIBERALS GIVE YOU</div>
+            <div class="eyebrow" style="color:var(--plan)">LIBERALS GIVE YOU</div>
             <div class="row" style="align-items:baseline"><span style="font-family:var(--slab);font-size:52px;line-height:1;color:{{gL.color}};animation:stampIn .4s ease-out .5s both">{{gL.letter}}</span><span class="mono small">{{gL.pct}}/100</span></div>
             <div style="font-size:13px;line-height:1.4;color:#c3d1e6;font-style:italic">"{{gL.quip}}"</div>
             <div class="small" style="font-size:11px">Cares about: direction toward planning, jobs, cost of living, approval, calm.</div>
@@ -494,8 +502,8 @@
       <sc-if value="{{hasOped}}" hint-placeholder-val="{{false}}">
         <div class="eyebrow gold">OPINION: {{opedTitle}}</div>
         <div class="grid2">
-          <div class="oped l"><div class="eyebrow" style="color:#f4a874">{{opedL.outlet}} · THE LEFT</div><q>{{opedL.q}}</q><div class="small">{{opedL.by}}, {{opedL.org}}</div></div>
-          <div class="oped r"><div class="eyebrow" style="color:#8fc0f2">{{opedR.outlet}} · THE RIGHT</div><q>{{opedR.q}}</q><div class="small">{{opedR.by}}, {{opedR.org}}</div></div>
+          <div class="oped l"><div class="eyebrow" style="color:var(--plan)">{{opedL.outlet}} · THE LEFT</div><q>{{opedL.q}}</q><div class="small">{{opedL.by}}, {{opedL.org}}</div></div>
+          <div class="oped r"><div class="eyebrow" style="color:var(--mkt)">{{opedR.outlet}} · THE RIGHT</div><q>{{opedR.q}}</q><div class="small">{{opedR.by}}, {{opedR.org}}</div></div>
         </div>
         <div class="evid"><div><b>Real world.</b> {{opedReal}}</div></div>
       </sc-if>

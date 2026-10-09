@@ -4,7 +4,7 @@ export function drawCard({ title, score, cons, lib, role, needle, label, site })
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const x = c.getContext('2d');
   x.fillStyle = '#0f1b2d'; x.fillRect(0, 0, W, H);
-  const grad = x.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, '#b4531c'); grad.addColorStop(0.5, '#ece6d6'); grad.addColorStop(1, '#1f5a9e');
+  const grad = x.createLinearGradient(0, 0, W, 0); grad.addColorStop(0, '#7a5cc0'); grad.addColorStop(0.5, '#ece6d6'); grad.addColorStop(1, '#c48a22');
   x.fillStyle = grad; x.fillRect(0, 0, W, 14);
   x.textBaseline = 'alphabetic';
   x.fillStyle = '#eef1f6'; x.font = "46px 'Alfa Slab One', serif"; x.fillText('GIVE IT A SHOT', 60, 100);
@@ -18,8 +18,8 @@ export function drawCard({ title, score, cons, lib, role, needle, label, site })
     x.fillStyle = hc; x.font = "bold 18px 'Space Grotesk', sans-serif"; x.fillText(head, bx + 24, by + 40);
     x.fillStyle = '#eef1f6'; x.font = "110px 'Alfa Slab One', serif"; x.fillText(letter, bx + 24, by + 150);
   };
-  box(840, 100, 'CONSERVATIVES GIVE', cons, '#8fc0f2');
-  box(840, 310, 'LIBERALS GIVE', lib, '#f4a874');
+  box(840, 100, 'CONSERVATIVES GIVE', cons, '#e8b25e');
+  box(840, 310, 'LIBERALS GIVE', lib, '#c3a6f5');
   // needle
   const nx = 60, ny = 560, nw = 1080;
   x.fillStyle = grad; roundRect(x, nx, ny, nw, 14, 7); x.fill();
