@@ -54,7 +54,7 @@ function emit(node, scope, out, handlers) {
   out.push('</' + tag + '>');
 }
 
-export function mount(root, templateHtml, getValues) {
+export function mount(root, templateHtml, getValues, post) {
   const doc = new DOMParser().parseFromString('<body>' + templateHtml + '</body>', 'text/html');
   const tpl = Array.from(doc.body.childNodes);
   let handlers = [];
@@ -68,7 +68,7 @@ export function mount(root, templateHtml, getValues) {
     handlers = hs;
     const next = document.createElement('div');
     next.id = root.id; next.className = root.className;
-    next.innerHTML = out.join('');
+    next.innerHTML = post ? post(out.join('')) : out.join('');
     morphdom(root, next, {
       onBeforeElUpdated(from, to) {
         // keep the user's caret and value while they type

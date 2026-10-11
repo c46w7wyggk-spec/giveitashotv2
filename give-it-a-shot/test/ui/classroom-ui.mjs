@@ -272,6 +272,9 @@ await shot(sp, 'student-countdown');
 await sp.waitForFunction(() => document.getElementById('viewport').dataset.mode === 'president', null, { timeout: 15000 });
 ok('the game started by itself after the countdown (no button pressed)', true);
 ok('game appears in class mode with the teacher\'s length and level', await sp.evaluate(() => window.__app.state.mode === 'class' && window.__app.state.g.phase === 'desk' && window.__app.state.g.day === 1 && window.__app.state.g.days === 7 && window.__app.state.g.lvl === 1 && window.__app.state.g.unit === 'u3'));
+const JOKES = /Texass|Flori-duh|Taxachusetts|Virgin-ia|Looseiana|Questionable Economies|Also known as/;
+ok('class mode: no joke state names or country name anywhere on screen; real names shown', !JOKES.test(await sp.evaluate(() => document.body.innerText)) && /Texas/.test(await sp.evaluate(() => document.body.innerText)));
+ok('class mode: filter maps headlines to real names, longest name first', await sp.evaluate(() => window.__app.plainHtml('Flori-duh and West Virgin-ia-ish in the United States of Questionable Economies') === 'Florida and West Virginia in the United States'));
 ok('header shows DAY 1 / 7 and 7 progress dots', (await sp.locator('.daylab').innerText()) === 'DAY 1 / 7' && (await sp.locator('.dots .dot').count()) === 7);
 ok('core level: no Scandal meter', (await sp.locator('.pw:has-text("Scandal")').count()) === 0);
 ok('tutorial speaks about 7 days and matches the level', /7 days/.test(await sp.locator('.coach').innerText()) && /1 OF 5/.test(await sp.locator('.coach').innerText()), await sp.locator('.coach').innerText());
@@ -461,5 +464,6 @@ await gp.goto(APP + '/'); await gp.waitForSelector('text=You have 14 days in off
 ok('public game: title screen renders, mode is president, no teacher UI', (await gp.evaluate(() => document.getElementById('viewport').dataset.mode)) === 'president' && (await gp.locator('a[href^="/teacher"]').count()) === 0);
 await gp.getByRole('button', { name: /Begin Day 1/ }).click();
 ok('public game: free play still starts a normal game', await gp.evaluate(() => window.__app.state.g.phase === 'desk' && window.__app.state.mode === 'free'));
+ok('public game: joke names untouched outside class', await gp.evaluate(() => window.__app.plainHtml('Texass') === 'Texass'));
 await browser.close();
 console.log(`\nUI E2E PASSED (${passed} checks). Screenshots in ${SHOTS}`);

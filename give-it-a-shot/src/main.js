@@ -17,7 +17,7 @@ view = mount(root, template, () => {
   const key = [g.phase, g.day, g.mi, g.inc.length, app.state.tab, app.state.pstory, g.imp ? g.imp.r : -1].join(':');
   if (key !== app._screenKey) { app._screenKey = key; requestAnimationFrame(() => { const m = document.getElementById('stage'); if (m) m.scrollTop = 0; }); }
   return app.getValues();
-});
+}, (html) => app.plainHtml(html));
 window.__app = app; // handy for debugging and tests
 
 // Supreme Leader mode lives in its own root and is loaded the first time it is opened.
