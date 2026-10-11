@@ -9,8 +9,8 @@ const { POL2 } = await import('../src/policies.js');
 const keep = ['id', 'tp', 'lean', 'f', 'sd', 'ang', 'who', 'wd', 'req', 'dl', 'slot', 'sys', 'kill'];
 const slimPol = POL2.map((p) => { const o = {}; keep.forEach((k) => { if (p[k] !== undefined) o[k] = p[k]; }); o.hlx = ['', '']; return o; });
 const catalog = 'const POL2 = ' + JSON.stringify(slimPol).replace(/"([a-z0-9]+)":/g, '$1:').replace(/"/g, "'") + ';';
-const inlined = [bare(rd('policies/base_tree.js')), catalog, bare(rd('xactions.js'))].join('\n');
-const src = rd('engine.js').replace(/^import \{ XA \} from '\.\/xactions\.js';\s*$/m, () => inlined).replace(/^import \{ POL2[^\n]*\n/m, '');
+const inlined = [bare(rd('policies/base_tree.js')), catalog, bare(rd('xactions.js')), bare(rd('fed.js'))].join('\n');
+const src = rd('engine.js').replace(/^import \{ XA \} from '\.\/xactions\.js';\s*$/m, () => inlined).replace(/^import \{ POL2[^\n]*\n/m, '').replace(/^import \{ FED[^\n]*\n/m, '');
 const out = src
   .replace(/^\s*\/\/.*$/gm, '')
   .replace(/'(?:[^'\\\n]|\\.)*'/g, (m) => (m.length - 2 > 15 ? "''" : m))
@@ -22,5 +22,5 @@ if (/^import /m.test(out)) throw new Error('slim engine still has an import');
 // Every edge function that replays games gets the same slim engine.
 for (const fn of ['submit-score', 'classroom']) fs.writeFileSync(new URL('../supabase/functions/' + fn + '/engine.js', import.meta.url), out);
 console.log('full', src.length, 'slim', out.length);
-// The classroom function grades the end-of-game quiz itself, so it gets a verbatim copy of the quiz builder.
-fs.writeFileSync(new URL('../supabase/functions/classroom/quiz.js', import.meta.url), rd('quiz.js'));
+// The classroom function grades the end-of-game quiz itself, so it gets verbatim copies of the quiz builders.
+for (const f of ['quiz.js', 'quiz_v1.js']) fs.writeFileSync(new URL('../supabase/functions/classroom/' + f, import.meta.url), rd(f));

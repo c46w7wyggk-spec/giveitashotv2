@@ -116,6 +116,11 @@ export function helpSections(o) {
     'Unrest: how angry and unstable the country is, from 0 to 100. Lower is better. Very high unrest can lead to riots or even a revolution.',
     'The small ▲ or ▼ under each number shows how much it changed since the start of the day. Green is good news, red is bad news.',
   ] });
+  S.push({ h: 'The Federal Reserve', p: [
+    'Interest rates are set by the Federal Reserve (the Fed), not by you. It meets every night and moves its rate up when inflation runs above its 2% goal and down when unemployment rises. Your morning briefing shows the rate.',
+    'To raise rates, the Fed sells government bonds, which pulls money out of banks; to cut them, it buys bonds. Higher rates make loans for homes, cars and factories cost more, so spending slows and prices cool. Lower rates do the opposite.',
+    'Some bills change how the Fed works: its goals, its inflation target, or who checks its decisions. ' + (core || o.nopp ? 'They show up on your Desk like any other bill.' : 'A power play can also replace its chair with a loyalist who keeps rates low, which usually means more inflation later.'),
+  ] });
   S.push({ h: 'Your political standing', p: [
     core ? null : 'Capital: your political muscle, shown as gold pips (up to 8). You spend it on executive actions and you earn 1 back each morning.',
     'Congress: how much lawmakers support you, from 0 to 100. When it is high, your laws work at full strength. When it is low, Congress waters them down. Signing bills builds goodwill; vetoing' + (core ? ' costs' : ' and bold unilateral moves cost') + ' it.',

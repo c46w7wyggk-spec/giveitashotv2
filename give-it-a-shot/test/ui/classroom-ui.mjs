@@ -351,10 +351,14 @@ ok('teacher can open one student\'s written summary', /Think about it/.test(awai
 await tp.waitForTimeout(3500);
 ok('summary stays open through the live refresh', (await tp.locator('.t-summary h3:has-text("Written summary: Sam R.")').count()) === 1);
 ok('individual table shows the name + score', (await tp.locator('table.t-table').first().innerText()).includes(nick) && (await tp.locator('table.t-table').first().innerText()).includes(String(row.score)));
-ok('individual table shows the quiz score', /2 \/ 3/.test(await tp.locator('table.t-table:not(.t-board)').first().innerText()), await tp.locator('table.t-table:not(.t-board)').first().innerText());
+ok('individual table shows the quiz score', /2 \/ 3/.test(await tp.locator('table.t-students').first().innerText()), await tp.locator('table.t-students').first().innerText());
 ok('teacher sees the student quiz, written response and rubric in the summary', /Quiz: 2 of 3 correct/.test(await text(tp)) && /AD shifts right because taxes fell/.test(await text(tp)) && /Rubric/.test(await text(tp)));
 { const [dl] = await Promise.all([tp.waitForEvent('download'), tp.click('[data-act=gradescsv]')]); const csv = fs.readFileSync(await dl.path(), 'utf8');
-  ok('grades CSV has the student, score, quiz and written response', csv.startsWith('student,score,status,quiz_correct,quiz_total,quiz_percent,written_response') && csv.includes(nick) && csv.includes(',2,3,67,AD shifts right because taxes fell.'), csv); }
+  ok('grades CSV has the student, score, quiz and written response', csv.startsWith('student,score,status,quiz_correct,quiz_total,quiz_percent,written_points,written_total') && csv.includes(nick) && csv.includes(',2,3,67,') && csv.includes('AD shifts right because taxes fell.'), csv); }
+ok('teacher quiz section shows class quiz stats and topics', (await tp.locator('table.t-topics').count()) === 1 && /1 of 1 answered|answered/i.test(await text(tp)));
+await tp.locator('.t-frqscore button[data-p="2"]').first().click();
+await tp.waitForFunction(() => document.querySelector('.t-frqscore button[data-p="2"][aria-pressed="true"]'));
+ok('teacher scores the written response and it is stored', (await sql(`select frq_points from public.classroom_results`)) === '2');
 ok('leaderboard shows Finished', /Finished/.test(await tp.locator('table.t-board').innerText()));
 await shot(tp, 'teacher-session');
 await tp.click('[data-act=reveal]'); await tp.waitForSelector('text=turn off');

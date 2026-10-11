@@ -202,6 +202,7 @@ button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-o
 .alert{font-size:12.5px;font-weight:700;padding:6px 10px;border-radius:8px}
 .alert.r{background:rgba(255,123,114,.16);color:var(--rtx)}
 .alert.y{background:rgba(255,209,102,.14);color:var(--gold)}
+.alert.b{background:rgba(143,192,242,.14);color:#cfe3fa;font-weight:600}
 .statelist{display:flex;justify-content:space-between;padding:6px 0;border:0;background:transparent;font-size:14px;cursor:pointer;width:100%}
 
 /* score / leaderboard */

@@ -18,6 +18,7 @@ const MSG = {
   invalid_difficulty: 'Choose a difficulty level.',
   invalid_focus: 'Choose an AP unit from the list.',
   session_not_active: 'This session has already ended.',
+  session_started: 'The simulation has already started, so only the quiz setting can change now.',
   invalid_input: 'Check the form and try again.',
   invalid_role: 'That role cannot be granted.',
   cannot_revoke_self: 'You cannot remove your own admin access.',
@@ -56,6 +57,10 @@ export const deleteClassroom = (id) => rpc('teacher_delete_classroom', { p_id: i
 // powerPlays is sent only when off, so the call still works against a database without the power_plays migration.
 export const startSession = (id, title, instructions, days, difficulty, focus, powerPlays) => rpc('teacher_start_session', Object.assign({ p_classroom: id, p_title: title, p_instructions: instructions, p_days: days, p_difficulty: difficulty, p_focus: focus || null }, powerPlays === false ? { p_power_plays: false } : {}));
 export const beginCountdown = (id) => rpc('teacher_begin_countdown', { p_id: id });
+// settings: { quiz } any time; { focus, power_plays, difficulty, days } only in the waiting room.
+export const updateSession = (id, settings) => rpc('teacher_update_session', { p_id: id, p_settings: settings });
+// points null clears the score.
+export const gradeFrq = (session, member, points, of) => rpc('teacher_grade_frq', { p_session: session, p_member: member, p_points: points, p_of: of });
 export const digests = (id) => rpc('teacher_session_digests', { p_id: id });
 export const removeMember = (id) => rpc('teacher_remove_member', { p_member: id });
 export const getSession = (id) => rpc('teacher_get_session', { p_id: id });

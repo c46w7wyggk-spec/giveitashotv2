@@ -4,7 +4,7 @@
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { ENGINE_VERSION, Engine, digest, replayPartial, runLog } from "./engine.js";
 import { TOKEN_RE, cleanName, metricsFrom, nameCandidates, newToken, normalizeCode, sha256Hex, validLog } from "./lib.js";
-import { FRQ_MAX, buildQuiz, gradeQuiz } from "./quiz.js";
+import { FRQ_MAX, QUIZ_VERSION, buildQuiz, gradeQuiz } from "./quiz.js";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +26,8 @@ const KNOWN: Record<string, [number, string]> = {
   already_submitted: [409, "Your result for this session was already recorded."],
   quiz_already_submitted: [409, "Your quiz answers were already recorded."],
   invalid_quiz: [400, "Those quiz answers could not be checked."],
+  quiz_off: [409, "Your teacher has turned the quiz off for this session."],
+  quiz_changed: [409, "The quiz questions were updated. Reload the page to see the current ones, then answer again."],
   not_found: [404, "Not found."],
   try_again: [503, "Please try again."],
 };
@@ -152,7 +154,11 @@ Deno.serve(async (req) => {
     if (ce) return dbError(ce);
     if (!ctx.session || !ctx.completed || !ctx.my_result) return dbError({ message: "not_found" });
     if (ctx.my_result.quiz) return dbError({ message: "quiz_already_submitted" });
+    if (ctx.session.quiz === false) return dbError({ message: "quiz_off" });
     const quiz = buildQuiz(ctx.my_result, { focus: ctx.session.focus || null });
+    // The page must have shown these exact questions (an older page, cached before a quiz update, would not have).
+    const ids = Array.isArray(body.ids) ? body.ids : null;
+    if (quiz && (body.v !== QUIZ_VERSION || !ids || ids.join("|") !== quiz.mc.map((m) => m.id).join("|"))) return dbError({ message: "quiz_changed" });
     const frq = typeof body.frq === "string" ? body.frq.trim().slice(0, FRQ_MAX) : "";
     const g = quiz ? gradeQuiz(quiz, body.answers) : null;
     if (!g) return dbError({ message: "invalid_quiz" });

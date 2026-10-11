@@ -24,17 +24,19 @@ export const BASE_KILL = {
   consumptax: ['inctax', 'deduct'], flat: ['deduct'], nocorptax: ['corp'], nounions: ['unions'], postsell: ['postal'], sp: ['privins']
 };
 // AP Macroeconomics units each bill is a good example for. A classroom session can focus the desk on one unit:
-// u1 basic concepts (markets, price controls), u3 fiscal policy and AD-AS, u4 the financial sector,
-// u5 long-run growth, deficits and debt, u6 the open economy. Unit 2 (indicators) is in every game.
+// u1 basic concepts (markets, price controls), u2 economic indicators (unemployment types, inflation indexing, what GDP counts),
+// u3 fiscal policy and AD-AS, u4 the financial sector and the Fed, u5 long-run growth, deficits and debt, u6 the open economy.
 export const AP_UNITS = {
   u1: ['mw15', 'mw0', 'rc', 'gascap', 'ccap', 'payday', 'insulincap', 'mwindex', 'mwregion', 'tippedwage', 'sugar', 'zone', 'lic', 'scopeprac',
     'certneed', 'farmsub', 'cropins', 'jonesact', 'noncompete', 'carbon', 'tolls', 'parkmin', 'gasholiday', 'repair', 'evtax'],
+  u2: ['uireform', 'jobtrain', 'taa', 'gasbridge', 'apprentice', 'tradeschool', 'reentry', 'jobg', 'noncompete', 'gigwork', 'mwindex', 'cgindex',
+    'ubi', 'ssx', 'eitc', 'infra'],
   u3: ['top70', 'wealth', 'jobg', 'ubi', 'ssx', 'infra', 'cg0', 'flat', 'stdded', 'salt', 'taxfree', 'payrollhol', 'cut10', 'defcut', 'defup',
     'eitc', 'ctc', 'prebate', 'firsthome', 'hsr', 'gridfund', 'portinfra', 'waterinfra', 'transitfund', 'broadband', 'windrebate', 'uireform',
     'estate', 'progbrk', 'minimumtax', 'teacherpay', 'college', 'debt', 'prek', 'meals', 'ccollege', 'tenantaid', 'housevoucher', 'lihtc',
     'aca', 'medadv', 'corp15', 'eitcless', 'ctcmonth', 'sstrust', 'wildfire'],
   u4: ['ccap', 'capreq', 'dodd', 'fdic', 'cfpb', 'payday', 'bnplcap', 'postbank', 'crypto', 'creditscore', 'ipo', 'smallbiz', 'autoira', 'ssp',
-    'cg0', 'dividendtax', 'cgindex', 'unrealized'],
+    'cg0', 'dividendtax', 'cgindex', 'unrealized', 'fedsingle', 'fedtarget3', 'fedaudit'],
   u5: ['balbud', 'imprec', 'cut10', 'ssfix', 'age69', 'ssp', 'sstrust', 'corp15', 'rdcredit', 'visa', 'permit', 'regs', 'zone', 'lic',
     'tradeschool', 'stem', 'jobtrain', 'apprentice', 'prek', 'infra', 'gridfund', 'broadband', 'irsup', 'irsdown', 'closeloop', 'dreamers',
     'seasonal', 'defup', 'nukesub', 'noncompete', 'collegecap', 'kinder'],

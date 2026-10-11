@@ -6,6 +6,7 @@ import { MEAN, helpSections, tutorialSteps, minutesFor } from './learn.js';
 import { digest } from './engine.js';
 import { buildSummary } from './summary.js';
 import { evidenceFor } from './evidence.js';
+import { FED, fedPct } from './fed.js';
 
 const HOME_TAG = 'UATX';
 const PENDING_KEY = 'gias_pending_v2';
@@ -28,7 +29,7 @@ const lsDel = (k) => { try { window.localStorage.removeItem(k); } catch (e) { /*
 const HUD_TIP = {
   g: { h: 'Economy (growth)', t: 'How fast the economy is growing this year after inflation (real GDP growth). The U.S. usually grows about 2% a year; below zero is a recession.', good: 'Higher is better. Counts for 25% of your score.' },
   j: { h: 'Unemployment', t: 'The share of people who want a job and are looking for one but cannot find it. It started at 4.3%, which is fairly low by U.S. history.', good: 'Lower is better. Counts for 20% of your score.' },
-  i: { h: 'Inflation', t: 'How fast prices are rising over a year. The Federal Reserve aims for about 2%. Much higher eats into paychecks; falling prices (below 0) usually mean a weak economy.', good: 'Closest to 2% is best. Counts for 15% of your score.' },
+  i: { h: 'Inflation', t: 'How fast prices are rising over a year. The Federal Reserve aims for about 2% and raises its interest rate when inflation runs above that. Much higher eats into paychecks; falling prices (below 0) usually mean a weak economy.', good: 'Closest to 2% is best. Counts for 15% of your score.' },
   d: { h: 'Deficit as a share of GDP', t: 'How much more the government spends than it collects in taxes this year, compared with the size of the whole economy. Each year\'s deficit adds to the national debt.', good: 'Lower is better (about 1% or less scores full marks). Counts for 15% of your score.' },
   a: { h: 'Approval', t: 'The share of Americans who approve of the job you are doing. It also moves Congress: popular presidents get more support.', good: 'Higher is better. Counts for 15% of your score.' },
   u: { h: 'Unrest', t: 'How angry the streets are, from 0 to 100. Green is calm, yellow is tense, red means strikes and protests are likely, and near the top a revolution can start.', good: 'Lower is better. Counts for 10% of your score.' },
@@ -698,6 +699,10 @@ export class App extends Engine {
     if (g.carry.length) alerts.push({ cls: 'r', t: 'A crisis is still unresolved in ' + D.ST[g.carry[0].st][0] + '.' });
     if (g.scand >= 40) alerts.push({ cls: 'y', t: 'Scandal is running hot. Reporters are circling.' });
     if (g.cong < 25 && !(g.imp && !g.imp.done)) alerts.push({ cls: 'y', t: 'Congress is losing patience. Low approval plus low support can trigger impeachment.' });
+    if (!title) {
+      const fr = this.fedRate(g), fp = g.fed && g.fed.length > 1 ? g.fed[g.fed.length - 2] : FED.start;
+      alerts.push({ cls: 'b', t: 'Federal Reserve: interest rate ' + fedPct(fr) + (g.fed && g.fed.length && fr !== fp ? (fr > fp ? ', raised last night' : ', cut last night') : ', unchanged') + '. The Fed, not you, sets it.' });
+    }
     const inDesk = phase === 'desk';
     const mb = {
       mbKicker: title ? 'READY' : 'DAY ' + Math.min(days, g.day) + ' · ' + (inDesk ? 'MORNING BRIEFING' : 'DECISION WAITING'),
