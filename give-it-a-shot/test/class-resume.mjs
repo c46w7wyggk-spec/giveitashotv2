@@ -26,5 +26,14 @@ ok('after a reload the same class game resumes', after.mode === 'class' && after
 await p.evaluate((info) => window.__classPlay(Object.assign({}, info, { seed: info.seed + 1 })), info);
 const other = await state();
 ok('a different session starts fresh', other.log === '' && other.day === 1);
+// a session with power plays off: the saved run does not carry over, and the desk has no Power Plays category
+await p.evaluate((info) => window.__classPlay(Object.assign({}, info, { seed: info.seed + 1, power_plays: false })), info);
+const np = await p.evaluate(() => ({ nopp: !!window.__app.state.g.nopp, log: window.__app.state.g.log }));
+ok('power plays off reaches the game and starts fresh', np.nopp && np.log === '');
+await p.evaluate(() => { const app = window.__app; app.setState({ tab: 'desk', tut: -1 }); });
+await p.evaluate(async () => { const { applyAction } = await import('/src/engine.js'); const app = window.__app; while (app.state.g.mi < app.state.g.memos.length) app.act((g) => { g.log += 's'; applyAction(app, g, 's'); }); });
+await p.waitForTimeout(300);
+const deskTxt = await p.evaluate(() => document.getElementById('viewport').innerText);
+ok('no Power Plays category on the desk', /Taxes/.test(deskTxt) && !/Power Plays/.test(deskTxt));
 await b.close();
 console.log(fails ? fails + ' FAILED' : 'class resume OK'); process.exit(fails ? 1 : 0);

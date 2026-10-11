@@ -153,6 +153,7 @@ await p.waitForFunction(() => /sign-in link/.test(document.getElementById('tapp'
 ok('email link fallback still works', AUTHLOG.some((x) => x.startsWith('otp')));
 await p.goto(APP + '/teacher/resources'); await settled(p);
 ok('guide and privacy notes are public', /Privacy notes/.test(await text(p)) && (await p.locator('.t-navs').count()) === 0);
+ok('guide explains the model, grading and make-up play, with current sign-in and resume facts', /How the model works/.test(await text(p)) && /value choice/.test(await text(p)) && /Absent students/.test(await text(p)) && /picks up where they left off/.test(await text(p)) && !/one-time link, no password/.test(await text(p)) && !/parody/i.test(await text(p)));
 await p.close();
 
 // confirmation link opened on another device: lands on the site root with no saved return path, goes to /teacher
@@ -247,6 +248,7 @@ await tp.evaluate(() => { const r = document.getElementById('s-days'); r.value =
 ok('slider at the maximum shows 28 days, 28-56 minutes', /28 days · about 28-56 minutes/.test(await tp.locator('#s-days-out').innerText()));
 await tp.evaluate(() => { const r = document.getElementById('s-days'); r.value = '7'; r.dispatchEvent(new Event('input', { bubbles: true })); });
 await shot(tp, 'teacher-start-form');
+ok('power plays are included by default', await tp.isChecked('input[name=power]'));
 await tp.check('input[name=difficulty][value="1"]');
 await tp.selectOption('#s-focus', 'u3');
 await tp.click('form[data-form=start] button[type=submit]');
@@ -352,7 +354,7 @@ ok('individual table shows the name + score', (await tp.locator('table.t-table')
 ok('individual table shows the quiz score', /2 \/ 3/.test(await tp.locator('table.t-table:not(.t-board)').first().innerText()), await tp.locator('table.t-table:not(.t-board)').first().innerText());
 ok('teacher sees the student quiz, written response and rubric in the summary', /Quiz: 2 of 3 correct/.test(await text(tp)) && /AD shifts right because taxes fell/.test(await text(tp)) && /Rubric/.test(await text(tp)));
 { const [dl] = await Promise.all([tp.waitForEvent('download'), tp.click('[data-act=gradescsv]')]); const csv = fs.readFileSync(await dl.path(), 'utf8');
-  ok('grades CSV has the student, score, quiz and written response', csv.startsWith('student,score,status,quiz_correct,quiz_total,written_response') && csv.includes(nick) && csv.includes(',2,3,AD shifts right because taxes fell.'), csv); }
+  ok('grades CSV has the student, score, quiz and written response', csv.startsWith('student,score,status,quiz_correct,quiz_total,quiz_percent,written_response') && csv.includes(nick) && csv.includes(',2,3,67,AD shifts right because taxes fell.'), csv); }
 ok('leaderboard shows Finished', /Finished/.test(await tp.locator('table.t-board').innerText()));
 await shot(tp, 'teacher-session');
 await tp.click('[data-act=reveal]'); await tp.waitForSelector('text=turn off');

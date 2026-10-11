@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     if (!ctx.session.started || ctx.session.seed == null) return dbError({ message: "not_started" });
     // The seed, length and difficulty come from the database, never from the browser; the score comes from replaying the log with the shared engine.
     let run, dg;
-    try { run = runLog(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty, unit: ctx.session.focus || null }); dg = digest(new Engine(), run.g); }
+    try { run = runLog(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty, unit: ctx.session.focus || null, nopp: ctx.session.power_plays === false }); dg = digest(new Engine(), run.g); }
     catch (e) { return json({ error: "invalid_game", message: "That game record could not be verified: " + (e as Error).message }, 400); }
     const metrics = metricsFrom(run, ENGINE_VERSION, body.log, dg);
     const { error } = await db.rpc("student_record_result", { p_token_hash: th, p_session: ctx.session.id, p_metrics: metrics });
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
     if (ctx.completed) return json({ ok: true, skipped: true });
     if (!ctx.session.started || ctx.session.seed == null) return dbError({ message: "not_started" });
     let rp;
-    try { rp = replayPartial(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty, unit: ctx.session.focus || null }); }
+    try { rp = replayPartial(ctx.session.seed, "President", body.log, { days: ctx.session.days, lvl: ctx.session.difficulty, unit: ctx.session.focus || null, nopp: ctx.session.power_plays === false }); }
     catch (e) { return json({ error: "invalid_game", message: "That game record could not be verified." }, 400); }
     const m = rp.eng.M(rp.g);
     const { error } = await db.rpc("student_record_progress", { p_token_hash: th, p_session: ctx.session.id, p_day: rp.day,

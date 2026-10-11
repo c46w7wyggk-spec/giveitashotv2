@@ -155,7 +155,7 @@ The suites use a small stand-in for Supabase's roles/`auth` schema and forward t
 ## 10. Known limitations (be aware before inviting teachers)
 - One game mode (President, 14 days). No custom scenarios.
 - Student identity is the browser's stored token. Clearing storage or switching device = join again with their name; the teacher can remove the old entry with the Remove button.
-- A student who has not finished when the teacher ends the session cannot submit; a refresh mid-game restarts that game.
+- A student who has not finished when the teacher ends the session cannot submit; a refresh mid-game resumes where the student left off on the same device (switching devices starts over).
 - Everyone plays the same seed, so classmates can compare notes; scores are for discussion, not grading, and a student could use outside help.
 - Polling (6 s per student, 5 s per open teacher session) writes `last_active_at`. Fine for a pilot; revisit before dozens of simultaneous classes.
 - No automated retention job; `purge_archived_classrooms(90)` is manual.

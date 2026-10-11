@@ -46,5 +46,5 @@ Their classroom name, their own name, the session title/instructions, their own 
 
 ## Other considerations
 - Students play the same seed, so classmates can share strategies. That is a feature for discussion; it also means scores are comparisons of a class, not independent assessments. Do not use them for grades.
-- The simulation is a parody with deliberate simplifications; the teacher guide says so.
+- The simulation is a simplified model, not a forecast; the teacher guide says so and explains how the model and score work.
 - Supabase is the processor/host for all of the above (region is whatever the project was created in). Check that matches any school requirements.

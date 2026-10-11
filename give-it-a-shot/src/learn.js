@@ -92,7 +92,7 @@ export const MEAN = {
 };
 
 // ---------------------------------------------------------------- help sections
-// Returns [{ h, p: [paragraph, ...] }]. `o`: { days, lvl, cls } (cls = class version).
+// Returns [{ h, p: [paragraph, ...] }]. `o`: { days, lvl, cls, nopp } (cls = class version; nopp = power plays off for the session).
 export function helpSections(o) {
   const core = o.lvl === 1;
   const days = o.days || 14;
@@ -130,7 +130,7 @@ export function helpSections(o) {
     'An executive action is a decision the President makes alone, without waiting for Congress. They are bolder than memos and their effects can be bigger.',
     'Each one costs political capital, so you cannot spam them. You can use only one per day, and each one makes Congress a little less happy.',
     'An executive action settles its issue. If you abolish the income tax, bills about income tax disappear from your desk. If a law you signed already covers an issue, the action that conflicts with it is blocked until you repeal that law.',
-    core ? 'Executive actions that are legal grey areas are left out of this version.' : 'Some are "power plays" (hush money, packing courts, firing officials). They are very strong but they feed the Scandal meter, and they might be leaked to the press.',
+    core ? 'Executive actions that are legal grey areas are left out of this version.' : o.nopp ? 'Your teacher has turned off power plays (hush money, packing courts and the like) for this session, so every action here is an economic policy.' : 'Some are "power plays" (hush money, packing courts, firing officials). They are very strong but they feed the Scandal meter, and they might be leaked to the press.',
   ] });
   if (!core) S.push({ h: 'Scandal and impeachment', p: [
     'Scandal climbs when you do shady things and when reporters catch you. It slowly fades if you keep clean, and it takes points off your score.',

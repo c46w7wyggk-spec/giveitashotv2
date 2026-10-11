@@ -215,10 +215,17 @@ do $$ declare cid uuid := (select v::uuid from t.state where k='cid'); sid uuid 
   r := public.teacher_start_session(fc, 'Fiscal week', '', 10, 1, 'u3');
   perform t.eq('focus stored', r->>'focus', 'u3');
   perform t.eq('teacher sees focus', public.teacher_get_session((r->>'id')::uuid)->'session'->>'focus', 'u3');
+  perform t.eq('power plays on by default', r->>'power_plays', 'true');
+  perform public.teacher_end_session((r->>'id')::uuid);
+  r := public.teacher_start_session(fc, 'No power plays', '', 10, 0, null, false);
+  perform t.eq('power plays off stored', r->>'power_plays', 'false');
+  perform t.eq('teacher sees power plays off', public.teacher_get_session((r->>'id')::uuid)->'session'->>'power_plays', 'false');
+  perform t.eq('digests carry power plays off', public.teacher_session_digests((r->>'id')::uuid)->>'power_plays', 'false');
   perform public.teacher_end_session((r->>'id')::uuid);
   perform t.back();
   perform t.as_service();
   perform t.eq('student sees focus (mixed)', public.student_context('hash-s1')->'session'->>'focus', null);
+  perform t.eq('student sees power plays on', public.student_context('hash-s1')->'session'->>'power_plays', 'true');
   perform t.fails('quiz before a result is rejected', format('select public.student_record_quiz(''hash-s5'', %L, ''{}'', 1, 3)', sid), 'not_found');
   perform t.fails('quiz score above total rejected', format('select public.student_record_quiz(''hash-s1'', %L, ''{}'', 4, 3)', sid), 'invalid_quiz');
   perform t.fails('negative quiz score rejected', format('select public.student_record_quiz(''hash-s1'', %L, ''{}'', -1, 3)', sid), 'invalid_quiz');

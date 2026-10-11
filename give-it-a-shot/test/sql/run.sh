@@ -16,4 +16,5 @@ $P -f supabase/migrations/20261008030000_teacher_signup.sql
 $P -f supabase/migrations/20261009000000_owner_dashboard.sql
 $P -f supabase/migrations/20261009010000_unit_focus_quiz.sql
 $P -f supabase/migrations/20261009020000_beta_fixes_1009.sql
+$P -f supabase/migrations/20261011000000_power_plays_switch.sql
 $P -f test/sql/teacher_beta.test.sql

@@ -159,7 +159,7 @@ function maybeLaunch() {
   const ses = st.session;
   if (ses.status === 'active' && ses.started && ses.seed != null && onLobby()) {
     launching = true; playing = true; clearTimeout(timer); clearInterval(tick);
-    window.__classPlay({ seed: ses.seed, title: ses.title, days: ses.days, difficulty: ses.difficulty, focus: ses.focus || null, name: st.nickname });
+    window.__classPlay({ seed: ses.seed, title: ses.title, days: ses.days, difficulty: ses.difficulty, focus: ses.focus || null, power_plays: ses.power_plays !== false, name: st.nickname });
     launching = false;
   }
 }

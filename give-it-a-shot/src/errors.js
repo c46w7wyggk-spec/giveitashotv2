@@ -1,7 +1,7 @@
 // Reports uncaught errors and failed server calls to the owner dashboard (public.log_client_error).
 // Best effort and quiet: at most 8 reports per page load, each distinct problem once, and a failure to report is ignored.
 // Only our own scripts are reported (browser extensions and third-party scripts are skipped). No form input is ever sent.
-import { sb } from './api.js';
+import { configured, loadClient } from './api.js';
 
 const BUILD = typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'dev';
 const MAX = 8;
@@ -13,15 +13,15 @@ const IGNORE = /ResizeObserver loop|^Script error\.?$|Non-Error promise rejectio
 export function report(kind, message, source, stack) {
   try {
     const msg = String(message || '').slice(0, 500).trim();
-    if (!import.meta.env.PROD || !sb || !msg || IGNORE.test(msg) || sent >= MAX) return;
+    if (!import.meta.env.PROD || !configured || !msg || IGNORE.test(msg) || sent >= MAX) return;
     const key = kind + '|' + msg + '|' + (source || '');
     if (seen.has(key)) return;
     seen.add(key); sent += 1;
-    sb.rpc('log_client_error', {
+    loadClient().then((sb) => sb && sb.rpc('log_client_error', {
       p_kind: kind, p_message: msg, p_source: source ? String(source).slice(0, 300) : null,
       p_stack: stack ? String(stack).slice(0, 2000) : null, p_path: window.location.pathname.slice(0, 200),
       p_build: BUILD, p_ua: navigator.userAgent.slice(0, 200),
-    }).then(() => {}, () => {});
+    })).then(() => {}, () => {});
   } catch (e) { /* reporting must never break the page */ }
 }
 

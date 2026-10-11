@@ -603,6 +603,7 @@ this.addEv(g, [0, 0, 0, 0.8, 4, -28], 0.2); g.cong = this.clamp(g.cong - 4, 0, 1
 g.over = true; g.ok = 'fled'; this.push(g, '', '');
 } else if (i === 3) {
 if (g.lvl === 1) throw new Error('');
+if (g.nopp) throw new Error('');
 if (g.cap < 3) throw new Error('');
 g.cap -= 3; g.scand = this.clamp(g.scand + 20, 0, 100);
 if (this.rn(g) < 0.7) { this.addEv(g, [0, 0, 0.4, 1.5, 0, -22], 0.2); this.push(g, '', ''); }
@@ -777,6 +778,7 @@ eng.endDay(g);
 const D = eng.data(); const x = D.XA[XIDX.indexOf(a[1])];
 if (g.phase !== 'desk' || !x || g.xToday || g.cap < x.cost || g.xdone.indexOf(x.id) >= 0) throw new Error('');
 if (g.lvl === 1) throw new Error('');
+if (g.nopp && x.cat === 'power') throw new Error('');
 if (eng.blocker(g, x.id)) throw new Error('');
 g.cap -= x.cost; g.xToday = true; g.xpend = x.id;
 g.moot = g.moot || [];
@@ -800,6 +802,7 @@ if (!eng.data().TITLES.some((t) => t.id === role)) throw new Error('unknown role
 if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
 const o = opts || {};
 const g = begin(eng, seed, role, o.days, o.lvl, o.unit);
+if (o.nopp) g.nopp = true;
 for (const a of tokens(log)) { if (g.phase === 'end') throw new Error(''); applyAction(eng, g, a); }
 if (g.phase !== 'end') throw new Error('');
 const sc = eng.scoreCard(g);
@@ -822,6 +825,7 @@ const eng = new Engine();
 if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
 const o = opts || {};
 const g = begin(eng, seed, role, o.days, o.lvl, o.unit);
+if (o.nopp) g.nopp = true;
 if (log.endsWith('x')) log = log.slice(0, -1);
 for (const a of tokens(log)) { if (g.phase === 'end') break; applyAction(eng, g, a); }
 const sc = eng.scoreCard(g);
