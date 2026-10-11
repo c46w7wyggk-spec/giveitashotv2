@@ -154,7 +154,25 @@ export function buildClassSummary(eng, rows, days) {
   if (lean.length >= 4) {
     const planned = lean.filter((r) => r.needle < 45), market = lean.filter((r) => r.needle > 55);
     const av = (a, k) => Math.round(a.reduce((s, r) => s + k(r), 0) / a.length);
-    if (planned.length >= 2 && market.length >= 2) out.paras.push('Students whose policies leaned planned (' + planned.length + ') averaged a score of ' + av(planned, (r) => r.score) + ', compared with ' + av(market, (r) => r.score) + ' for students who leaned market (' + market.length + '). With a class this size treat that as a conversation starter, not a conclusion.');
+    if (planned.length >= 2 && market.length >= 2) {
+      // Compare the groups meter by meter first: the research sets what each policy does, but which meters matter most is a value
+      // choice, so the score comparison comes last and says what its weights are.
+      const fin = (r, i) => r.digest.ser[r.digest.ser.length - 1][i];
+      const af = (a, i) => a.reduce((s, r) => s + fin(r, i), 0) / a.length;
+      const ix = { g: 1, j: 2, i: 3, d: 4, a: 5, u: 6 };
+      const pW = [], mW = [];
+      KEYS.forEach((k) => {
+        const p = af(planned, ix[k]), m = af(market, ix[k]), dc = change(k, p) - change(k, m);
+        if (Math.abs(dc) < 0.1) return;
+        const t = NAME[k] + ' (planned ' + fmt[k](p) + ', market ' + fmt[k](m) + ')';
+        (dc > 0 ? pW : mW).push(t);
+      });
+      const side = (w, who) => (w.length ? who + ' ended ahead on ' + list(w) : who + ' were not clearly ahead on any meter');
+      out.paras.push('Students whose policies leaned planned (' + planned.length + ') and students who leaned market (' + market.length + ') ' + (pW.length && mW.length ? 'did well on different things. ' : 'ended the game like this. ') +
+        side(pW, 'Planned-leaning students') + '; ' + side(mW, 'market-leaning students') + '. ' +
+        'On the game\'s score, planned-leaning students averaged ' + av(planned, (r) => r.score) + ' and market-leaning students ' + av(market, (r) => r.score) + '. The score weights growth 25%, unemployment 20%, inflation, the deficit and approval 15% each, and calm 10%. ' +
+        'Those weights are a value choice, not a research finding: the evidence sets what each policy does, and people can disagree about what matters most. With a class this size, treat it as a conversation starter, not a conclusion.');
+    }
   }
   // insight per divisive policy
   split.slice(0, 2).forEach((o) => {
@@ -175,6 +193,7 @@ export function buildClassSummary(eng, rows, days) {
     'Which decision split the class the most, and what evidence could settle the argument?',
     'Did the highest scorers make the same choices, or did different strategies succeed?',
     'Which policy had the biggest trade-off between helping one group and costing another?',
+    'If you could set the score weights yourself, which meter would count most, and would that change who "won"?',
   ];
   return out;
 }

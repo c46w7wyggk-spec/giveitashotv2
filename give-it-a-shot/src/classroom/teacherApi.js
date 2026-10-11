@@ -1,6 +1,6 @@
 // Teacher/admin calls. These go straight to Postgres functions with the signed-in user's own JWT.
 // There is no service key in the browser, and the browser never says who it is: the database reads auth.uid().
-import { sb } from '../api.js';
+import { loadClient } from '../api.js';
 import { reportApi } from '../errors.js';
 
 const MSG = {
@@ -38,6 +38,7 @@ function codeOf(e) {
   return 'server_error';
 }
 async function rpc(fn, args) {
+  let sb = null; try { sb = await loadClient(); } catch (e) { throw new TError('try_again'); }
   if (!sb) throw new TError('offline');
   const { data, error } = await sb.rpc(fn, args || {});
   if (error) { const c = codeOf(error); if (c === 'server_error') reportApi('rpc:' + fn, error.message); throw new TError(c); }
@@ -52,7 +53,8 @@ export const setJoinCode = (id, hours) => rpc('teacher_set_join_code', { p_id: i
 export const revokeJoinCode = (id) => rpc('teacher_revoke_join_code', { p_id: id });
 export const archiveClassroom = (id) => rpc('teacher_archive_classroom', { p_id: id });
 export const deleteClassroom = (id) => rpc('teacher_delete_classroom', { p_id: id });
-export const startSession = (id, title, instructions, days, difficulty, focus) => rpc('teacher_start_session', { p_classroom: id, p_title: title, p_instructions: instructions, p_days: days, p_difficulty: difficulty, p_focus: focus || null });
+// powerPlays is sent only when off, so the call still works against a database without the power_plays migration.
+export const startSession = (id, title, instructions, days, difficulty, focus, powerPlays) => rpc('teacher_start_session', Object.assign({ p_classroom: id, p_title: title, p_instructions: instructions, p_days: days, p_difficulty: difficulty, p_focus: focus || null }, powerPlays === false ? { p_power_plays: false } : {}));
 export const beginCountdown = (id) => rpc('teacher_begin_countdown', { p_id: id });
 export const digests = (id) => rpc('teacher_session_digests', { p_id: id });
 export const removeMember = (id) => rpc('teacher_remove_member', { p_member: id });

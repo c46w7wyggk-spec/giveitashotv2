@@ -112,5 +112,19 @@ ok('core rejects every executive action', (() => { const eng = new Engine(); con
   ok('the national sales tax still excludes a VAT', eng.clash('consumptax', 'natvat'));
 }
 
+// 10. a classroom session can turn power plays off: the engine refuses them (and the crisis payoff) when nopp is set
+{
+  const eng = new Engine();
+  const px = D.XA.find((q) => q.cat === 'power'), tok = 'x' + XIDX[D.XA.indexOf(px)];
+  const mk = (nopp) => { const g = begin(eng, 4242, 'President', 14, 0, null); if (nopp) g.nopp = true; g.cap = 8; while (g.phase !== 'desk') applyAction(eng, g, g.phase === 'brief' ? 'n' : '4'); return g; };
+  let threw = false; try { applyAction(eng, mk(true), tok); } catch (e) { threw = /power plays are off/.test(e.message); }
+  ok('power play refused when power plays are off', threw);
+  let fine = true; try { applyAction(eng, mk(false), tok); } catch (e) { fine = !/power plays are off/.test(e.message); }
+  ok('power play still allowed by default', fine);
+  const rv = mk(true); rv.inc = [{ k: 'revolt' }]; rv.phase = 'incident';
+  let threw2 = false; try { eng.resolveIncident(rv, 3); } catch (e) { threw2 = /payoffs are off/.test(e.message); }
+  ok('crisis payoff refused when power plays are off', threw2);
+}
+
 console.log(fails ? fails + ' FAILED' : 'rules OK', '(dealt', dealt, 'memos, withdrew', withdrawn, ')');
 process.exit(fails ? 1 : 0);

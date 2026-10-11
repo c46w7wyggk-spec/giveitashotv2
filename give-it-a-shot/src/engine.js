@@ -672,6 +672,7 @@ export class Engine {
         g.over = true; g.ok = 'fled'; this.push(g, 'The President flees the country by helicopter', 'The helicopter left at dawn. The nation noticed by lunch.');
       } else if (i === 3) {
         if (g.lvl === 1) throw new Error('no payoffs in core mode');
+        if (g.nopp) throw new Error('payoffs are off in this session');
         if (g.cap < 3) throw new Error('not enough capital');
         g.cap -= 3; g.scand = this.clamp(g.scand + 20, 0, 100);
         if (this.rn(g) < 0.7) { this.addEv(g, [0, 0, 0.4, 1.5, 0, -22], 0.2); this.push(g, 'Envelopes reach the movement leaders; the barricades come down', 'Several leaders discovered the merits of compromise, and a new boat.'); }
@@ -855,6 +856,7 @@ export function applyAction(eng, g, a) {
     const D = eng.data(); const x = D.XA[XIDX.indexOf(a[1])];
     if (g.phase !== 'desk' || !x || g.xToday || g.cap < x.cost || g.xdone.indexOf(x.id) >= 0) throw new Error('bad executive action');
     if (g.lvl === 1) throw new Error('executive actions are off in core mode');
+    if (g.nopp && x.cat === 'power') throw new Error('power plays are off in this session');
     if (eng.blocker(g, x.id)) throw new Error('executive action conflicts with an enacted policy');
     g.cap -= x.cost; g.xToday = true; g.xpend = x.id;
     // The action settles its lever: any memo still waiting on the desk that touches it is withdrawn.
@@ -873,13 +875,15 @@ export function applyAction(eng, g, a) {
   } else throw new Error('unknown action ' + a);
   return g;
 }
-// opts: { days: 3-28 (default 14), lvl: 0 standard | 1 core (default 0), unit: AP unit focus or null }. The public game always uses the defaults.
+// opts: { days: 3-28 (default 14), lvl: 0 standard | 1 core (default 0), unit: AP unit focus or null, nopp: true to turn power plays off
+// (classroom sessions only) }. The public game always uses the defaults.
 export function runLog(seed, role, log, opts) {
   const eng = new Engine();
   if (!eng.data().TITLES.some((t) => t.id === role)) throw new Error('unknown role');
   if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
   const o = opts || {};
   const g = begin(eng, seed, role, o.days, o.lvl, o.unit);
+  if (o.nopp) g.nopp = true;
   for (const a of tokens(log)) { if (g.phase === 'end') throw new Error('log continues past end'); applyAction(eng, g, a); }
   if (g.phase !== 'end') throw new Error('game not finished');
   const sc = eng.scoreCard(g);
@@ -906,6 +910,7 @@ export function replayPartial(seed, role, log, opts) {
   if (typeof log !== 'string' || log.length > 600) throw new Error('bad log');
   const o = opts || {};
   const g = begin(eng, seed, role, o.days, o.lvl, o.unit);
+  if (o.nopp) g.nopp = true;
   if (log.endsWith('x')) log = log.slice(0, -1);
   for (const a of tokens(log)) { if (g.phase === 'end') break; applyAction(eng, g, a); }
   const sc = eng.scoreCard(g);

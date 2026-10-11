@@ -57,11 +57,11 @@ window.__classHome = () => { delete viewportEl.dataset.class; viewportEl.dataset
   // Every auth email link (magic link, sign-up confirmation, password reset) lands on the site root; send teachers back to /teacher.
   // The hash is read before getSession() because the auth client clears it once it has consumed the tokens.
   const link = window.location.hash + window.location.search;
-  if (path === '/' && api.sb && /access_token=|[?&]code=|token_hash=|error_code=/.test(link)) {
+  if (path === '/' && api.configured && /access_token=|[?&]code=|token_hash=|error_code=/.test(link)) {
     const recovery = /[#&?]type=recovery(&|$)/.test(link), signup = /[#&?]type=signup(&|$)/.test(link);
     const err = (link.match(/error_description=([^&]*)/) || [])[1];
     let user = null;
-    try { user = (await api.sb.auth.getSession()).data.session?.user || null; } catch (e) { /* the sign-in exchange failed; the teacher page will ask them to sign in again */ }
+    try { user = (await (await api.loadClient()).auth.getSession()).data.session?.user || null; } catch (e) { /* the sign-in exchange failed; the teacher page will ask them to sign in again */ }
     // A confirmation opened on another device has no saved return path, but the account itself says it was made on /teacher.
     const teacherLink = recovery || (signup && user && user.user_metadata && user.user_metadata.teacher_signup) || (err && ret);
     const dest = ret && CLASS_ROUTE.test(ret) ? ret : teacherLink ? '/teacher' : null;

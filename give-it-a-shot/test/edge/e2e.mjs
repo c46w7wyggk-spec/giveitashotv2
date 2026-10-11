@@ -157,6 +157,21 @@ r = await post({ action: 'state', token: st4.token }); ok('stored digest records
 const q4 = buildQuiz(r.body.my_result, { focus: 'u6' });
 r = await post({ action: 'quiz', token: st4.token, answers: q4.mc.map((m) => m.answer), frq: '' }); ok('focused quiz graded the same way the browser builds it', r.status === 200 && r.body.quiz.score === MC_COUNT, JSON.stringify(r));
 
+// Power plays off: the session switch reaches the student and the server refuses a log that uses one
+const cls5 = JSON.parse(psql(`select public.teacher_create_classroom('Period 5')`, A));
+const sess5 = JSON.parse(psql(`select public.teacher_start_session('${cls5.id}','Fiscal week','', 5, 0, null, false)`, A));
+ok('session created with power plays off', sess5.power_plays === false, JSON.stringify(sess5));
+const st5 = (await post({ action: 'join', code: cls5.join_code, name: 'Bo T.' })).body;
+psql(`select public.teacher_begin_countdown('${sess5.id}')`, A); psql(`update public.classroom_sessions set starts_at = now() - interval '1 second' where id = '${sess5.id}'`);
+r = await post({ action: 'state', token: st5.token }); const seed5 = r.body.session.seed;
+ok('student sees power plays off', r.body.session.power_plays === false && seed5 != null, JSON.stringify(r.body.session));
+let forged5 = null;
+for (let s = 1; s <= 400 && !forged5; s++) { const l = playLog(seed5, s, { days: 5, lvl: 0, aggressive: true }); try { runLog(seed5, 'President', l, { days: 5, lvl: 0, nopp: true }); } catch (e) { if (/power plays are off|payoffs are off/.test(e.message)) forged5 = l; } }
+ok('found a log that uses a power play', !!forged5);
+r = await post({ action: 'submit', token: st5.token, log: forged5 }); ok('a power play is rejected when the teacher turned them off', r.status === 400 && r.body.error === 'invalid_game', JSON.stringify(r));
+const O5 = { days: 5, lvl: 0, nopp: true }, log5 = playLog(seed5, 9, O5), exp5 = runLog(seed5, 'President', log5, O5);
+r = await post({ action: 'submit', token: st5.token, log: log5 }); ok('a clean game is verified with power plays off', r.status === 200 && r.body.result.score === exp5.sc.score, JSON.stringify(r));
+
 // archived classroom closes tokens
 psql(`select public.teacher_archive_classroom('${cls.id}')`, A);
 r = await post({ action: 'state', token: students[0].token }); ok('archived classroom => 410', r.status === 410 && r.body.error === 'classroom_closed');

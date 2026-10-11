@@ -179,3 +179,4 @@ summary{cursor:pointer;font-weight:700}
 .t-area{width:100%;min-height:150px;resize:vertical;font:inherit;line-height:1.45}
 .t-rubric{margin:6px 0 0;padding-left:18px}
 .t-quizbox{margin-top:10px;padding-top:10px;border-top:1px solid var(--t-line,#2a4062)}
+.t-check{margin-top:10px}

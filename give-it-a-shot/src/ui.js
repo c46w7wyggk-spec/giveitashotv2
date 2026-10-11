@@ -106,11 +106,11 @@ export class App extends Engine {
   // ---------- classroom (Teacher Beta) ----------
   // A class run uses the session's seed from the server, is never posted to the public board, and is sent to the
   // classroom function, which replays the log itself. The score on this screen is only a preview.
-  saveClassRun(g) { lsSet(CLASS_RUN_KEY, JSON.stringify({ seed: g.seed0, days: g.days, lvl: g.lvl, unit: g.unit || null, log: g.log || '' })); }
+  saveClassRun(g) { lsSet(CLASS_RUN_KEY, JSON.stringify({ seed: g.seed0, days: g.days, lvl: g.lvl, unit: g.unit || null, nopp: !!g.nopp, log: g.log || '' })); }
   // The saved run for this exact session (same seed, length, level and unit), replayed to where the student left off; null if none.
   resumeClassRun(info, fresh) {
     let o = null; try { o = JSON.parse(lsGet(CLASS_RUN_KEY) || 'null'); } catch (e) { o = null; }
-    if (!o || !o.log || o.seed !== info.seed || o.days !== fresh.days || o.lvl !== fresh.lvl || (o.unit || null) !== (fresh.unit || null)) return null;
+    if (!o || !o.log || o.seed !== info.seed || o.days !== fresh.days || o.lvl !== fresh.lvl || (o.unit || null) !== (fresh.unit || null) || !!o.nopp !== !!fresh.nopp) return null;
     try {
       const g = JSON.parse(JSON.stringify(fresh));
       for (const a of tokens(o.log)) { if (g.phase === 'end') break; applyAction(this, g, a); }
@@ -121,6 +121,7 @@ export class App extends Engine {
   startClass(info) {
     let g = this.newGame(info.seed, info.days || 14, info.difficulty === 1 ? 1 : 0, info.focus || null);
     g.title = 'President'; g.seed0 = info.seed; g.mode = 'class'; g.dd = null; g.log = '';
+    if (info.power_plays === false) g.nopp = true;
     g.phase = 'desk'; g.day = 1; g.ds = this.M(g); g.ds0 = g.ds; this.deal(g);
     const resumed = this.resumeClassRun(info, g);
     if (resumed) g = resumed; else lsDel(CLASS_RUN_KEY);
@@ -475,7 +476,7 @@ export class App extends Engine {
       : core ? 'End the day and see what the night brings.' : g.xToday ? 'You have already used today\'s executive action.' : 'Take an executive action if you dare (one per day), or end the day and see what the night brings.';
 
     // ---------- executive actions ----------
-    const XC = core ? XCATS.filter((c) => c[0] !== 'power') : XCATS;
+    const XC = core || g.nopp ? XCATS.filter((c) => c[0] !== 'power') : XCATS;
     const xc = XC.some((c) => c[0] === st.xcat) ? st.xcat : 'tax';
     const takenNow = this.taken(g);
     const blockTitle = (id) => { const b = this.blocker(g, id, takenNow); return b ? this.pol(b).t : ''; };
@@ -539,7 +540,7 @@ export class App extends Engine {
           { label: 'Concede to the demands', desc: 'Repeal your latest policy and open talks. The crowd goes home.', f: [0, 0, 0, 0.8, 4, -28] },
           { label: 'Flee the country', desc: 'Leave by helicopter before dawn. The term ends now, with a 40% score cut.' },
           { label: 'Buy off the leaders', desc: 'About 70 in 100 to work. Adds 20 scandal. If it fails, the crowd grows.', f: [0, 0, 0.4, 1.5, 0, -22], cost: 3, off: g.cap < 3 }
-        ].slice(0, core ? 3 : 4).map(mk);
+        ].slice(0, core || g.nopp ? 3 : 4).map(mk);
         incBanner = 'color:#ff9d96'; incShake = true;
       } else {
         const F = D.FAC[cur.fac];
@@ -716,7 +717,7 @@ export class App extends Engine {
           sumStats: sm.stats.map((x) => ({ k: x.k, start: x.start, end: x.end, cls: x.good ? 'up' : x.bad ? 'down' : '', mark: x.good ? '\u25B2' : x.bad ? '\u25BC' : '' })) };
       } catch (e) { sum = { hasSummary: false }; }
     }
-    const helpSecs = st.helpOpen ? helpSections({ days, lvl: g.lvl, cls: isClass }).map((hh) => ({ h: hh.h, p: hh.p.map((t) => ({ t })) })) : [];
+    const helpSecs = st.helpOpen ? helpSections({ days, lvl: g.lvl, cls: isClass, nopp: !!g.nopp }).map((hh) => ({ h: hh.h, p: hh.p.map((t) => ({ t })) })) : [];
 
     return {
       _share: { title: endTitle, score: sc ? sc.score : 0, cons: gC ? gC.letter : '', lib: gL ? gL.letter : '', role: g.title, needle: this.needle(g), mode: g.mode, dd: g.dd, kwin: !!(kormRes && kormRes.win) },
