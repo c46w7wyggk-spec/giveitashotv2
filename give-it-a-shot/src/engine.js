@@ -2,7 +2,8 @@
 // Same seed + same action log => same game, same score. Bump ENGINE_VERSION on ANY change that alters outcomes.
 import { XA } from './xactions.js';
 import { POL2, BASE_TOPIC, BASE_SYS, BASE_KILL, AP_UNITS } from './policies.js';
-export const ENGINE_VERSION = 6;
+import { FED, FED_LEVERS, fedRule, fedStep, fedPct } from './fed.js';
+export const ENGINE_VERSION = 7;
 export const MIN_DAYS = 3, MAX_DAYS = 28;
 export const BASE_GROWTH = 2; // trend GDP growth (%) when nothing is done
 
@@ -193,7 +194,9 @@ export class Engine {
         opts: [
           { label: 'Bail out the big banks', desc: 'Calm the markets, anger Main Street.', f: [0.8, 0, 0, 1.2, -6, 4], sd: 0.4, res: 'Markets rally. Main Street grumbles in six directions.' },
           { label: 'Let it fail', desc: 'Moral hazard dies. So might some jobs.', f: [-1.8, 1.5, 0, 0, -2, 6], sd: 0.5, res: 'Moral hazard is eliminated. So are some paychecks.' },
-          { label: 'Guarantee deposits only', desc: 'Protect savers, not shareholders.', f: [0.2, 0, 0, 0.5, -1, 1], sd: 0.5, res: 'Depositors relax. Shareholders send a sad email.' }
+          { label: 'Guarantee deposits only', desc: 'Protect savers, not shareholders.', f: [0.2, 0, 0, 0.5, -1, 1], sd: 0.5, res: 'Depositors relax. Shareholders send a sad email.' },
+          // The Fed as lender of last resort, with Treasury money standing behind its emergency loans (as in March 2020).
+          { label: 'Back emergency Fed lending', desc: 'Treasury money stands behind Fed loans to frozen credit markets.', f: [0.6, 0, 0.1, 0.4, -2, 1], sd: 0.5, res: 'The Fed opens its emergency lending windows. Credit markets exhale; Main Street asks where its window is.' }
         ], hl: 'Markets crash, bank wobbles' },
       cyber: { kind: 'Security', title: 'Cyberattack hits the power grid', text: 'Lights flicker and servers panic, and somewhere a hacker is eating a Hot Pocket.', st: ['TX', 'GA', 'VA'], icon: 'flame', base: [-0.6, 0.1, 0.2, 0, -2, 2], real: 'The 2021 Colonial Pipeline hack triggered panic buying across the Southeast.',
         opts: [
@@ -351,7 +354,7 @@ export class Engine {
     // memos per day: long terms get fewer so the bill pool lasts (standard: 3 up to 14 days; core: 2, then 1 past 18 days)
     const mpd = lvl === 1 ? this.clamp(Math.round(28 / days), 1, 2) : this.clamp(Math.round(36 / days), 1, 3);
     const g = { rs: seed | 0, day: 1, days: days, lvl: lvl, mpd: mpd, unit: unit || null, phase: 'title', title: 'President', memos: [], moot: [], pols: [], evs: [], hits: [], vet: {}, sched: {}, inc: [], carry: [], flash: [], news: [], todayPol: [], over: false, ok: '', bond: false, riot: false, ds: null, ds0: null, mi: 0,
-      cap: 5, cong: 50, scand: 0, imp: null, trials: 0, lastTrial: -9, trialDay: 0, rev: 0, revDay: -9, surv: false, shield: 0, xToday: false, xpend: null, xdone: [], seen: {}, tp: [], fulog: [], press: [], sidc: 0, evlog: [], crlog: [], ser: [], nv: 0 };
+      cap: 5, cong: 50, scand: 0, imp: null, trials: 0, lastTrial: -9, trialDay: 0, rev: 0, revDay: -9, surv: false, shield: 0, xToday: false, xpend: null, xdone: [], seen: {}, tp: [], fulog: [], press: [], sidc: 0, evlog: [], crlog: [], ser: [], fed: [], nv: 0 };
     // Schedule random events on days 2..days-1: about 3 per 7 days, always a disaster and a war first (14 days = 6 events).
     const slots = []; for (let d = 2; d <= days - 1; d++) slots.push(d);
     const n = Math.min(10, slots.length, Math.max(1, Math.round(days * 3 / 7)));
@@ -644,8 +647,24 @@ export class Engine {
       g.inc.push(c); this.crisisHit(g, c, 1);
     }
     g.phase = savedPhase;
-    { const mm = this.M(g); g.ser.push([g.day, mm.g, mm.j, mm.i, mm.d, mm.a, mm.u].map((v, k) => (k ? Math.round(v * 10) / 10 : v))); }
+    { const mm = this.M(g); g.ser.push([g.day, mm.g, mm.j, mm.i, mm.d, mm.a, mm.u].map((v, k) => (k ? Math.round(v * 10) / 10 : v))); this.fedMeet(g, mm); }
     if (g.inc.length) g.phase = 'incident'; else this.toBrief(g);
+  }
+  // The Fed meets every night after the day's news (see fed.js). Read-out only: no randomness, no effect on the meters.
+  fedLevers(g) { const on = {}; g.pols.forEach((p) => { if (!p.rep && FED_LEVERS.indexOf(p.id) >= 0) on[p.id] = true; }); return on; }
+  fedRate(g) { return g.fed && g.fed.length ? g.fed[g.fed.length - 1] : FED.start; }
+  fedMeet(g, m) {
+    g.fed = g.fed || [];
+    const prev = this.fedRate(g), on = this.fedLevers(g);
+    const r = fedStep(prev, fedRule(m, on));
+    g.fed.push(r);
+    if (r === prev) return;
+    const up = r > prev, by = Math.abs(r - prev).toFixed(2);
+    this.addNews(g, { k: 'fed', o: 'Capitol Quarterly', h: 'Fed ' + (up ? 'raises' : 'cuts') + ' its interest rate target to ' + fedPct(r),
+      b: ['The Federal Reserve ' + (up ? 'raised' : 'cut') + ' its target for the federal funds rate by ' + by + ' points, to ' + fedPct(r) + '. Inflation is running at ' + m.i.toFixed(1) + '% against the Fed\'s ' + (on.fedtarget3 ? '3' : '2') + '% goal, and unemployment is ' + m.j.toFixed(1) + '%.',
+        up ? 'To push rates up, the Fed sells Treasury bonds on the open market, which drains reserves from banks. Loans for homes, cars and new factories get more expensive, so spending cools.'
+          : 'To push rates down, the Fed buys Treasury bonds on the open market, which adds reserves to banks. Loans get cheaper, so households and businesses borrow and spend more.',
+        on.fedfire ? 'The chair you appointed keeps rates well below what the economy calls for. Markets have noticed.' : 'The President does not set interest rates. The Fed decides on its own.'] });
   }
   crisisHit(g, c, scale) {
     if (scale >= 1) g.crlog.push({ d: g.day, fac: c.fac, pol: c.pol || '' });
@@ -685,6 +704,8 @@ export class Engine {
     }
     if (cur.k === 'event') {
       const o = D.EV[cur.id].opts[i];
+      if (!o) throw new Error('bad event option');
+      const lg = g.evlog.slice().reverse().find((e) => e.id === cur.id && e.o == null); if (lg) lg.o = i;
       this.addEv(g, o.f, o.sd, o.perm ? 'p' : 'l');
       this.push(g, o.res, D.EV[cur.id].text.replace('{st}', D.ST[cur.st][0]) + ' ' + o.desc);
     } else {
@@ -743,7 +764,7 @@ export class Engine {
         this.push(g, 'House drafts articles of impeachment', 'Committee chairs say the vote is coming. You have a day or two to change the math, one way or another.');
       } else if (g.imp && g.imp.st === 'trial' && g.trialDay !== g.day) { g.phase = 'trial'; return; }
     }
-    if (!g.news.length) this.push(g, 'A quiet night. Cable news invents a feud.');
+    if (!g.news.some((n) => n.k !== 'fed')) this.push(g, 'A quiet night. Cable news invents a feud.');
   }
   verdict(g) {
     const imp = g.imp;
@@ -899,7 +920,7 @@ export function digest(eng, g) {
     days: g.days, lvl: g.lvl, unit: g.unit || null, day: g.day, over: !!g.over, ok: g.ok || '', surv: !!g.surv,
     signed: g.pols.filter((p) => !p.x).map((p) => p.id), repealed: g.pols.filter((p) => p.rep).map((p) => p.id),
     vetoed: Object.keys(g.vet), nv: g.nv, xa: g.xdone.slice(), moot: (g.moot || []).map((q) => q.id + '>' + q.by), fu: (g.fulog || []).map((f) => f.d + ':' + f.id + ':' + f.sk + ':' + f.sid),
-    ev: g.evlog.map((e) => e.d + ':' + e.id), cr: g.crlog.map((c) => c.d + ':' + c.fac + (c.pol ? ':' + c.pol : '')),
+    ev: g.evlog.map((e) => e.d + ':' + e.id), evo: g.evlog.filter((e) => e.o != null).map((e) => e.d + ':' + e.id + ':' + e.o), fed: (g.fed || []).slice(), cr: g.crlog.map((c) => c.d + ':' + c.fac + (c.pol ? ':' + c.pol : '')),
     trials: g.trials, rev: g.rev, scand: r1(g.scand), cong: r1(g.cong), cap: g.cap,
     ser: g.ser, sub: Object.fromEntries(Object.entries(sc.sub).map(([k, v]) => [k, Math.round(v)])), nd: Math.round(sc.nd),
   };

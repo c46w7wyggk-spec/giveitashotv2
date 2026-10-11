@@ -1,6 +1,6 @@
 // How much the research agrees on each desk bill's effects, and where the numbers come from.
 // Client-only (the server engine never reads it), so editing it needs no engine bump or redeploy.
-// Covers the 50 bills students see most often; bills not listed simply show no line.
+// Covers the 50 bills students see most often, plus the Federal Reserve bills; bills not listed simply show no line.
 // Grades: S = most studies agree on the direction, M = studies disagree or results depend on design,
 // C = little hard evidence or sharp disagreement, so the game's numbers are a judgment call.
 export const GRADE = {
@@ -59,5 +59,8 @@ export const EVID = {
   infra: ['M', 'Ramey (2020, NBER), on the macroeconomic effects of infrastructure investment; CBO'],
   wetlands: ['C', 'Sackett v. EPA (2023); EPA and Army Corps economic analyses of the waters rule'],
   secretballot: ['C', 'National Labor Relations Board election data'],
+  fedsingle: ['C', 'Sound Dollar Act (2012); ECB mandate; Mishkin, Monetary Policy Strategy (2007)'],
+  fedtarget3: ['M', 'Blanchard, Dell’Ariccia & Mauro, IMF (2010); Ball (2014); Shiller (1997) on views of inflation'],
+  fedaudit: ['C', 'GAO audit law (31 U.S.C. 714); Drechsel (2024) on political pressure and prices'],
 };
 export const evidenceFor = (id) => { const e = EVID[id]; return e ? { grade: GRADE[e[0]], src: e[1] } : null; };

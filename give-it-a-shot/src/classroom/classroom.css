@@ -180,3 +180,12 @@ summary{cursor:pointer;font-weight:700}
 .t-rubric{margin:6px 0 0;padding-left:18px}
 .t-quizbox{margin-top:10px;padding-top:10px;border-top:1px solid var(--t-line,#2a4062)}
 .t-check{margin-top:10px}
+/* quiz results */
+.t-statrow{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 10px}
+.t-stat{flex:1 1 140px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.04)}
+.t-stat b{display:block;font-size:22px}
+.t-stat span{font-size:13px;color:var(--soft)}
+.t-frqlist{padding-left:20px}
+.t-frqitem{margin:0 0 14px;padding-bottom:12px;border-bottom:1px solid var(--t-line,#2a4062)}
+.t-frqscore{align-items:center;gap:6px}
+.t-frqscore .t-btn.sm{min-width:38px}

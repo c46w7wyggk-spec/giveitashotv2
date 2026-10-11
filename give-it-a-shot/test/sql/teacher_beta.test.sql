@@ -244,6 +244,68 @@ do $$ declare cid uuid := (select v::uuid from t.state where k='cid'); sid uuid 
   perform t.fails('B cannot read A quiz answers', format('select public.teacher_session_digests(%L)', sid), 'not_found');
   perform t.back();
 end $$;
+-- 6c. Unit 2, waiting-room settings, the quiz switch and written-response scores
+do $$ declare sid uuid := (select v::uuid from t.state where k='sid'); fc uuid; ws uuid; r jsonb; m1 uuid; m2 uuid; begin
+  perform t.as_user('b0000000-0000-0000-0000-00000000000b');
+  fc := (select id from public.teacher_classrooms where name = 'Focus class');
+  r := public.teacher_start_session(fc, 'Indicators', '', 10, 0, 'u2');
+  ws := (r->>'id')::uuid;
+  perform t.eq('unit 2 accepted', r->>'focus', 'u2');
+  perform t.eq('quiz on by default', r->>'quiz', 'true');
+  r := public.teacher_update_session(ws, '{"focus":"u4","power_plays":false,"difficulty":1,"days":5}');
+  perform t.eq('waiting room: unit changed', r->>'focus', 'u4');
+  perform t.eq('waiting room: power plays changed', r->>'power_plays', 'false');
+  perform t.eq('waiting room: difficulty changed', r->>'difficulty', '1');
+  perform t.eq('waiting room: days changed', (public.teacher_get_session(ws)->'session'->>'days'), '5');
+  perform t.eq('waiting room: scenario follows days', (select scenario_id from public.classroom_sessions where id = ws), 'president-5day');
+  r := public.teacher_update_session(ws, '{"focus":null}');
+  perform t.eq('waiting room: back to mixed', r->>'focus', null);
+  perform t.eq('settings left alone keep their value', r->>'days', '5');
+  perform t.fails('bad unit rejected', format('select public.teacher_update_session(%L, ''{"focus":"u7"}'')', ws), 'invalid_focus');
+  perform t.fails('bad days rejected', format('select public.teacher_update_session(%L, ''{"days":2}'')', ws), 'invalid_days');
+  perform t.fails('fractional days rejected', format('select public.teacher_update_session(%L, ''{"days":5.5}'')', ws), 'invalid_input');
+  perform t.fails('non-boolean quiz rejected', format('select public.teacher_update_session(%L, ''{"quiz":"no"}'')', ws), 'invalid_input');
+  perform t.fails('non-object settings rejected', format('select public.teacher_update_session(%L, ''[1]'')', ws), 'invalid_input');
+  r := public.teacher_update_session(ws, '{"quiz":false}');
+  perform t.eq('quiz off stored', r->>'quiz', 'false');
+  perform t.eq('teacher sees quiz off', public.teacher_get_session(ws)->'session'->>'quiz', 'false');
+  perform t.eq('digests carry quiz off', public.teacher_session_digests(ws)->>'quiz', 'false');
+  perform public.teacher_begin_countdown(ws);
+  perform t.fails('unit locked after Start', format('select public.teacher_update_session(%L, ''{"focus":"u1"}'')', ws), 'session_started');
+  perform t.eq('quiz can still switch after Start', public.teacher_update_session(ws, '{"quiz":true}')->>'quiz', 'true');
+  perform public.teacher_end_session(ws);
+  perform t.eq('quiz can switch after the session ends', public.teacher_update_session(ws, '{"quiz":false}')->>'quiz', 'false');
+  perform t.fails('B cannot change A session', format('select public.teacher_update_session(%L, ''{"quiz":false}'')', sid), 'not_found');
+  perform t.back();
+  -- the quiz switch is enforced when a student answers
+  perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  perform public.teacher_update_session(sid, '{"quiz":false}');
+  perform t.back(); perform t.as_service();
+  perform t.eq('student sees quiz off', public.student_context('hash-s2')->'session'->>'quiz', 'false');
+  perform t.fails('quiz refused while off', format('select public.student_record_quiz(''hash-s2'', %L, ''{}'', 1, 3)', sid), 'quiz_off');
+  perform t.back();
+  perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  perform public.teacher_update_session(sid, '{"quiz":true}');
+  -- written-response scores
+  m1 := (select (x->>'member_id')::uuid from jsonb_array_elements(public.teacher_get_session(sid)->'results') x where x->>'score' = '600');
+  m2 := (select (x->>'member_id')::uuid from jsonb_array_elements(public.teacher_get_session(sid)->'results') x where x->>'score' = '500');
+  r := public.teacher_grade_frq(sid, m1, 3, 4);
+  perform t.eq('written score stored', r->>'frq_points', '3');
+  perform t.eq('teacher sees written score', (select x->>'frq_points' || '/' || (x->>'frq_of') from jsonb_array_elements(public.teacher_get_session(sid)->'results') x where x->>'score' = '600'), '3/4');
+  perform t.eq('digests carry written score', (select x->>'frq_points' from jsonb_array_elements(public.teacher_session_digests(sid)->'rows') x where x->>'score' = '600'), '3');
+  perform t.fails('score above the rubric rejected', format('select public.teacher_grade_frq(%L, %L, 5, 4)', sid, m1), 'invalid_input');
+  perform t.fails('rubric over 6 points rejected', format('select public.teacher_grade_frq(%L, %L, 1, 7)', sid, m1), 'invalid_input');
+  perform t.fails('no quiz, nothing to score', format('select public.teacher_grade_frq(%L, %L, 1, 4)', sid, m2), 'not_found');
+  perform t.back(); perform t.as_service();
+  perform t.eq('student sees written score', public.student_context('hash-s1')->'my_result'->>'frq_points', '3');
+  perform t.back();
+  perform t.as_user('b0000000-0000-0000-0000-00000000000b');
+  perform t.fails('B cannot score A students', format('select public.teacher_grade_frq(%L, %L, 1, 4)', sid, m1), 'not_found');
+  perform t.back();
+  perform t.as_user('a0000000-0000-0000-0000-00000000000a');
+  perform t.eq('score cleared', public.teacher_grade_frq(sid, m1, null, 4)->>'frq_points', null);
+  perform t.back();
+end $$;
 do $$ declare sid uuid := (select v::uuid from t.state where k='sid'); ctx jsonb; r jsonb; othercode text; ocid uuid; mid5 uuid; begin
   -- a student from ANOTHER classroom cannot submit into this session
   perform t.as_user('b0000000-0000-0000-0000-00000000000b');
@@ -574,7 +636,7 @@ do $$ declare names text; begin
    where n.nspname = 'public' and has_function_privilege('authenticated', p.oid, 'execute')
      and (p.proname like 'teacher\_%' or p.proname like 'admin\_%' or p.proname like '\_%' or p.proname in ('rl_hit','rl_peek','gen_join_code','classroom_join','student_context','student_record_result','student_leave','classroom_session_stats','grant_role_by_email','revoke_role_by_email','purge_archived_classrooms','user_has_capability'));
   perform t.eq('authenticated-executable function allow-list',
-    names, 'admin_dismiss_application,admin_find_users,admin_grant_role,admin_list_applications,admin_list_classrooms,admin_list_errors,admin_list_feedback,admin_list_roles,admin_list_users,admin_owner_classrooms,admin_owner_overview,admin_resolve_errors,admin_revoke_role,admin_set_leader_beta,teacher_apply,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track');
+    names, 'admin_dismiss_application,admin_find_users,admin_grant_role,admin_list_applications,admin_list_classrooms,admin_list_errors,admin_list_feedback,admin_list_roles,admin_list_users,admin_owner_classrooms,admin_owner_overview,admin_resolve_errors,admin_revoke_role,admin_set_leader_beta,teacher_apply,teacher_archive_classroom,teacher_begin_countdown,teacher_create_classroom,teacher_dashboard,teacher_delete_classroom,teacher_end_session,teacher_get_classroom,teacher_get_session,teacher_grade_frq,teacher_me,teacher_remove_member,teacher_revoke_join_code,teacher_session_digests,teacher_set_join_code,teacher_set_reveal,teacher_start_session,teacher_submit_feedback,teacher_track,teacher_update_session');
   select string_agg(p.proname, ',') into names from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') and p.proname ~ '^(teacher|admin|classroom|student|rl|grant|revoke|purge|gen|_)';
   perform t.eq('anon can execute none of the new functions', names, null);

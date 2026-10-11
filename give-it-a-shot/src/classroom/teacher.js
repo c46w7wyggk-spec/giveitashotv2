@@ -10,13 +10,13 @@ import { buildSummary, buildClassSummary } from '../summary.js';
 import { minutesFor } from '../learn.js';
 import { summaryCard, classSummaryCard } from './kit.js';
 import { overviewPage, classroomsPage, usersPage, feedbackPage, feedbackCsv, csvOf, errorsPage, ownerTabs } from './owner.js';
-import { buildQuiz, UNIT_NAMES } from '../quiz.js';
+import { buildQuizFor, topicOf, UNIT_NAMES } from '../quiz.js';
 
 const RETURN_KEY = 'gias_after_login';
 const CONTACT = import.meta.env.VITE_TEACHER_CONTACT_EMAIL || '';
 let root, me = null, meFor = null, gate = 'loading', route = null, poll = null, lastHtml = '', lastKey = '', loadSeq = 0, ticker = null;
 const ENG = new Engine();
-const ui = { ownerFilter: 'open', userFilter: 'all', userQ: '', errDays: 7, errResolved: false, sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, focus: '', power: true, showIndiv: false, sending: false, signinErr: '', email: '', mode: null, notice: null, unconfirmed: false, meta: {} };
+const ui = { ownerFilter: 'open', userFilter: 'all', userQ: '', errDays: 7, errResolved: false, sumOpen: {}, dg: null, off: 0, days: 14, diff: 0, focus: '', power: true, quiz: true, showIndiv: false, sending: false, signinErr: '', email: '', mode: null, notice: null, unconfirmed: false, meta: {} };
 
 const daysOut = (d) => d + ' day' + (d === 1 ? '' : 's') + ' · about ' + minutesFor(d);
 
@@ -194,9 +194,9 @@ async function pClassroom(id) {
       '<label class="t-opt"><input type="radio" name="difficulty" value="0"' + (ui.diff === 0 ? ' checked' : '') + '><span><b>AP / Advanced</b><br><span class="t-note">The full simulation: about three memos a day, power plays, scandal, impeachment and revolutions.</span></span></label>' +
       '<label class="t-opt"><input type="radio" name="difficulty" value="1"' + (ui.diff === 1 ? ' checked' : '') + '><span><b>Core (simplified)</b><br><span class="t-note">For regular high school classes: fewer memos a day, no executive actions or political capital, no scandal or impeachment, and plain-language help on every policy.</span></span></label></fieldset>' +
       '<label class="t-opt t-check"><input type="checkbox" name="power" value="1"' + (ui.power ? ' checked' : '') + '><span><b>Include power plays</b> (AP only)<br><span class="t-note">Executive actions such as auditing critics or packing the courts, and paying off protest leaders in a crisis. Uncheck to keep the economic policy and drop these. Core never includes them.</span></span></label>' +
-      '<label class="t-label" for="s-focus">AP Macroeconomics unit (optional)</label><select id="s-focus" class="t-input" name="focus" aria-describedby="s-focus-note"><option value="">Mixed: bills from every topic</option>' +
-      Object.keys(UNIT_NAMES).map((k) => '<option value="' + k + '"' + (ui.focus === k ? ' selected' : '') + '>' + esc(UNIT_NAMES[k]) + '</option>').join('') + '</select>' +
-      '<div class="t-note" id="s-focus-note">With a unit chosen, the desk deals that unit’s bills first (from about a quarter of the desk for Unit 6, which has the fewest bills, to about three quarters for Unit 3), and the questions at the end lean toward it. Everyone still plays the same country.</div>' +
+      '<label class="t-label" for="s-focus">AP Macroeconomics unit (optional)</label>' + unitSelect('s-focus', ui.focus).replace('<select ', '<select aria-describedby="s-focus-note" ') +
+      '<div class="t-note" id="s-focus-note">With a unit chosen, the desk deals that unit’s bills first, and all three quiz questions and the written question come from that unit. Everyone still plays the same country.</div>' +
+      quizOpt(ui.quiz) +
       '<label class="t-label" for="s-ins">Instructions for students (optional)</label><textarea id="s-ins" class="t-input" name="instructions" rows="3" maxlength="600" placeholder="e.g. Play through once. Do not talk until everyone is finished."></textarea><div class="t-err" id="start-err" role="alert"></div><button class="t-btn gold lg" type="submit">Open the waiting room</button></form>';
   return shell('<p class="t-crumb"><a href="/teacher" data-nav>Dashboard</a> / ' + esc(c.name) + '</p><div class="t-title"><h1 class="t-h1">' + esc(c.name) + '</h1>' + (c.archived_at ? '<span class="t-chip">archived</span>' : '<span class="t-chip live">open</span>') + '</div>' +
     '<section class="t-card"><div class="t-eyebrow">JOIN CODE</div>' + codePanel + '</section>' + sessionPanel +
@@ -205,6 +205,9 @@ async function pClassroom(id) {
     '<section class="t-card"><div class="t-eyebrow">MANAGE</div><div class="t-actions">' + (c.archived_at ? '' : '<button class="t-btn ghost" data-act="archive" data-id="' + esc(c.id) + '">Archive classroom</button>') + '<button class="t-btn danger" data-act="delete" data-id="' + esc(c.id) + '">Delete classroom and its data</button></div><p class="t-note">Archiving ends any running session and stops new joins; results stay available. Deleting removes the classroom, nicknames and all results permanently.</p></section>');
 }
 
+const quizOpt = (on) => '<label class="t-opt t-check"><input type="checkbox" name="quiz" value="1"' + (on ? ' checked' : '') + '><span><b>End-of-game quiz</b><br><span class="t-note">After their term, each student answers three multiple-choice questions built from their own game (graded automatically) and one written question you score with its rubric. You can turn it off or on later from the session page.</span></span></label>';
+const unitSelect = (id, cur) => '<select id="' + id + '" class="t-input" name="focus"><option value="">Mixed: bills from every topic</option>' +
+  Object.keys(UNIT_NAMES).map((k) => '<option value="' + k + '"' + (cur === k ? ' selected' : '') + '>' + esc(UNIT_NAMES[k]) + '</option>').join('') + '</select>';
 const pct = (n, d) => (d ? Math.max(0, Math.min(100, Math.round((n / d) * 100))) : 0);
 function rowStatus(p, phase) {
   if (p.completed) return p.over ? 'Removed from office' : 'Finished';
@@ -228,15 +231,28 @@ function boardHtml(list, days, phase) {
   return '<div class="t-scroll"><table class="t-table t-board"><thead><tr><th scope="col">#</th><th scope="col">Student</th><th scope="col">Progress</th><th scope="col">Score</th><th scope="col">Approval</th><th scope="col">Status</th><th scope="col"><span class="t-sr">Actions</span></th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
     '<p class="t-note">' + ranked + ' of ' + list.length + ' students on the board. Scores update after each simulated day and are estimates until a student finishes (the final score also counts where the country is headed).</p>';
 }
-function individualTable(results) {
-  const head = '<tr><th>Student</th><th>Score</th><th>Quiz</th>' + METRICS.map((m) => '<th>' + esc(m.label.replace(' (GDP growth)', '')) + '</th>').join('') + '<th>Status</th></tr>';
-  return '<div class="t-scroll"><table class="t-table"><thead>' + head + '</thead><tbody>' + results.map((r) => '<tr><th scope="row">' + esc(r.display_name) + '</th><td>' + esc(r.score) + '</td><td>' + (r.quiz_of ? esc(r.quiz_score + ' / ' + r.quiz_of) : '–') + '</td>' + METRICS.map((m) => '<td>' + esc(fmtMetric(m, r[m.key])) + '</td>').join('') + '<td>' + (r.completion_status === 'removed' ? 'removed from office' : 'finished term') + '</td></tr>').join('') + '</tbody></table></div>' +
+function individualTable(results, quizOn) {
+  const showQuiz = quizOn || results.some((r) => r.quiz_of);
+  const head = '<tr><th>Student</th><th>Score</th>' + (showQuiz ? '<th>Quiz</th><th>Written</th>' : '') + METRICS.map((m) => '<th>' + esc(m.label.replace(' (GDP growth)', '')) + '</th>').join('') + '<th>Status</th></tr>';
+  return '<div class="t-scroll"><table class="t-table t-students"><thead>' + head + '</thead><tbody>' + results.map((r) => '<tr><th scope="row">' + esc(r.display_name) + '</th><td>' + esc(r.score) + '</td>' +
+    (showQuiz ? '<td>' + (r.quiz_of ? esc(r.quiz_score + ' / ' + r.quiz_of) : '–') + '</td><td>' + (r.frq_points != null && r.frq_of ? esc(r.frq_points + ' / ' + r.frq_of) : r.quiz_of ? 'to grade' : '–') + '</td>' : '') +
+    METRICS.map((m) => '<td>' + esc(fmtMetric(m, r[m.key])) + '</td>').join('') + '<td>' + (r.completion_status === 'removed' ? 'removed from office' : 'finished term') + '</td></tr>').join('') + '</tbody></table></div>' +
     '<div class="t-actions"><button class="t-btn ghost sm" data-act="gradescsv">Download grades (CSV)</button></div>' +
-    '<p class="t-note">Quiz: multiple-choice questions built from each student’s own game, graded automatically. Written responses are in each student’s summary below.</p>';
+    (showQuiz ? '<p class="t-note">Quiz: multiple-choice questions built from each student’s own game, graded automatically. Written: the score you give each written response in the quiz results above.</p>' : '');
+}
+const titleOf = (id) => { const p = ENG.pol(id); return p ? p.t : ''; };
+const quizOf = (r, focus) => { try { return buildQuizFor(r, { focus: focus || null, titleOf }); } catch (e) { return null; } };
+// Score buttons for one written response: 0..(rubric points), plus "clear" once scored.
+function frqButtons(sid, r, of) {
+  const cur = r.frq_points;
+  let b = '';
+  for (let p = 0; p <= of; p++) b += '<button class="t-btn sm ' + (cur === p ? 'gold' : 'ghost') + '" data-act="frq" data-sid="' + esc(sid) + '" data-id="' + esc(r.member_id) + '" data-p="' + p + '" data-of="' + of + '" aria-pressed="' + (cur === p) + '">' + p + '</button>';
+  return '<div class="t-actions t-frqscore" role="group" aria-label="Score for ' + esc(r.display_name) + '’s written response"><span class="t-note">Score (of ' + of + '):</span>' + b +
+    (cur != null ? '<button class="t-link" data-act="frq" data-sid="' + esc(sid) + '" data-id="' + esc(r.member_id) + '" data-p="" data-of="' + of + '">clear</button>' : '') + '</div>';
 }
 // The student's quiz, rebuilt from the same stored result the server graded: their choices, the key and the written response with a rubric.
-function quizDetail(r, focus) {
-  let q = null; try { q = buildQuiz(r, { focus: focus || null, titleOf: (id) => { const p = ENG.pol(id); return p ? p.t : ''; } }); } catch (e) { q = null; }
+function quizDetail(r, focus, sid) {
+  const q = quizOf(r, focus);
   if (!q) return '';
   const z = r.quiz;
   const mcs = q.mc.map((m, i) => {
@@ -246,11 +262,62 @@ function quizDetail(r, focus) {
   }).join('');
   return '<div class="t-quizbox"><h3 class="t-h3">Quiz' + (z ? ': ' + esc(r.quiz_score) + ' of ' + esc(r.quiz_of) + ' correct' : ' (not submitted yet)') + '</h3><ol class="t-bul">' + mcs + '</ol>' +
     '<h3 class="t-h3">Written response</h3><p class="t-pre t-note">' + esc(q.frq.q) + '</p>' + (z ? (z.frq ? '<p class="t-pre t-quiz-frq">' + esc(z.frq) + '</p>' : '<p class="t-note">No written response.</p>') : '') +
-    '<p class="t-note"><b>Rubric</b> (1 point each):</p><ul class="t-rubric">' + q.frq.rubric.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></div>';
+    '<p class="t-note"><b>Rubric</b> (1 point each):</p><ul class="t-rubric">' + q.frq.rubric.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul>' +
+    (z && sid ? frqButtons(sid, r, q.frq.rubric.length) : '') + '</div>';
 }
-const gradesCsv = (rows) => csvOf(['student', 'score', 'status', 'quiz_correct', 'quiz_total', 'quiz_percent', 'written_response'], rows.map((r) => ({
-  student: r.display_name, score: r.score, status: r.completion_status === 'removed' ? 'removed from office' : 'finished term',
-  quiz_correct: r.quiz ? r.quiz_score : '', quiz_total: r.quiz ? r.quiz_of : '', quiz_percent: r.quiz && r.quiz_of ? Math.round(100 * r.quiz_score / r.quiz_of) : '', written_response: r.quiz ? r.quiz.frq || '' : '' })));
+// Class quiz results: how many answered, averages, how each topic went, and every written response to score in one place.
+function quizSection(s, results, rows, done) {
+  const on = s.quiz !== false;
+  const toggle = '<button class="t-btn ' + (on ? 'ghost' : 'gold') + ' sm" data-act="quiztoggle" data-id="' + esc(s.id) + '" data-on="' + (on ? '0' : '1') + '">' + (on ? 'Turn the quiz off' : 'Turn the quiz on') + '</button>';
+  const answered = rows.filter((r) => r.quiz);
+  if (!answered.length) {
+    return '<section class="t-card"><div class="t-eyebrow">QUIZ</div><h2 class="t-h2">' + (on ? 'No quiz answers yet' : 'The quiz is off for this session') + '</h2><p class="t-note">' +
+      (on ? 'Students see the quiz after they finish their term. Results appear here as they answer.' : 'Students who finish do not see a quiz. Turn it on and they will see it on their results page.') + '</p><div class="t-actions">' + toggle + '</div></section>';
+  }
+  const mcRight = answered.reduce((n, r) => n + (r.quiz_score || 0), 0), mcAll = answered.reduce((n, r) => n + (r.quiz_of || 0), 0);
+  const graded = answered.filter((r) => r.frq_points != null && r.frq_of);
+  const fr = graded.reduce((n, r) => n + r.frq_points, 0), fa = graded.reduce((n, r) => n + r.frq_of, 0);
+  const topics = {};
+  answered.forEach((r) => (r.quiz.ids || []).forEach((id, i) => { const t = topicOf(id), k = t[1]; topics[k] = topics[k] || { unit: t[0], n: 0, ok: 0 }; topics[k].n++; if (r.quiz.right && r.quiz.right[i]) topics[k].ok++; }));
+  const trows = Object.keys(topics).sort((a, b) => (topics[a].ok / topics[a].n) - (topics[b].ok / topics[b].n) || a.localeCompare(b)).map((k) => {
+    const t = topics[k];
+    return '<tr><th scope="row">' + esc(k) + '</th><td>' + esc(t.unit ? 'Unit ' + t.unit.slice(1) : '') + '</td><td class="t-num">' + t.ok + ' of ' + t.n + '</td><td class="t-num">' + pct(t.ok, t.n) + '%</td></tr>';
+  }).join('');
+  const missing = results.filter((r) => !r.quiz_of).map((r) => r.display_name);
+  const toGrade = answered.length - graded.length;
+  const list = answered.map((r) => {
+    const q = quizOf(r, s.focus);
+    if (!q) return '';
+    return '<li class="t-frqitem"><h3 class="t-h3">' + esc(r.display_name) + (r.frq_points != null ? ' <span class="t-chip">' + esc(r.frq_points + ' / ' + r.frq_of) + '</span>' : '') + '</h3>' +
+      '<details><summary>Question and rubric</summary><p class="t-pre t-note">' + esc(q.frq.q) + '</p><ul class="t-rubric">' + q.frq.rubric.map((x) => '<li>' + esc(x) + '</li>').join('') + '</ul></details>' +
+      (r.quiz.frq ? '<p class="t-pre t-quiz-frq">' + esc(r.quiz.frq) + '</p>' : '<p class="t-note">No written response.</p>') + frqButtons(s.id, r, q.frq.rubric.length) + '</li>';
+  }).join('');
+  return '<section class="t-card" id="quiz-results"><div class="t-eyebrow">QUIZ RESULTS</div><h2 class="t-h2">' + answered.length + ' of ' + done + ' finished students answered</h2>' +
+    '<div class="t-statrow"><div class="t-stat"><b>' + pct(mcRight, mcAll) + '%</b><span>multiple choice correct (class)</span></div>' +
+    '<div class="t-stat"><b>' + (fa ? pct(fr, fa) + '%' : '–') + '</b><span>written, of ' + graded.length + ' scored</span></div>' +
+    '<div class="t-stat"><b>' + toGrade + '</b><span>written responses to score</span></div></div>' +
+    (missing.length ? '<p class="t-note">Finished but not answered yet: ' + esc(missing.join(', ')) + '.</p>' : '') +
+    '<h3 class="t-h3">By topic</h3><p class="t-note">Weakest topics first. Each student’s questions come from their own game, so topics differ between students.</p>' +
+    '<div class="t-scroll"><table class="t-table t-topics"><thead><tr><th scope="col">Topic</th><th scope="col">AP unit</th><th scope="col">Correct</th><th scope="col">Share</th></tr></thead><tbody>' + trows + '</tbody></table></div>' +
+    '<details' + (toGrade ? ' open' : '') + '><summary>Score written responses (' + toGrade + ' left)</summary><p class="t-note">Give one point for each rubric line the response meets. Students see their score on their results page.</p><ol class="t-frqlist">' + list + '</ol></details>' +
+    '<div class="t-actions"><button class="t-btn ghost sm" data-act="gradescsv">Download grades (CSV)</button>' + toggle + '</div>' +
+    (on ? '' : '<p class="t-note">The quiz is off: students who have not answered yet will not see it.</p>') + '</section>';
+}
+function gradesCsv(rows, focus) {
+  const cols = ['student', 'score', 'status', 'quiz_correct', 'quiz_total', 'quiz_percent', 'written_points', 'written_total', 'total_points', 'total_possible', 'total_percent',
+    'q1_topic', 'q1_correct', 'q2_topic', 'q2_correct', 'q3_topic', 'q3_correct', 'written_question', 'written_response'];
+  return csvOf(cols, rows.map((r) => {
+    const z = r.quiz, q = z ? quizOf(r, focus) : null;
+    const wp = r.frq_points != null && r.frq_of ? r.frq_points : '', wt = r.frq_points != null && r.frq_of ? r.frq_of : '';
+    const tp = z ? (r.quiz_score || 0) + (wp === '' ? 0 : wp) : '', tt = z ? (r.quiz_of || 0) + (wt === '' ? 0 : wt) : '';
+    const o = { student: r.display_name, score: r.score, status: r.completion_status === 'removed' ? 'removed from office' : 'finished term',
+      quiz_correct: z ? r.quiz_score : '', quiz_total: z ? r.quiz_of : '', quiz_percent: z && r.quiz_of ? Math.round(100 * r.quiz_score / r.quiz_of) : '',
+      written_points: wp, written_total: wt, total_points: tp, total_possible: tt, total_percent: z && tt ? Math.round(100 * tp / tt) : '',
+      written_question: q ? q.frq.q.replace(/\n/g, ' ') : '', written_response: z ? z.frq || '' : '' };
+    [0, 1, 2].forEach((i) => { const id = z && z.ids ? z.ids[i] : null; o['q' + (i + 1) + '_topic'] = id ? topicOf(id)[1] : ''; o['q' + (i + 1) + '_correct'] = id ? (z.right && z.right[i] ? 'yes' : 'no') : ''; });
+    return o;
+  }));
+}
 
 // plain-text versions for "Copy" (paste into a gradebook note, an email or a doc)
 const plainSum = (sm, who) => [who ? who + ' — ' + sm.headline : sm.headline].concat(sm.paras, ['', 'Think about it:'], sm.questions.map((q) => '- ' + q)).join('\n');
@@ -281,14 +348,14 @@ async function pSession(id) {
   // decision digests (for the written summaries) are fetched once per new result, not on every poll
   const quizzes = d.results.filter((r) => r.quiz_of).length;
   if (done > 0 && (!ui.dg || ui.dg.sid !== id || ui.dg.n !== done || ui.dg.q !== quizzes)) {
-    try { const g = await T.digests(id); ui.dg = { sid: id, n: done, q: quizzes, days: g.days, rows: g.rows }; } catch (e) { /* summaries are optional */ }
+    try { const g = await T.digests(id); ui.dg = { sid: id, n: done, q: quizzes, days: g.days, focus: g.focus || null, rows: g.rows }; } catch (e) { /* summaries are optional */ }
   }
   const dgRows = ui.dg && ui.dg.sid === id ? ui.dg.rows : [];
   let classSum = null; try { classSum = dgRows.length ? buildClassSummary(ENG, dgRows, s.days) : null; } catch (e) { classSum = null; }
   ui._classSum = classSum;
-  const meta = (s.difficulty === 1 ? 'Core (simplified)' : 'AP / Advanced') + (s.difficulty !== 1 && s.power_plays === false ? ' · no power plays' : '') + (s.focus && UNIT_NAMES[s.focus] ? ' · ' + UNIT_NAMES[s.focus] : '');
+  const meta = (s.difficulty === 1 ? 'Core (simplified)' : 'AP / Advanced') + (s.difficulty !== 1 && s.power_plays === false ? ' · no power plays' : '') + (s.focus && UNIT_NAMES[s.focus] ? ' · ' + UNIT_NAMES[s.focus] : '') + (s.quiz === false ? ' · quiz off' : '');
   const openKey = Object.keys(ui.sumOpen).filter((k) => ui.sumOpen[k]).sort().join(',');
-  const key = [phase, done, quizzes, s.reveal_results, openKey, dgRows.length, jc ? (jcLive ? jc.code : 'off') : ''].join('|');
+  const key = [phase, done, quizzes, s.reveal_results, openKey, dgRows.length, jc ? (jcLive ? jc.code : 'off') : '', s.quiz, s.focus, s.power_plays, s.difficulty, s.days, ui.gv || 0].join('|');
   const sumCards = dgRows.map((r) => {
     let sm = null; try { sm = r.digest ? buildSummary(ENG, r.digest, { score: r.score, cons: r.cons_letter, lib: r.lib_letter }) : null; } catch (e) { sm = null; }
     ui['_sum_' + r.member_id] = sm ? plainSum(sm, r.display_name) : '';
@@ -296,14 +363,15 @@ async function pSession(id) {
     return '<div class="t-sumrow"><div class="t-actions"><b>' + esc(r.display_name) + '</b><span class="t-note">score ' + esc(r.score) + ' · ' + (r.completion_status === 'removed' ? 'removed from office' : 'finished term') + '</span>' +
       '<button class="t-btn ghost sm" data-act="sumtoggle" data-id="' + esc(r.member_id) + '" aria-expanded="' + open + '">' + (open ? 'Hide summary' : 'Read summary') + '</button>' +
       (open && sm ? '<button class="t-btn ghost sm" data-act="copysum" data-id="' + esc(r.member_id) + '">Copy</button>' : '') + '</div>' +
-      (open ? (sm ? summaryCard(sm, { title: 'Written summary: ' + r.display_name, label: 'Summary for ' + r.display_name }) : '<p class="t-note">No summary available for this result.</p>') + quizDetail(r, s.focus) : '') + '</div>';
+      (open ? (sm ? summaryCard(sm, { title: 'Written summary: ' + r.display_name, label: 'Summary for ' + r.display_name }) : '<p class="t-note">No summary available for this result.</p>') + quizDetail(r, s.focus, s.id) : '') + '</div>';
   }).join('');
 
   let control = '';
   if (phase === 'lobby') {
     control = '<section class="t-card t-launch"><div class="t-eyebrow">WAITING ROOM</div><h2 class="t-h2" data-live="lobbycount">' + n + ' student' + (n === 1 ? '' : 's') + ' ready</h2>' + joinPanel +
       '<p class="t-note">' + esc(meta) + ' · ' + esc(daysOut(s.days)) + '. Students see the waiting room now. When you press Start, a 5-second countdown appears on every screen and the game begins for everyone at the same moment. Students who join after that start right away.</p>' +
-      '<div class="t-actions"><button class="t-btn gold lg" data-act="startsim" data-id="' + esc(s.id) + '"' + (n ? '' : ' disabled') + '>Start simulation</button>' + (n ? '' : '<span class="t-note">Waiting for at least one student to join.</span>') + '</div></section>';
+      '<div class="t-actions"><button class="t-btn gold lg" data-act="startsim" data-id="' + esc(s.id) + '"' + (n ? '' : ' disabled') + '>Start simulation</button>' + (n ? '' : '<span class="t-note">Waiting for at least one student to join.</span>') + '</div></section>' +
+      settingsForm(s);
   } else if (phase === 'countdown') {
     const c = Math.max(0, Math.ceil(left));
     control = '<section class="t-card t-launch t-countdown"><div class="t-eyebrow">STARTING</div><div class="t-count" role="timer" data-live="cd">' + c + '</div><p class="t-note">The game starts on every student screen when this reaches zero.</p>' + joinPanel + '</section>';
@@ -321,12 +389,24 @@ async function pSession(id) {
     (done > 0 ? '<section class="t-card"><div class="t-eyebrow">CLASS SUMMARY</div><h2 class="t-h2">What happened across the class</h2>' + (classSum ? classSummaryCard(classSum, true) + '<div class="t-actions"><button class="t-btn ghost sm" data-act="copysum" data-id="class">Copy class summary</button></div>' : '<p class="t-note">Loading the written summary...</p>') + '</section>' : '') +
     '<section class="t-card"><div class="t-eyebrow">CLASS RESULTS</div><h2 class="t-h2">Class average</h2>' + avgCards(st.average) +
     (st.average ? '<p class="t-note">' + st.removed_from_office + ' of ' + done + ' were removed from office before the term ended.</p>' : '') + playTimeNote(s, d.results) + '</section>' +
+    (phase === 'running' || phase === 'ended' ? quizSection(s, d.results, dgRows, done) : '') +
     (st.average ? '<section class="t-card"><div class="t-eyebrow">HIGHLIGHTS</div><h2 class="t-h2">Where the class did best</h2>' + highlightList(st.highlights) + '<p class="t-note">Values only, with no student names attached.</p></section>' +
       '<section class="t-card"><div class="t-eyebrow">DISTRIBUTION</div><h2 class="t-h2">How scores spread out</h2>' + distChart(st.distribution) + '<p class="t-note">Grades from conservatives: ' + gradeChips(st.conservative_grades) + '<br>Grades from liberals: ' + gradeChips(st.liberal_grades) + '</p></section>' +
       '<section class="t-card"><div class="t-eyebrow">COMPARE OUTCOMES</div><h2 class="t-h2">Range across the class</h2><p class="t-note">The bar spans the lowest to highest result; the white mark is the class average.</p>' + rangeChart(d.results) + '</section>' +
-      '<section class="t-card"><div class="t-eyebrow">INDIVIDUAL RESULTS</div>' + individualTable(d.results) + '</section>' +
+      '<section class="t-card"><div class="t-eyebrow">INDIVIDUAL RESULTS</div>' + individualTable(d.results, s.quiz !== false) + '</section>' +
       '<section class="t-card"><div class="t-eyebrow">WRITTEN SUMMARIES</div><h2 class="t-h2">One for each student</h2><p class="t-note">Generated from each student’s actual decisions: what they signed and vetoed, how the country changed, and questions to talk about. Read them before conferencing with a student.</p>' + (sumCards || '<p class="t-note">Loading...</p>') + '</section>' : '') +
     promptsSection(done > 0), { });
+}
+// Waiting-room settings: everything about the game can still change until Start, since no student has a seed yet.
+function settingsForm(s) {
+  return '<form class="t-card" data-form="settings" data-id="' + esc(s.id) + '" novalidate><div class="t-eyebrow">SESSION SETTINGS</div><h2 class="t-h2">Change the setup before you start</h2><p class="t-note">These lock when you press Start, except the quiz, which you can switch at any time.</p>' +
+    '<label class="t-label" for="w-days">Days</label><input id="w-days" class="t-input sm" name="days" type="number" min="3" max="28" step="1" value="' + esc(s.days) + '">' +
+    '<fieldset class="t-diff"><legend class="t-label">Difficulty</legend>' +
+    '<label class="t-opt"><input type="radio" name="difficulty" value="0"' + (s.difficulty !== 1 ? ' checked' : '') + '><span><b>AP / Advanced</b></span></label>' +
+    '<label class="t-opt"><input type="radio" name="difficulty" value="1"' + (s.difficulty === 1 ? ' checked' : '') + '><span><b>Core (simplified)</b></span></label></fieldset>' +
+    '<label class="t-opt t-check"><input type="checkbox" name="power" value="1"' + (s.power_plays !== false ? ' checked' : '') + '><span><b>Include power plays</b> (AP only)</span></label>' +
+    '<label class="t-label" for="w-focus">AP Macroeconomics unit</label>' + unitSelect('w-focus', s.focus || '') + quizOpt(s.quiz !== false) +
+    '<div class="t-err" id="settings-err" role="alert"></div><button class="t-btn" type="submit">Save settings</button></form>';
 }
 // Median minutes from the start signal to a finished result: a measured answer to "how long does a session take?".
 // Students who were removed from office end early, so only full terms count; late joiners make it a slight overestimate.
@@ -352,9 +432,10 @@ function pResources() {
     sec('What is Give It A Shot?', '<p>An economic-policy simulation you can run for 3 to 28 days. Each day the student, as President, signs or vetoes policy memos (and at AP level may take executive actions) while growth, unemployment, inflation, the deficit, approval and unrest respond. It is a simplified model, not a forecast: a starting point for discussion about trade-offs.</p><p>Designed for AP Macroeconomics, economics, government and civics classes.</p>') +
     sec('How the model works', ul(['<b>Policy effects follow the research.</b> Each policy’s effect on the six meters is set from published estimates (CBO and peer-reviewed studies, for example). Students can tap <b>See the evidence</b> on the most common policies to read the source and how much economists agree.', '<b>The score is a value choice.</b> The score weights growth 25%, unemployment 20%, inflation, the deficit and approval 15% each, and calm 10%. Someone who cares most about jobs or about the budget would weigh them differently. That is the difference between positive economics (what a policy does) and normative economics (what we should want), and it is a good discussion in itself.', '<b>Two report cards.</b> Every result also gets a conservative grade and a liberal grade, so students see that the same outcome is judged differently depending on values.', 'If a student or parent asks why one approach scored higher, point to the meters first: the class summary shows where each group of students ended ahead, before it shows the score.'])) +
     sec('How long does a session take?', '<p>Each simulated day takes most students about 1 to 2 minutes, so a 7-day term is about 7 to 14 minutes and a 14-day term about 14 to 28. After your first session, the results page shows how long your class actually took. For a 45 to 50 minute period, 7 to 10 days leaves room for joining, the quiz and a debrief.</p>') +
-    sec('Difficulty levels', ul(['<b>AP / Advanced:</b> the full simulation. About three memos a day (for a 14-day term), executive actions, scandal, impeachment trials and revolutions.', '<b>Power plays (AP only):</b> executive actions such as auditing critics or packing the courts, plus paying off protest leaders in a crisis. They show how political incentives can pull against good policy. If they do not fit your class, uncheck <b>Include power plays</b> when you set up the session; the economics stays the same.', '<b>Core (simplified):</b> for regular high school classes. One or two memos a day, no executive actions or political capital, no scandal or impeachment. Students focus on the policy trade-offs, with plain-language explanations on every policy.', '<b>AP unit (optional):</b> pick Unit 1, 3, 4, 5 or 6 and the desk deals that unit’s bills first, and the end-of-game questions lean toward it.', 'Students can tap <b>What does this mean?</b> on any policy for a plain-English explanation. The tutorial and Help screen update to match the length and difficulty you choose.'])) +
+    sec('Difficulty levels', ul(['<b>AP / Advanced:</b> the full simulation. About three memos a day (for a 14-day term), executive actions, scandal, impeachment trials and revolutions.', '<b>Power plays (AP only):</b> executive actions such as auditing critics or packing the courts, plus paying off protest leaders in a crisis. They show how political incentives can pull against good policy. If they do not fit your class, uncheck <b>Include power plays</b> when you set up the session; the economics stays the same.', '<b>Core (simplified):</b> for regular high school classes. One or two memos a day, no executive actions or political capital, no scandal or impeachment. Students focus on the policy trade-offs, with plain-language explanations on every policy.', '<b>AP unit (optional):</b> pick any unit from 1 to 6 and the desk deals that unit’s bills first, and all three end-of-game questions and the written question come from that unit. You can change the unit, difficulty, length and power plays in the waiting room until you press Start.',
+      '<b>The Federal Reserve:</b> students do not set interest rates. An independent Fed sets them every night with a Taylor rule (rates rise when inflation is above 2% and fall when unemployment rises), and the morning briefing shows its rate. Bills on its goals, its inflation target and auditing it come up at both levels, especially with Unit 4.', 'Students can tap <b>What does this mean?</b> on any policy for a plain-English explanation. The tutorial and Help screen update to match the length and difficulty you choose.'])) +
     sec('Suggested lesson structure', ul(['<b>5 min:</b> Warm-up question; tell students the goal is long-term prosperity, not winning an argument.', '<b>3 min:</b> Students go to <b>' + esc(window.location.host) + '/classroom</b> and enter the code and their name. Press <b>Start simulation</b> when most have joined: a 5-second countdown starts the game for everyone at once.', '<b>10 to 25 min:</b> Students play. Everyone gets the same country and starting events. Watch the live leaderboard.', '<b>5 min:</b> Each student answers three auto-graded multiple-choice questions and one short written response about their own game.', '<b>10 min:</b> End the session, read the class summary together, and use two or three discussion prompts.'])) +
-    sec('Grading', ul(['The multiple-choice questions are graded automatically. The written response comes with a rubric in each student’s summary.', '<b>Download grades (CSV)</b> on the results page gives student, score, quiz correct, quiz total, quiz percent and the written response, ready for a gradebook import or a spreadsheet.', 'Students who finish late in the period can still answer the questions after you end the session.'])) +
+    sec('Quiz and grading', ul(['The quiz is on by default. Uncheck <b>End-of-game quiz</b> when you set up a session to leave it out, or use <b>Turn the quiz off</b> (or on) on the session page at any time. Answers already given are kept.', 'The multiple-choice questions are graded automatically. Calculation questions use each student’s own numbers, so answers cannot simply be copied from a neighbor.', '<b>Quiz results</b> on the session page shows how many students answered, the class average, which topics were missed most, and every written response with its rubric. Click a score (one point per rubric line) and the student sees it on their results page.', '<b>Download grades (CSV)</b> gives each student’s score, multiple-choice and written points, a combined total and percent, each question’s topic and whether it was right, and the written response, ready for a gradebook or a spreadsheet.', 'Students who finish late in the period can still answer the questions after you end the session.'])) +
     sec('Absent students and make-up play', ul(['Students can join and play while the session is open, even on a later day. To let absent students make it up, leave the session running and give them the same code; end it once they have finished.', 'Each classroom runs one session at a time, so create a separate classroom for each class period.', 'If you set the join code to expire after 24 hours, choose a new code for make-up days.'])) +
     sec('Learning objectives', ul(['Identify tradeoffs between growth, inflation, unemployment and the deficit.', 'Explain how political incentives (approval, Congress, scandal) can pull against economically optimal choices.', 'Compare different decisions made in identical circumstances and reason about why outcomes differed.', 'Distinguish what a policy does (positive economics) from how much we value each outcome (normative economics).', 'Evaluate the assumptions a simulation makes about the real world.'])) +
     sec('Discussion questions', PROMPTS.map((g) => '<h3 class="t-h3">' + esc(g.title) + '</h3>' + ul(g.items.map(esc))).join('')) +
@@ -482,6 +563,13 @@ async function onAct(el) {
     if (a === 'reveal') { await T.setReveal(id, el.dataset.on === '1'); toast(el.dataset.on === '1' ? 'Class results are now shared with students.' : 'Class results hidden from students.'); return refresh(); }
     if (a === 'startsim') { el.disabled = true; const r = await T.beginCountdown(id); ui.off = Date.parse(r.server_now) - Date.now(); toast('Countdown started. Everyone\u2019s game begins in 5 seconds.'); return refresh(); }
     if (a === 'rmember') { if (!(await confirmDialog({ title: 'Remove ' + el.dataset.who + '?', body: 'Their name, progress and any result are deleted. They can join again with the code if joining is still on.', confirm: 'Remove', danger: true }))) return; await T.removeMember(id); toast('Removed.'); return refresh(); }
+    if (a === 'quiztoggle') { const on = el.dataset.on === '1'; el.disabled = true; await T.updateSession(id, { quiz: on }); toast(on ? 'The quiz is on. Students see it after they finish.' : 'The quiz is off. Answers already given are kept.'); lastHtml = ''; return draw(loadSeq, true); }
+    if (a === 'frq') {
+      const p = el.dataset.p === '' ? null : Number(el.dataset.p), of = Number(el.dataset.of);
+      const r = await T.gradeFrq(el.dataset.sid, id, p, of);
+      const row = ui.dg && ui.dg.rows.find((x) => x.member_id === id); if (row) { row.frq_points = r.frq_points; row.frq_of = r.frq_of; }
+      ui.gv = (ui.gv || 0) + 1; lastHtml = ''; return draw(loadSeq, true);
+    }
     if (a === 'sumtoggle') { ui.sumOpen[id] = !ui.sumOpen[id]; lastHtml = ''; return refresh(); }
     if (a === 'copysum') return copyText(id === 'class' ? (ui._classSum ? plainClass(ui._classSum) : '') : (ui['_sum_' + id] || ''));
     if (a === 'indiv') { ui.showIndiv = !ui.showIndiv; lastHtml = ''; return refresh(); }
@@ -499,7 +587,7 @@ async function onAct(el) {
     if (a === 'resolveerr') { await T.adminResolveError(id); toast('Marked resolved. It reappears if it happens again.'); return refresh(); }
     if (a === 'gradescsv') {
       const rows = ui.dg ? ui.dg.rows : [];
-      const url = URL.createObjectURL(new Blob([gradesCsv(rows)], { type: 'text/csv' }));
+      const url = URL.createObjectURL(new Blob([gradesCsv(rows, ui.dg ? ui.dg.focus : null)], { type: 'text/csv' }));
       const link = document.createElement('a'); link.href = url; link.download = 'class-grades-' + new Date().toISOString().slice(0, 10) + '.csv';
       document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000); return;
     }
@@ -576,7 +664,18 @@ async function onSubmit(form, e) {
     if (kind === 'start') {
       btn.disabled = true;
       const days = Math.max(3, Math.min(28, parseInt(f.get('days'), 10) || 14)), diff = f.get('difficulty') === '1' ? 1 : 0, focus = UNIT_NAMES[f.get('focus')] ? f.get('focus') : ''; ui.days = days; ui.diff = diff; ui.focus = focus; const power = f.get('power') === '1'; ui.power = power;
-      try { const s = await T.startSession(form.dataset.id, String(f.get('title') || '').trim(), String(f.get('instructions') || '').trim(), days, diff, focus || null, diff === 1 ? true : power); return go('/teacher/sessions/' + s.id); } catch (err) { btn.disabled = false; return setErr('start-err', err.message); }
+      const quiz = f.get('quiz') === '1'; ui.quiz = quiz;
+      let s;
+      try { s = await T.startSession(form.dataset.id, String(f.get('title') || '').trim(), String(f.get('instructions') || '').trim(), days, diff, focus || null, diff === 1 ? true : power); } catch (err) { btn.disabled = false; return setErr('start-err', err.message); }
+      if (!quiz) { try { await T.updateSession(s.id, { quiz: false }); } catch (err) { toast('The session opened, but the quiz could not be turned off: ' + err.message + ' Try again from the session page.', 'err'); } }
+      return go('/teacher/sessions/' + s.id);
+    }
+    if (kind === 'settings') {
+      const days = parseInt(f.get('days'), 10), diff = f.get('difficulty') === '1' ? 1 : 0, focus = UNIT_NAMES[f.get('focus')] ? f.get('focus') : null;
+      if (!(days >= 3 && days <= 28)) return setErr('settings-err', 'Choose between 3 and 28 days.');
+      btn.disabled = true;
+      try { await T.updateSession(form.dataset.id, { days, difficulty: diff, focus, power_plays: diff === 1 ? true : f.get('power') === '1', quiz: f.get('quiz') === '1' }); toast('Settings saved.'); lastHtml = ''; return refresh(); }
+      catch (err) { btn.disabled = false; setErr('settings-err', err.message); if (err.code === 'session_started') { lastHtml = ''; refresh(); } return; }
     }
     if (kind === 'feedback') {
       const again = f.get('again'), pay = f.get('pay');
@@ -602,9 +701,10 @@ export function mount(el) {
   root.addEventListener('submit', (e) => { const f = e.target.closest('form[data-form]'); if (f) onSubmit(f, e); });
   root.addEventListener('input', (e) => {
     if (e.target.id === 's-days') { ui.days = Number(e.target.value); const o = document.getElementById('s-days-out'); if (o) o.textContent = daysOut(ui.days); }
-    if (e.target.name === 'difficulty') ui.diff = Number(e.target.value);
+    if (e.target.name === 'difficulty' && e.target.closest('form[data-form="start"]')) ui.diff = Number(e.target.value);
     if (e.target.id === 's-focus') ui.focus = e.target.value;
-    if (e.target.name === 'power') ui.power = e.target.checked;
+    if (e.target.name === 'power' && e.target.closest('form[data-form="start"]')) ui.power = e.target.checked;
+    if (e.target.name === 'quiz' && e.target.closest('form[data-form="start"]')) ui.quiz = e.target.checked;
   });
   window.addEventListener('popstate', () => { if (document.getElementById('viewport').dataset.mode === 'teacher') load(); });
   api.onAuthEvent((ev) => {

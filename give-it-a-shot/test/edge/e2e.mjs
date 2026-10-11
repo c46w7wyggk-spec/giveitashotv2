@@ -2,7 +2,9 @@
 import { execFileSync } from 'node:child_process';
 import { runLog, ENGINE_VERSION } from '../../src/engine.js';
 import { playLog } from '../helpers/bot.mjs';
-import { buildQuiz, MC_COUNT } from '../../src/quiz.js';
+import { buildQuiz, MC_COUNT, QUIZ_VERSION } from '../../src/quiz.js';
+// the page sends the quiz version and the ids of the questions it showed
+const qid = (q) => ({ v: QUIZ_VERSION, ids: q.mc.map((m) => m.id) });
 
 const DB = process.env.GIAS_PGDB, BASE = 'http://127.0.0.1:8787';
 const psql = (sql, role) => execFileSync('psql', ['-X', '-q', '-At', '-v', 'ON_ERROR_STOP=1', '-d', DB, ...(role ? ['-c', `select set_config('request.jwt.claim.sub','${role}',false)`, '-c', 'set role authenticated'] : []), '-c', sql], { encoding: 'utf8' }).trim().split('\n').pop();
@@ -113,13 +115,15 @@ const q0 = buildQuiz(r.body.my_result, { focus: null });
 ok('quiz can be built from the stored result', q0 && q0.mc.length === MC_COUNT && q0.frq.q.length > 20, JSON.stringify(q0).slice(0, 200));
 const ans0 = q0.mc.map((m, i) => (i === 0 ? (m.answer + 1) % 4 : m.answer));
 r = await post({ action: 'quiz', token: students[3].token, answers: ans0, frq: 'x' }); ok('quiz before finishing => 404', r.status === 404 && r.body.error === 'not_found', JSON.stringify(r));
-r = await post({ action: 'quiz', token: students[0].token, answers: [0, 1], frq: '' }); ok('wrong number of answers => 400 invalid_quiz', r.status === 400 && r.body.error === 'invalid_quiz', JSON.stringify(r));
-r = await post({ action: 'quiz', token: students[0].token, answers: [0, 1, 9], frq: '' }); ok('out-of-range answer => 400 invalid_quiz', r.status === 400 && r.body.error === 'invalid_quiz', JSON.stringify(r));
-r = await post({ action: 'quiz', token: students[0].token, answers: ans0, frq: 'AD shifts right. ' + 'y'.repeat(2000), score: 3 });
+r = await post({ action: 'quiz', token: students[0].token, answers: ans0, frq: '' }); ok('quiz without version and ids => 409 quiz_changed', r.status === 409 && r.body.error === 'quiz_changed', JSON.stringify(r));
+r = await post({ action: 'quiz', token: students[0].token, answers: ans0, frq: '', v: QUIZ_VERSION, ids: [...qid(q0).ids].reverse() }); ok('quiz with other question ids => 409 quiz_changed', r.status === 409 && r.body.error === 'quiz_changed', JSON.stringify(r));
+r = await post({ action: 'quiz', token: students[0].token, answers: [0, 1], frq: '', ...qid(q0) }); ok('wrong number of answers => 400 invalid_quiz', r.status === 400 && r.body.error === 'invalid_quiz', JSON.stringify(r));
+r = await post({ action: 'quiz', token: students[0].token, answers: [0, 1, 9], frq: '', ...qid(q0) }); ok('out-of-range answer => 400 invalid_quiz', r.status === 400 && r.body.error === 'invalid_quiz', JSON.stringify(r));
+r = await post({ action: 'quiz', token: students[0].token, answers: ans0, frq: 'AD shifts right. ' + 'y'.repeat(2000), score: 3, ...qid(q0) });
 ok('quiz graded by the server (browser score ignored)', r.status === 200 && r.body.quiz.score === MC_COUNT - 1 && r.body.quiz.of === MC_COUNT && r.body.quiz.right[0] === false, JSON.stringify(r));
 const qrow = JSON.parse(psql(`select to_jsonb(r) from public.classroom_results r where quiz is not null`));
 ok('quiz stored with answers, question ids and a trimmed written answer', qrow.quiz_score === MC_COUNT - 1 && JSON.stringify(qrow.quiz.ids) === JSON.stringify(q0.mc.map((m) => m.id)) && qrow.quiz.frq.length === 1200 && qrow.quiz.frq.startsWith('AD shifts right'), JSON.stringify(qrow.quiz).slice(0, 200));
-r = await post({ action: 'quiz', token: students[0].token, answers: q0.mc.map((m) => m.answer), frq: '' }); ok('quiz can only be sent once', r.status === 409 && r.body.error === 'quiz_already_submitted', JSON.stringify(r));
+r = await post({ action: 'quiz', token: students[0].token, answers: q0.mc.map((m) => m.answer), frq: '', ...qid(q0) }); ok('quiz can only be sent once', r.status === 409 && r.body.error === 'quiz_already_submitted', JSON.stringify(r));
 r = await post({ action: 'state', token: students[0].token }); ok('student sees own quiz result', r.body.my_result.quiz_score === MC_COUNT - 1 && r.body.my_result.quiz.frq.startsWith('AD shifts'), JSON.stringify(r.body.my_result).slice(0, 200));
 const tv = JSON.parse(psql(`select public.teacher_get_session('${sess.id}')`, A));
 ok('teacher sees the quiz score', tv.results.find((x) => x.score === expected.sc.score).quiz_score === MC_COUNT - 1);
@@ -141,7 +145,7 @@ ok('submit spam hits the per-token rate limit', last.status === 429);
 
 // quiz still allowed after the teacher ends the session (students who finish late in the period)
 const s1 = await post({ action: 'state', token: students[1].token }); const q1 = buildQuiz(s1.body.my_result, { focus: null });
-r = await post({ action: 'quiz', token: students[1].token, answers: q1.mc.map((m) => m.answer), frq: '' }); ok('quiz after the session ended is accepted, all correct', r.status === 200 && r.body.quiz.score === MC_COUNT, JSON.stringify(r));
+r = await post({ action: 'quiz', token: students[1].token, answers: q1.mc.map((m) => m.answer), frq: '', ...qid(q1) }); ok('quiz after the session ended is accepted, all correct', r.status === 200 && r.body.quiz.score === MC_COUNT, JSON.stringify(r));
 
 // AP unit focus: the session's unit reaches the student and the server replays with it
 const cls4 = JSON.parse(psql(`select public.teacher_create_classroom('Period 4')`, A));
@@ -155,7 +159,18 @@ const O4 = { days: 5, lvl: 0, unit: 'u6' }, log4 = playLog(seed4, 5, O4), exp4 =
 r = await post({ action: 'submit', token: st4.token, log: log4 }); ok('focused game verified with the unit', r.status === 200 && r.body.result.score === exp4.sc.score, JSON.stringify(r));
 r = await post({ action: 'state', token: st4.token }); ok('stored digest records the unit', r.body.my_result.digest.unit === 'u6');
 const q4 = buildQuiz(r.body.my_result, { focus: 'u6' });
-r = await post({ action: 'quiz', token: st4.token, answers: q4.mc.map((m) => m.answer), frq: '' }); ok('focused quiz graded the same way the browser builds it', r.status === 200 && r.body.quiz.score === MC_COUNT, JSON.stringify(r));
+r = await post({ action: 'quiz', token: st4.token, answers: q4.mc.map((m) => m.answer), frq: '', ...qid(q4) }); ok('focused quiz graded the same way the browser builds it', r.status === 200 && r.body.quiz.score === MC_COUNT, JSON.stringify(r));
+
+// The teacher can switch the quiz off; the server then refuses answers. Turning it back on lets the student answer.
+const sid4 = sess4.id, mem4 = psql(`select member_id from public.classroom_results where session_id='${sid4}'`);
+psql(`update public.classroom_results set quiz = null, quiz_score = null, quiz_of = null, quiz_at = null where session_id='${sid4}'`);
+psql(`select public.teacher_update_session('${sid4}', '{"quiz": false}'::jsonb)`, A);
+r = await post({ action: 'state', token: st4.token }); ok('student sees the quiz is off', r.body.session.quiz === false, JSON.stringify(r.body.session));
+r = await post({ action: 'quiz', token: st4.token, answers: q4.mc.map((m) => m.answer), frq: '', ...qid(q4) }); ok('quiz off => 409 quiz_off', r.status === 409 && r.body.error === 'quiz_off', JSON.stringify(r));
+psql(`select public.teacher_update_session('${sid4}', '{"quiz": true}'::jsonb)`, A);
+r = await post({ action: 'quiz', token: st4.token, answers: q4.mc.map((m) => m.answer), frq: 'Imports rise.', ...qid(q4) }); ok('quiz back on => accepted', r.status === 200 && r.body.quiz.score === MC_COUNT, JSON.stringify(r));
+psql(`select public.teacher_grade_frq('${sid4}', '${mem4}', 4, 6)`, A);
+r = await post({ action: 'state', token: st4.token }); ok('student sees the written score the teacher gave', r.body.my_result.frq_points === 4 && r.body.my_result.frq_of === 6, JSON.stringify(r.body.my_result).slice(0, 300));
 
 // Power plays off: the session switch reaches the student and the server refuses a log that uses one
 const cls5 = JSON.parse(psql(`select public.teacher_create_classroom('Period 5')`, A));

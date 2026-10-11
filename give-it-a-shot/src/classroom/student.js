@@ -5,13 +5,13 @@ import { esc, avgCards, distChart, confirmDialog, toast, METRICS, fmtMetric, sum
 import { Engine } from '../engine.js';
 import { buildSummary } from '../summary.js';
 import { minutesFor } from '../learn.js';
-import { buildQuiz, FRQ_MAX, UNIT_NAMES } from '../quiz.js';
+import { buildQuizFor, FRQ_MAX, QUIZ_VERSION, UNIT_NAMES } from '../quiz.js';
 
 let root, view = 'loading', st = null, notice = '', busy = false, joinErr = '', timer = null, tick = null, codeDraft = '', nameDraft = '';
 let offset = 0;            // server clock minus this device's clock, so every student's countdown ends together
 let playing = false;       // a game is running in the other screen; do not poll or auto-start
 let launching = false;
-let quizDraft = { answers: [], frq: '' }, quizBusy = false, quizErr = '';   // kept across the lobby's polling re-renders
+let quizDraft = { answers: [], frq: '' }, quizBusy = false, quizErr = '', quizIds = null;   // kept across the lobby's polling re-renders
 let ENG = null; const eng = () => (ENG = ENG || new Engine());
 
 const shell = (inner) => '<div class="t-wrap narrow"><header class="t-top"><div class="t-brand"><svg width="30" height="30" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="#eef1f6"></path></svg><div><div class="t-brand-t">GIVE IT A SHOT</div><div class="t-brand-s">Classroom</div></div></div></header><main id="t-main">' + inner + '</main><footer class="t-foot">Your teacher sees the name you enter and your results. Do not enter an email address or other personal details. <a href="/" data-nav-out>Back to the game</a></footer></div>';
@@ -59,8 +59,9 @@ function mySummary(s) {
 function quizBlock(s) {
   const r = s.my_result;
   if (!r || !r.digest) return '';
+  if (!r.quiz && s.session.quiz === false) return '';   // the teacher turned the quiz off for this session
   let q = null;
-  try { q = buildQuiz(r, { focus: s.session.focus || null, titleOf: (id) => { const p = eng().pol(id); return p ? p.t : ''; } }); } catch (e) { q = null; }
+  try { q = buildQuizFor(r, { focus: s.session.focus || null, titleOf: (id) => { const p = eng().pol(id); return p ? p.t : ''; } }); } catch (e) { q = null; }
   if (!q) return '';
   const focus = s.session.focus && UNIT_NAMES[s.session.focus] ? '<p class="t-note">Focus: AP Macroeconomics ' + esc(UNIT_NAMES[s.session.focus]) + '</p>' : '';
   const head = '<div class="t-eyebrow">CHECK YOUR UNDERSTANDING</div><h2 class="t-h2">Questions about your term</h2>' + focus;
@@ -73,8 +74,9 @@ function quizBlock(s) {
     }).join('');
     return '<div class="t-card">' + head + '<div class="t-alert ok" role="status">You got ' + esc(r.quiz_score) + ' of ' + esc(r.quiz_of) + ' right. Your answers were sent to your teacher.</div><ol class="t-quiz">' + items + '</ol>' +
       '<h3 class="t-h3">Written response</h3><p class="t-pre">' + esc(q.frq.q) + '</p>' + (r.quiz.frq ? '<p class="t-pre t-quiz-frq">' + esc(r.quiz.frq) + '</p>' : '<p class="t-note">You did not write a response.</p>') +
-      '<p class="t-note">Your teacher reads and grades the written response.</p></div>';
+      (r.frq_points != null && r.frq_of ? '<p class="t-alert ok">Your teacher scored your written response ' + esc(r.frq_points) + ' of ' + esc(r.frq_of) + '.</p>' : '<p class="t-note">Your teacher reads and grades the written response.</p>') + '</div>';
   }
+  quizIds = q.mc.map((m) => m.id);
   const items = q.mc.map((m, i) => '<li class="t-quiz-q"><fieldset><legend><b>' + (i + 1) + '.</b> ' + esc(m.q) + '</legend>' +
     m.choices.map((c, j) => '<label class="t-opt"><input type="radio" name="q' + i + '" value="' + j + '"' + (quizBusy ? ' disabled' : '') + '><span>' + esc(c) + '</span></label>').join('') + '</fieldset></li>').join('');
   return '<form class="t-card" data-form="quiz" novalidate>' + head + '<p class="t-note">Answer from what happened in your own game. You can submit once.</p><ol class="t-quiz">' + items + '</ol>' +
@@ -96,8 +98,8 @@ async function sendQuiz(e) {
   const answers = []; for (let i = 0; i < n; i++) answers.push(quizDraft.answers[i]);
   if (answers.some((a) => a == null)) { quizErr = 'Answer every multiple-choice question first.'; render(); return; }
   quizBusy = true; quizErr = ''; render();
-  try { await submitQuiz(answers, quizDraft.frq); quizBusy = false; quizDraft = { answers: [], frq: '' }; await refresh(true); }
-  catch (err) { quizBusy = false; quizErr = err.message; if (err.code === 'quiz_already_submitted') await refresh(true); else render(); }
+  try { await submitQuiz(answers, quizDraft.frq, QUIZ_VERSION, quizIds); quizBusy = false; quizDraft = { answers: [], frq: '' }; await refresh(true); }
+  catch (err) { quizBusy = false; quizErr = err.message; if (err.code === 'quiz_already_submitted' || err.code === 'quiz_off') await refresh(true); else render(); }
 }
 
 const secsLeft = () => (st && st.session && st.session.starts_at ? (Date.parse(st.session.starts_at) - (Date.now() + offset)) / 1000 : null);
