@@ -360,6 +360,18 @@ export class App extends Engine {
     };
   }
 
+  // Class sessions drop the joke state names and the joke country name from everything on screen, so the page reads
+  // as a plain US-government simulation on a projector. Display only: nothing here touches the game or the log.
+  plainHtml(html) {
+    if (this.state.mode !== 'class') return html;
+    if (!this._plain) {
+      const ST = this.data().ST, esc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const map = { 'the United States of Questionable Economies': 'the United States', 'United States of Questionable Economies': 'United States' };
+      Object.keys(ST).forEach((k) => { map[ST[k][0]] = ST[k][1]; });
+      this._plain = { map, re: new RegExp(Object.keys(map).sort((a, b) => b.length - a.length).map(esc).join('|'), 'g') };
+    }
+    return html.replace(this._plain.re, (m) => this._plain.map[m]);
+  }
   getValues() { const v = this.renderVals(); this._share = v._share; return v; }
 
   // tutorial helpers
@@ -791,7 +803,7 @@ export class App extends Engine {
       ...this.accountVals(g, sc),
       ...this.boardVals(lbRows),
       mf, ml, mp,
-      selName: D.ST[sel][0], selReal: D.ST[sel][1], selMood: Math.round(selMood) + '%', selWord: moodWord(selMood),
+      selName: D.ST[sel][0], selReal: D.ST[sel][1], showAka: this.state.mode !== 'class', selMood: Math.round(selMood) + '%', selWord: moodWord(selMood),
       selBarStyle: 'transition:width .6s ease,background .6s;height:100%;border-radius:5px;width:' + selMood.toFixed(0) + '%;background:' + hex(moodColor(selMood)),
       reasons: reasons.slice(0, 4), hasReasons: reasons.length > 0, noReasons: reasons.length === 0,
       angriest: ranked.slice(0, 3).map(mk), happiest: ranked.slice(-3).reverse().map(mk),
