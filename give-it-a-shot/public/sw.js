@@ -47,6 +47,8 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (url.origin !== location.origin) return;
+  // Vercel Analytics script and beacons always go straight to the network.
+  if (url.pathname.startsWith('/_vercel/')) return;
   // Page loads: network first (so deploys show up), cached shell when offline. Auth-redirect query strings share one entry.
   if (req.mode === 'navigate') {
     e.respondWith(networkFirst(req, SHELL, '/').catch(() => caches.match('/')));
