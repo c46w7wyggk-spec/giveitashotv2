@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
+    "@vercel/analytics": "^1.6.1",
     "morphdom": "^2.7.4"
   },
   "devDependencies": {

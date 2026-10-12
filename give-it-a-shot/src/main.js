@@ -5,6 +5,7 @@ import { App } from './ui.js';
 import { watchForUpdates } from './update.js';
 import * as api from './api.js';
 import { installErrorReporting } from './errors.js';
+import { inject as injectAnalytics } from '@vercel/analytics';
 
 installErrorReporting();
 
@@ -79,6 +80,19 @@ window.__classHome = () => { delete viewportEl.dataset.class; viewportEl.dataset
   }
 })();
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') { if (app.state.helpOpen) app.setState({ helpOpen: false }); else if (app.state.authOpen) app.setState({ authOpen: false }); else if (app.state.pstory != null) app.setState({ pstory: null }); } });
+
+// Vercel Web Analytics (cookieless page views) for the public game only. Teacher and classroom pages are never
+// counted, since students may be minors; query strings and hashes are dropped so auth tokens never leave the page.
+if (import.meta.env.PROD && !CLASS_ROUTE.test(window.location.pathname)) {
+  injectAnalytics({
+    mode: 'production',
+    beforeSend: (e) => {
+      const u = new URL(e.url);
+      if (CLASS_ROUTE.test(u.pathname) || viewportEl.dataset.class) return null;
+      return { ...e, url: u.origin + u.pathname };
+    },
+  });
+}
 
 // PWA: offline-capable shell (production only, so dev and tests are unaffected)
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
